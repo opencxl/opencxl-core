@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from asyncio import sleep
+import asyncio
 from dataclasses import dataclass, field
 from typing import Optional, List, cast
 
@@ -164,11 +164,18 @@ class CxlRootPortDevice(RunnableComponent):
         downstream_connection: CxlConnection,
         secondary_bus: int = 1,
         label: Optional[str] = None,
+        test_mode: bool = False,
     ):
         super().__init__(label)
         self._downstream_connection = downstream_connection
         self._secondary_bus = secondary_bus
         self._continue = True
+        self._test_mode = test_mode
+        self._run_fut = None
+
+        # set default HPA base address using port index
+        self._cxl_hpa_base = 0x100000000000 | (int(label[-1]) << 40)
+        self._used_hpa_size = 0
 
     async def set_secondary_bus(self, bdf: int, secondary_bus: int):
         bdf_string = bdf_to_string(bdf)
@@ -391,31 +398,34 @@ class CxlRootPortDevice(RunnableComponent):
             raise Exception("Failed to read memory limit")
         return data
 
-    async def read_cxl_mem(self, address: int, verbose: bool = True) -> int:
-        message = self._create_message(f"CXL.mem: Reading data from 0x{address:08x}")
-        if verbose:
-            logger.info(message)
-        else:
-            logger.debug(message)
+    async def cxl_mem_read(self, address: int) -> int:
+        logger.info(self._create_message(f"CXL.mem Read: HPA addr:0x{address:08x}"))
         packet = CxlMemMemRdPacket.create(address)
         await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
-        packet = await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
+        try:
+            async with asyncio.timeout(3):
+                packet = await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
+            assert is_cxl_mem_data(packet)
+            mem_data_packet = cast(CxlMemMemDataPacket, packet)
+            return mem_data_packet.data
+        except asyncio.exceptions.TimeoutError:
+            logger.error(self._create_message("CXL.mem Read: Timed-out"))
+            return None
 
-        assert is_cxl_mem_data(packet)
-        mem_data_packet = cast(CxlMemMemDataPacket, packet)
-        return mem_data_packet.data
-
-    async def write_cxl_mem(self, address: int, data: int, verbose: bool = True):
-        message = self._create_message(f"CXL.mem: Writing 0x{data:08x} to 0x{address:08x}")
-        if verbose:
-            logger.info(message)
-        else:
-            logger.debug(message)
+    async def cxl_mem_write(self, address: int, data: int) -> int:
+        logger.info(
+            self._create_message(f"CXL.mem Write: HPA addr:0x{address:08x} data:0x{data:08x}")
+        )
         packet = CxlMemMemWrPacket.create(address, data)
         await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
-        packet = await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
-
-        assert is_cxl_mem_completion(packet)
+        try:
+            async with asyncio.timeout(3):
+                packet = await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
+            assert is_cxl_mem_completion(packet)
+            return address - self._cxl_hpa_base
+        except asyncio.exceptions.TimeoutError:
+            logger.error(self._create_message("CXL.mem Write: Timed-out"))
+            return None
 
     async def check_bar_size_and_set(
         self,
@@ -943,7 +953,7 @@ class CxlRootPortDevice(RunnableComponent):
 
     async def get_hdm_decoder_count(self, info: DeviceEnumerationInfo) -> int:
         if info.component_registers.hdm_decoder == 0:
-            logger.warning("[PyTest] HDM Decoder offset not found")
+            logger.warning("HDM Decoder offset not found")
             return 0
 
         decoder_counter_map = [1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32]
@@ -974,18 +984,18 @@ class CxlRootPortDevice(RunnableComponent):
     async def configure_hdm_decoder_single_device(
         self, usp: DeviceEnumerationInfo, cxl_hpa_base: int
     ):
-        used_hpa_size = 0
+        self._used_hpa_size = 0
         cxl_devices = usp.get_all_cxl_devices()
-        logger.info(f"[PyTest] Found {len(cxl_devices)} CXL devices")
+        logger.info(self._create_message(f"Found {len(cxl_devices)} CXL devices"))
         for cxl_device in cxl_devices:
-            logger.info(f"[PyTest] CXL device at {bdf_to_string(cxl_device.bdf)}")
+            logger.info(self._create_message(f"CXL device at {bdf_to_string(cxl_device.bdf)}"))
             decoder_count = await self.get_hdm_decoder_count(cxl_device)
-            logger.info(f"[PyTest] Number of HDM decoders: {decoder_count}")
+            logger.info(self._create_message(f"Number of HDM decoders: {decoder_count}"))
             decoder_index = await self.get_next_available_decoder_index(cxl_device)
             if decoder_index is None:
                 continue
 
-            hpa_base = cxl_hpa_base + used_hpa_size
+            hpa_base = cxl_hpa_base + self._used_hpa_size
             hpa_size = cxl_device.cxl_device_size
 
             await self.configure_hdm_decoder_device(cxl_device, decoder_index, hpa_base, hpa_size)
@@ -993,7 +1003,7 @@ class CxlRootPortDevice(RunnableComponent):
             if cxl_device.parent is None:
                 continue
             port_number = cxl_device.get_port_number()
-            logger.info(f"[PyTest] Port Number: {port_number}")
+            logger.info(self._create_message(f"Port Number: {port_number}"))
 
             decoder_index = await self.get_next_available_decoder_index(usp)
             if decoder_index is None:
@@ -1002,16 +1012,31 @@ class CxlRootPortDevice(RunnableComponent):
             await self.configure_hdm_decoder_switch(
                 usp, decoder_index, hpa_base, hpa_size, target_list=[port_number]
             )
+            self._used_hpa_size += hpa_size
 
-            used_hpa_size += hpa_size
+    async def init(self, hpa_base: int):
+        if self._test_mode:
+            return
+        memory_base_address = 0xFE000000
+        self._cxl_hpa_base = hpa_base
+        await self.enumerate(memory_base_address)
+        enum_info = await self.scan_devices()
+        usp = enum_info.devices[0]
+        await self.enable_hdm_decoder(usp)
+        await self.configure_hdm_decoder_single_device(usp, hpa_base)
+
+    def get_hpa_base(self) -> int:
+        return self._cxl_hpa_base
+
+    def get_used_hpa_size(self) -> int:
+        return self._used_hpa_size
 
     async def _run(self):
-        memory_base_address = 0xFE000000
-        await self.enumerate(memory_base_address)
+        self._run_fut = asyncio.Future()
+        await self.init(self._cxl_hpa_base)
         await self._change_status_to_running()
-        while self._continue:
-            logger.info(self._create_message("Waiting for a new action"))
-            await sleep(10000)
+        logger.info(self._create_message("Waiting for a new action"))
+        await self._run_fut
 
     async def _stop(self):
-        self._continue = False
+        self._run_fut.set_result(0)

@@ -32,18 +32,9 @@ def sld_group():
     pass
 
 
-@sld_group.command(name="start-group")
-@click.argument("config", type=click.Path(exists=True))
-def start_group(config):
-    logger.create_log_file(
-        "logs/sld_port_group.log",
-        loglevel="DEBUG",
-        show_timestamp=True,
-        show_loglevel=True,
-        show_linenumber=False,
-    )
-
-    cxl_env = parse_cxl_environment(config)
+def start_group(config_file):
+    logger.info(f"Starting CXL Single Logical Device Group - Config: {config_file}")
+    cxl_env = parse_cxl_environment(config_file)
     clients = []
     for device_config in cxl_env.single_logical_device_configs:
         client = SingleLogicalDeviceClient(
@@ -63,13 +54,6 @@ def start_group(config):
 @click.option("--memsize", type=str, default="256M", help="Memory file size.")
 def start(port, memfile, memsize):
     logger.info(f"Starting CXL Single Logical Device at port {port}")
-    logger.create_log_file(
-        f"logs/sld_port{port}.log",
-        loglevel="DEBUG",
-        show_timestamp=True,
-        show_loglevel=True,
-        show_linenumber=False,
-    )
     if memfile is None:
         memfile = f"mem{port}.bin"
     memsize = humanfriendly.parse_size(memsize, binary=True)

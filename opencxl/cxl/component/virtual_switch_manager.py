@@ -64,11 +64,15 @@ class VirtualSwitchManager(RunnableComponent):
         return total_bound_vppbs
 
     async def _run(self):
-        tasks = []
+        run_tasks = []
         for virtual_switch in self._virtual_switches:
-            tasks.append(create_task(virtual_switch.run()))
+            run_tasks.append(create_task(virtual_switch.run()))
+        wait_tasks = []
+        for virtual_switch in self._virtual_switches:
+            wait_tasks.append(create_task(virtual_switch.wait_for_ready()))
+        await gather(*wait_tasks)
         await self._change_status_to_running()
-        await gather(*tasks)
+        await gather(*run_tasks)
 
     async def _stop(self):
         tasks = []

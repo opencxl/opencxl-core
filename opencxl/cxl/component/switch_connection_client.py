@@ -29,7 +29,7 @@ class INJECTED_ERRORS(Enum):
     NON_CONNNECTION_REQUEST = auto()
 
 
-class ConnectionClient(RunnableComponent):
+class SwitchConnectionClient(RunnableComponent):
     def __init__(
         self,
         port_index: int,

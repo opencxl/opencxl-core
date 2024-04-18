@@ -48,9 +48,7 @@ async def test_single_logical_device_enumeration():
     memory_size = 256 * MB
     memory_file = "mem.bin"
     transport_connection = CxlConnection()
-    root_port_device = CxlRootPortDevice(
-        downstream_connection=transport_connection, label="PyTest"
-    )
+    root_port_device = CxlRootPortDevice(downstream_connection=transport_connection, label="Port0")
     device = SingleLogicalDevice(
         transport_connection, memory_size=memory_size, memory_file=memory_file
     )

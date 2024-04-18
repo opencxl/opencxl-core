@@ -13,8 +13,8 @@ from opencxl.cxl.component.switch_connection_manager import (
     SwitchConnectionManager,
     CxlConnection,
 )
-from opencxl.cxl.component.connection_client import (
-    ConnectionClient,
+from opencxl.cxl.component.switch_connection_client import (
+    SwitchConnectionClient,
     INJECTED_ERRORS,
 )
 from opencxl.cxl.component.cxl_component import (
@@ -122,7 +122,7 @@ async def test_switch_connection_manager_handle_connection():
     ]
     port = BASE_TEST_PORT + pytest.PORT.TEST_5
     manager = SwitchConnectionManager(port_configs, port=port)
-    client = ConnectionClient(
+    client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
     )
 
@@ -133,15 +133,15 @@ async def test_switch_connection_manager_handle_connection():
     async def wait_and_connect():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
-        logger.info("[PyTest] Starting ConnectionClient")
+        logger.info("[PyTest] Starting SwitchConnectionClient")
         await client.run()
 
     async def stop():
         await client.wait_for_ready()
-        logger.info("[PyTest] ConnectionClient is ready")
+        logger.info("[PyTest] SwitchConnectionClient is ready")
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()
-        logger.info("[PyTest] Stopping ConnectionClient")
+        logger.info("[PyTest] Stopping SwitchConnectionClient")
         await client.stop()
 
     tasks = [
@@ -162,7 +162,7 @@ async def test_switch_connection_manager_handle_connection_oob():
     ]
     port = BASE_TEST_PORT + pytest.PORT.TEST_6
     manager = SwitchConnectionManager(port_configs, port=port)
-    client = ConnectionClient(
+    client = SwitchConnectionClient(
         port_index=4, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
     )
 
@@ -173,7 +173,7 @@ async def test_switch_connection_manager_handle_connection_oob():
     async def wait_and_connect():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
-        logger.info("[PyTest] Starting ConnectionClient")
+        logger.info("[PyTest] Starting SwitchConnectionClient")
         with pytest.raises(Exception, match="Connection rejected"):
             await client.run()
         await manager.stop()
@@ -197,7 +197,7 @@ async def test_switch_connection_manager_handle_connection_after_connection():
     ]
     port = BASE_TEST_PORT + pytest.PORT.TEST_7
     manager = SwitchConnectionManager(port_configs, port=port)
-    client = ConnectionClient(
+    client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
     )
 
@@ -208,17 +208,17 @@ async def test_switch_connection_manager_handle_connection_after_connection():
     async def wait_and_connect():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
-        logger.info("[PyTest] Starting ConnectionClient")
+        logger.info("[PyTest] Starting SwitchConnectionClient")
         await client.run()
 
     async def stop():
         await client.wait_for_ready()
-        logger.info("[PyTest] ConnectionClient is ready")
+        logger.info("[PyTest] SwitchConnectionClient is ready")
         with pytest.raises(Exception, match="Connection rejected"):
             await client._connect()
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()
-        logger.info("[PyTest] Stopping ConnectionClient")
+        logger.info("[PyTest] Stopping SwitchConnectionClient")
         await client.stop()
 
     tasks = [
@@ -240,7 +240,7 @@ async def test_switch_connection_manager_handle_connection_errors():
     ]
     port = BASE_TEST_PORT + pytest.PORT.TEST_8
     manager = SwitchConnectionManager(port_configs, port=port)
-    client = ConnectionClient(
+    client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
     )
 
@@ -251,7 +251,7 @@ async def test_switch_connection_manager_handle_connection_errors():
     async def wait_and_connect():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
-        logger.info("[PyTest] Starting ConnectionClient")
+        logger.info("[PyTest] Starting SwitchConnectionClient")
         await client.run()
 
     async def wait_and_connect():
@@ -278,7 +278,7 @@ async def test_switch_connection_manager_handle_cfg_packet():
     ]
     port = BASE_TEST_PORT + pytest.PORT.TEST_9
     manager = SwitchConnectionManager(port_configs, port=port)
-    client = ConnectionClient(
+    client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
     )
 
@@ -289,12 +289,12 @@ async def test_switch_connection_manager_handle_cfg_packet():
     async def wait_and_connect():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
-        logger.info("[PyTest] Starting ConnectionClient")
+        logger.info("[PyTest] Starting SwitchConnectionClient")
         await client.run()
 
     async def send_packets_and_stop():
         await client.wait_for_ready()
-        logger.info("[PyTest] ConnectionClient is ready")
+        logger.info("[PyTest] SwitchConnectionClient is ready")
         logger.info("[PyTest] Sending config space request packets from client")
         client_connection = client.get_cxl_connection()
         packet = CxlIoCfgWrPacket.create(create_bdf(0, 0, 0), 0x10, 4, 0xDEADBEEF)
@@ -309,7 +309,7 @@ async def test_switch_connection_manager_handle_cfg_packet():
 
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()
-        logger.info("[PyTest] Stopping ConnectionClient")
+        logger.info("[PyTest] Stopping SwitchConnectionClient")
         await client.stop()
 
     tasks = [
@@ -330,7 +330,7 @@ async def test_switch_connection_manager_handle_mmio_packet():
     ]
     port = BASE_TEST_PORT + pytest.PORT.TEST_10
     manager = SwitchConnectionManager(port_configs, port=port)
-    client = ConnectionClient(
+    client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
     )
 
@@ -341,12 +341,12 @@ async def test_switch_connection_manager_handle_mmio_packet():
     async def wait_and_connect():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
-        logger.info("[PyTest] Starting ConnectionClient")
+        logger.info("[PyTest] Starting SwitchConnectionClient")
         await client.run()
 
     async def send_packets_and_stop():
         await client.wait_for_ready()
-        logger.info("[PyTest] ConnectionClient is ready")
+        logger.info("[PyTest] SwitchConnectionClient is ready")
         logger.info("[PyTest] Sending MMIO request packets from client")
         client_connection = client.get_cxl_connection()
         packet = CxlIoMemWrPacket.create(0, 4, 0)
@@ -361,7 +361,7 @@ async def test_switch_connection_manager_handle_mmio_packet():
 
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()
-        logger.info("[PyTest] Stopping ConnectionClient")
+        logger.info("[PyTest] Stopping SwitchConnectionClient")
         await client.stop()
 
     tasks = [
@@ -382,7 +382,7 @@ async def test_switch_connection_manager_handle_cxl_mem_packet():
     ]
     port = BASE_TEST_PORT + pytest.PORT.TEST_11
     manager = SwitchConnectionManager(port_configs, port=port)
-    client = ConnectionClient(
+    client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
     )
 
@@ -393,12 +393,12 @@ async def test_switch_connection_manager_handle_cxl_mem_packet():
     async def wait_and_connect():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
-        logger.info("[PyTest] Starting ConnectionClient")
+        logger.info("[PyTest] Starting SwitchConnectionClient")
         await client.run()
 
     async def send_packets_and_stop():
         await client.wait_for_ready()
-        logger.info("[PyTest] ConnectionClient is ready")
+        logger.info("[PyTest] SwitchConnectionClient is ready")
         logger.info("[PyTest] Sending CXL.mem request packets from client")
         client_connection = client.get_cxl_connection()
         packet = CxlMemMemWrPacket.create(0x80, 0xDEADBEEF)
@@ -412,7 +412,7 @@ async def test_switch_connection_manager_handle_cxl_mem_packet():
 
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()
-        logger.info("[PyTest] Stopping ConnectionClient")
+        logger.info("[PyTest] Stopping SwitchConnectionClient")
         await client.stop()
 
     tasks = [
@@ -433,7 +433,7 @@ async def test_switch_connection_manager_handle_cfg_completion():
     ]
     port = BASE_TEST_PORT + pytest.PORT.TEST_12
     manager = SwitchConnectionManager(port_configs, port=port)
-    client = ConnectionClient(
+    client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
     )
 
@@ -444,12 +444,12 @@ async def test_switch_connection_manager_handle_cfg_completion():
     async def wait_and_connect():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
-        logger.info("[PyTest] Starting ConnectionClient")
+        logger.info("[PyTest] Starting SwitchConnectionClient")
         await client.run()
 
     async def send_packets_and_stop():
         await client.wait_for_ready()
-        logger.info("[PyTest] ConnectionClient is ready")
+        logger.info("[PyTest] SwitchConnectionClient is ready")
         logger.info("[PyTest] Sending config space completion packets from server")
         server_connection = manager.get_cxl_connection(0)
         client_connection = client.get_cxl_connection()
@@ -477,7 +477,7 @@ async def test_switch_connection_manager_handle_cfg_completion():
 
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()
-        logger.info("[PyTest] Stopping ConnectionClient")
+        logger.info("[PyTest] Stopping SwitchConnectionClient")
         await client.stop()
 
     tasks = [
@@ -498,7 +498,7 @@ async def test_switch_connection_manager_handle_mmio_completion():
     ]
     port = BASE_TEST_PORT + pytest.PORT.TEST_13
     manager = SwitchConnectionManager(port_configs, port=port)
-    client = ConnectionClient(
+    client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
     )
 
@@ -509,12 +509,12 @@ async def test_switch_connection_manager_handle_mmio_completion():
     async def wait_and_connect():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
-        logger.info("[PyTest] Starting ConnectionClient")
+        logger.info("[PyTest] Starting SwitchConnectionClient")
         await client.run()
 
     async def send_packets_and_stop():
         await client.wait_for_ready()
-        logger.info("[PyTest] ConnectionClient is ready")
+        logger.info("[PyTest] SwitchConnectionClient is ready")
         logger.info("[PyTest] Sending MMIO completion packets from server")
         server_connection = manager.get_cxl_connection(0)
         client_connection = client.get_cxl_connection()
@@ -543,7 +543,7 @@ async def test_switch_connection_manager_handle_mmio_completion():
 
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()
-        logger.info("[PyTest] Stopping ConnectionClient")
+        logger.info("[PyTest] Stopping SwitchConnectionClient")
         await client.stop()
 
     tasks = [
@@ -564,7 +564,7 @@ async def test_switch_connection_manager_handle_cxl_mem_completion():
     ]
     port = BASE_TEST_PORT + pytest.PORT.TEST_14
     manager = SwitchConnectionManager(port_configs, port=port)
-    client = ConnectionClient(
+    client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
     )
 
@@ -575,12 +575,12 @@ async def test_switch_connection_manager_handle_cxl_mem_completion():
     async def wait_and_connect():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
-        logger.info("[PyTest] Starting ConnectionClient")
+        logger.info("[PyTest] Starting SwitchConnectionClient")
         await client.run()
 
     async def send_packets_and_stop():
         await client.wait_for_ready()
-        logger.info("[PyTest] ConnectionClient is ready")
+        logger.info("[PyTest] SwitchConnectionClient is ready")
         logger.info("[PyTest] Sending CXL.mem completion packets from server")
         server_connection = manager.get_cxl_connection(0)
         sent_packet1 = CxlMemMemDataPacket.create(0xDEADBEEF)
@@ -597,7 +597,7 @@ async def test_switch_connection_manager_handle_cxl_mem_completion():
 
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()
-        logger.info("[PyTest] Stopping ConnectionClient")
+        logger.info("[PyTest] Stopping SwitchConnectionClient")
         await client.stop()
 
     tasks = [

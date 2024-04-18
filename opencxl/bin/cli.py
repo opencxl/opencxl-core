@@ -15,7 +15,8 @@ from opencxl.util.logger import logger
 from opencxl.bin import fabric_manager
 from opencxl.bin import cxl_switch
 from opencxl.bin import single_logical_device as sld
-from opencxl.bin import host
+from opencxl.bin import cxl_host
+from opencxl.bin import mem
 
 
 @click.group()
@@ -88,7 +89,7 @@ def start(
 
     if log_file:
         logger.create_log_file(
-            f"{log_file}",
+            f"logs/{log_file}",
             loglevel=log_level if log_level else "INFO",
             show_timestamp=show_timestamp,
             show_loglevel=show_loglevel,
@@ -113,22 +114,26 @@ def start(
         t_switch.start()
 
     if "sld" in comp:
-        t_host = threading.Thread(target=start_sld, args=(ctx,))
-        threads.append(t_host)
+        t_sld = threading.Thread(target=start_sld, args=(ctx,))
+        threads.append(t_sld)
         t_host.start()
     if "sld-group" in comp:
         t_sgroup = threading.Thread(target=start_sld_group, args=(ctx, config_file))
         threads.append(t_sgroup)
         t_sgroup.start()
 
-    if "host" in comp:
-        t_host = threading.Thread(target=start_host, args=(ctx,))
-        threads.append(t_host)
-        t_host.start()
-    elif "host-group" in comp:
-        t_hgroup = threading.Thread(target=start_host_group, args=(ctx, config_file))
-        threads.append(t_hgroup)
-        t_hgroup.start()
+    if "host" in comp or "host-group" in comp:
+        t_hm = threading.Thread(target=start_host_manager, args=(ctx,))
+        threads.append(t_hm)
+        t_hm.start()
+        if "host" in comp:
+            t_host = threading.Thread(target=start_host, args=(ctx,))
+            threads.append(t_host)
+            t_host.start()
+        elif "host-group" in comp:
+            t_hgroup = threading.Thread(target=start_host_group, args=(ctx, config_file))
+            threads.append(t_hgroup)
+            t_hgroup.start()
 
 
 # helper functions
@@ -137,12 +142,12 @@ def start_capture(ctx, pcap_file):
         from pylibpcap.pcap import Sniff, wpcap
         from pylibpcap.exception import LibpcapError
 
-        logging.info(f"Capturing in pid: {os.getpid()}")
+        logger.info(f"Capturing in pid: {os.getpid()}")
         if os.path.exists(pcap_file):
             os.remove(pcap_file)
 
         filter_str = (
-            "((tcp port 8000) or (tcp port 8100) or (tcp port 8200))"
+            "((tcp port 8000) or (tcp port 8100) or (tcp port 8200) or (tcp port 8300) or (tcp port 8400))"
             + " and (((ip[2:2] - ((ip[0] & 0xf) << 2)) - ((tcp[12] & 0xf0) >> 2)) != 0)"
         )
         try:
@@ -166,34 +171,32 @@ def start_capture(ctx, pcap_file):
     ctx.invoke(capture, pcap_file=pcap_file)
 
 
+def start_host_manager(ctx):
+    ctx.invoke(cxl_host.start_host_manager)
+
+
 def start_fabric_manager(ctx):
-    logger.info(f"Starting fabric manager in thread id: 0x{threading.get_ident():x}")
     ctx.invoke(fabric_manager.start)
 
 
 def start_switch(ctx, config_file):
-    logger.info(f"Starting cxl-switch in thread id: 0x{threading.get_ident():x}")
     ctx.invoke(cxl_switch.start, config_file=config_file)
 
 
 def start_host(ctx):
-    logger.info(f"Starting host in thread id: 0x{threading.get_ident():x}")
-    ctx.invoke(host.start)
+    ctx.invoke(cxl_host.start)
 
 
 def start_host_group(ctx, config_file):
-    logger.info(f"Starting host_group in thread id: 0x{threading.get_ident():x}")
-    ctx.invoke(host.start_group, config_file=config_file)
+    ctx.invoke(cxl_host.start_group, config_file=config_file)
 
 
 def start_sld(ctx, config_file):
-    logger.info(f"Starting sld_group in thread id: 0x{threading.get_ident():x}")
-    ctx.invoke(sld.start, config=config_file)
+    ctx.invoke(sld.start, config_file=config_file)
 
 
 def start_sld_group(ctx, config_file):
-    logger.info(f"Starting sld_group in thread id: 0x{threading.get_ident():x}")
-    ctx.invoke(sld.start_group, config=config_file)
+    ctx.invoke(sld.start_group, config_file=config_file)
 
 
 @cli.command(name="stop")
@@ -201,6 +204,9 @@ def foo():
     """Stop components"""
     pass
 
+
+cli.add_command(cxl_host.host_group)
+cli.add_command(mem.mem_group)
 
 if __name__ == "__main__":
     cli()
