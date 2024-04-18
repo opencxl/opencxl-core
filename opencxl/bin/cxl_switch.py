@@ -23,19 +23,11 @@ def switch_group():
 @click.argument("config_file", type=click.Path(exists=True))
 def start(config_file):
     """Run the CXL Switch with the given configuration file."""
-    logger.info("Starting CXL Switch with configuration file: %s", config_file)
-    logger.create_log_file(
-        "logs/cxl_switch.log",
-        loglevel="DEBUG",
-        show_timestamp=True,
-        show_loglevel=True,
-        show_linenumber=False,
-    )
-
+    logger.info(f"Starting CXL Switch - Config: {config_file}")
     try:
         environment: CxlEnvironment = parse_cxl_environment(config_file)
     except ValueError as e:
-        logger.error("Configuration error: %s", e)
+        logger.error(f"Configuration error: {e}")
         return
 
     switch = CxlSwitch(environment.switch_config, environment.single_logical_device_configs)

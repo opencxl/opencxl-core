@@ -3,6 +3,7 @@ CONFIG ?= 1vcs_4sld.yaml
 
 test:
 	poetry run pytest --cov --cov-report=term-missing -n $$(nproc)
+	rm -f mem*.bin
 
 lint:
 	poetry run pylint opencxl

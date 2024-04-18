@@ -4,6 +4,7 @@
  This software is licensed under the terms of the Revised BSD License.
  See LICENSE for details.
 """
+
 import logging
 import datetime
 import sys
@@ -94,11 +95,13 @@ class MyLogger(logging.getLoggerClass()):
     def hexdump(self, loglevel, data, *args, **kwargs):
         addr = 0
         num_lines = (len(data) // 0x10) + 1
-        for i in range(num_lines):
+        for _ in range(num_lines):
             d = data[addr : addr + 0x10]
+            if not d:
+                return
             # non-printable ascii values to '.'
             data_ascii = "".join([chr(b) if (b > 32 and b < 128) else "." for b in d])
-            data_bytes = d.hex(sep=" ")
+            data_bytes = " ".join(f"{i:02x}" for i in d)
             line = f"{addr:08x}:  {data_bytes:47}  |{data_ascii:16}|"
             self._log(self._name_to_level[loglevel], line, args, **kwargs)
             addr += 0x10
@@ -110,4 +113,4 @@ TRACE = logging.DEBUG - 5
 logger.add_log_level("TRACE", TRACE)
 
 now = datetime.datetime.now()
-logger.info(f"Starting at: {now}")
+logger.info(f"Starting Timestamp: {now}")

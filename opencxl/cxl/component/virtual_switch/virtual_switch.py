@@ -152,15 +152,22 @@ class CxlVirtualSwitch(RunnableComponent):
 
     async def _run(self):
         await self._bind_initial_vppb()
-        tasks = [
+        run_tasks = [
             create_task(self._start_dummy_devices()),
             create_task(self._config_space_router.run()),
             create_task(self._mmio_router.run()),
             create_task(self._cxl_mem_router.run()),
             create_task(self._port_binder.run()),
         ]
+        wait_tasks = [
+            create_task(self._config_space_router.wait_for_ready()),
+            create_task(self._mmio_router.wait_for_ready()),
+            create_task(self._cxl_mem_router.wait_for_ready()),
+            create_task(self._port_binder.wait_for_ready()),
+        ]
+        await gather(*wait_tasks)
         await self._change_status_to_running()
-        await gather(*tasks)
+        await gather(*run_tasks)
 
     async def _stop(self):
         tasks = [

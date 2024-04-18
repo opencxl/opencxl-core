@@ -1013,8 +1013,8 @@ class CxlMemMemRdPacket(CxlMemM2SReqPacket):
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_REQ
         packet.m2sreq_header.valid = 0b1
         packet.m2sreq_header.mem_opcode = CXL_MEM_M2SREQ_OPCODE.MEM_RD
-        if addr % 64:
-            raise Exception("addr must be a multiple of 64.")
+        if addr % 0x40:
+            raise Exception("Address must be a multiple of 0x40")
         packet.m2sreq_header.addr = addr >> 6
         return packet
 
@@ -1028,8 +1028,8 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_RWD
         packet.m2srwd_header.valid = 0b1
         packet.m2srwd_header.mem_opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR
-        if addr % 64:
-            raise Exception("addr must be a multiple of 64.")
+        if addr % 0x40:
+            raise Exception("Address must be a multiple of 0x40")
         packet.m2srwd_header.addr = addr >> 6
         packet.data = data
         return packet

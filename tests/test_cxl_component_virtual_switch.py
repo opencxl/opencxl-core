@@ -59,7 +59,9 @@ def create_vcs_and_rp() -> Tuple[CxlVirtualSwitch, List[CxlPortDevice], CxlRootP
     vppb_counts = 3
     initial_bounds = [-1, -1, -1]
     usp_transport = CxlConnection()
-    root_port_device = CxlRootPortDevice(downstream_connection=usp_transport, label="PyTest")
+    root_port_device = CxlRootPortDevice(
+        downstream_connection=usp_transport, label=f"Port{upstream_port_index}"
+    )
     usp_device = UpstreamPortDevice(transport_connection=usp_transport, port_index=0)
     dsp_devices = [
         DownstreamPortDevice(transport_connection=CxlConnection(), port_index=1),
@@ -434,7 +436,9 @@ async def test_virtual_switch_manager_test_bind_and_unbind():
     vppb_counts = 3
     initial_bounds = [-1, -1, -1]
     usp_transport = CxlConnection()
-    root_port_device = CxlRootPortDevice(downstream_connection=usp_transport, label="PyTest")
+    root_port_device = CxlRootPortDevice(
+        downstream_connection=usp_transport, label=f"Port{upstream_port_index}"
+    )
     usp_device = UpstreamPortDevice(transport_connection=usp_transport, port_index=0)
     dsp_devices = []
     cxl_devices = []
@@ -534,7 +538,9 @@ async def test_virtual_switch_manager_test_cxl_mem():
     vppb_counts = 3
     initial_bounds = [-1, -1, -1]
     usp_transport = CxlConnection()
-    root_port_device = CxlRootPortDevice(downstream_connection=usp_transport, label="PyTest")
+    root_port_device = CxlRootPortDevice(
+        downstream_connection=usp_transport, label=f"Port{upstream_port_index}"
+    )
     usp_device = UpstreamPortDevice(transport_connection=usp_transport, port_index=0)
     dsp_devices = []
     cxl_devices = []
@@ -604,8 +610,8 @@ async def test_virtual_switch_manager_test_cxl_mem():
             cxl_devices = usp.get_all_cxl_devices()
             test_address = cxl_hpa_base
             for cxl_device in cxl_devices:
-                await root_port_device.write_cxl_mem(test_address, 0xDEADBEEF)
-                data = await root_port_device.read_cxl_mem(test_address)
+                await root_port_device.cxl_mem_write(test_address, 0xDEADBEEF)
+                data = await root_port_device.cxl_mem_read(test_address)
                 logger.info(f"[PyTest] CXL.mem Read: 0x{data:x} from 0x{test_address:x}")
                 test_address += cxl_device.cxl_device_size
 
