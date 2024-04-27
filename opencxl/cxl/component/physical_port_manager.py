@@ -109,11 +109,14 @@ class PhysicalPortManager(RunnableComponent):
         return connected_devices
 
     async def _run(self):
-        tasks = []
+        run_tasks = []
+        wait_tasks = []
         for port_device in self._port_devices:
-            tasks.append(create_task(port_device.run()))
+            run_tasks.append(create_task(port_device.run()))
+            wait_tasks.append(create_task(port_device.wait_for_ready()))
+        await gather(*wait_tasks)
         await self._change_status_to_running()
-        await gather(*tasks)
+        await gather(*run_tasks)
 
     async def _stop(self):
         tasks = []

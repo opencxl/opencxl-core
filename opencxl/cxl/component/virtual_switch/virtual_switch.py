@@ -13,22 +13,12 @@ from typing import List, cast, Callable, Coroutine, Any
 from opencxl.util.logger import logger
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
-from opencxl.cxl.component.virtual_switch.port_binder import (
-    PortBinder,
-    BIND_STATUS,
-)
-from opencxl.cxl.component.virtual_switch.routers import (
-    CxlMemRouter,
-    ConfigSpaceRouter,
-    MmioRouter,
-)
+from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BIND_STATUS
+from opencxl.cxl.component.virtual_switch.routers import CxlMemRouter, CxlIoRouter
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.device.port_device import CxlPortDevice
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
-from opencxl.cxl.device.downstream_port_device import (
-    DownstreamPortDevice,
-    DummyConfig,
-)
+from opencxl.cxl.device.downstream_port_device import DownstreamPortDevice, DummyConfig
 from opencxl.pci.device.pci_device import PciDevice
 from opencxl.util.component import RunnableComponent
 
@@ -113,10 +103,7 @@ class CxlVirtualSwitch(RunnableComponent):
         self._port_binder = PortBinder(self._id, self._vppb_connections)
 
         # NOTE: Make Routers
-        self._config_space_router = ConfigSpaceRouter(
-            self._id, self._routing_table, self._usp_connection, self._vppb_connections
-        )
-        self._mmio_router = MmioRouter(
+        self._cxl_io_router = CxlIoRouter(
             self._id, self._routing_table, self._usp_connection, self._vppb_connections
         )
         self._cxl_mem_router = CxlMemRouter(
@@ -154,14 +141,12 @@ class CxlVirtualSwitch(RunnableComponent):
         await self._bind_initial_vppb()
         run_tasks = [
             create_task(self._start_dummy_devices()),
-            create_task(self._config_space_router.run()),
-            create_task(self._mmio_router.run()),
+            create_task(self._cxl_io_router.run()),
             create_task(self._cxl_mem_router.run()),
             create_task(self._port_binder.run()),
         ]
         wait_tasks = [
-            create_task(self._config_space_router.wait_for_ready()),
-            create_task(self._mmio_router.wait_for_ready()),
+            create_task(self._cxl_io_router.wait_for_ready()),
             create_task(self._cxl_mem_router.wait_for_ready()),
             create_task(self._port_binder.wait_for_ready()),
         ]
@@ -172,8 +157,7 @@ class CxlVirtualSwitch(RunnableComponent):
     async def _stop(self):
         tasks = [
             create_task(self._stop_dummy_devices()),
-            create_task(self._config_space_router.stop()),
-            create_task(self._mmio_router.stop()),
+            create_task(self._cxl_io_router.stop()),
             create_task(self._cxl_mem_router.stop()),
             create_task(self._port_binder.stop()),
         ]
