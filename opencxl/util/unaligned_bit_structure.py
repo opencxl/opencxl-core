@@ -128,8 +128,12 @@ class ShareableByteArray:
         return bytes(self._data[self.offset : self.offset + self.size])
 
     def reset(self, data: Optional[bytearray] = None):
-        for index in range(self.offset, self.offset + self.size):
-            self._data[index] = 0 if not data else data[index - self.offset]
+        start = self.offset
+        end = self.offset + self.size
+        if not data:
+            self._data[start:end] = bytearray(self.size)
+        else:
+            self._data[start:end] = data
 
     def get_hex_dump(self, line_length: int = 16):
         hex_string = " ".join(f"{byte:02x}" for byte in self._data)

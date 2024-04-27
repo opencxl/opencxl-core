@@ -8,10 +8,9 @@
 from asyncio import CancelledError, StreamReader, create_task
 from enum import Enum, auto
 import traceback
-from typing import Optional
+from typing import Optional, Tuple
 
 from opencxl.cxl.transport.transaction import (
-    UnalignedBitStructure,
     BasePacket,
     BaseSidebandPacket,
     SidebandConnectionRequestPacket,
@@ -74,25 +73,29 @@ class PacketReader(LabeledComponent):
             self._task.cancel()
 
     async def _get_packet_in_task(self) -> BasePacket:
-        base_packet = await self._get_base_packet()
+        base_packet, payload = await self._get_payload()
         if base_packet.is_cxl_io():
             logger.debug(self._create_message("Received Packet is CXL.io"))
-            return await self._get_cxl_io_packet(base_packet)
+            return self._get_cxl_io_packet(payload)
         if base_packet.is_cxl_mem():
             logger.debug(self._create_message("Received Packet is CXL.mem"))
-            return await self._get_cxl_mem_packet(base_packet)
+            return self._get_cxl_mem_packet(payload)
         if base_packet.is_sideband():
             logger.debug(self._create_message("Received Packet is sideband"))
-            return await self._get_sideband_packet(base_packet)
+            return self._get_sideband_packet(payload)
         raise Exception("Unsupported packet")
 
-    async def _get_base_packet(self) -> BasePacket:
-        logger.debug(self._create_message("Waiting for Base Packet"))
-        payload = await self._read_payload(BasePacket.get_size())
+    async def _get_payload(self) -> Tuple[BasePacket, bytes]:
+        logger.debug(self._create_message("Waiting Packet"))
+        header_load = await self._read_payload(BasePacket.get_size())
         base_packet = BasePacket()
-        base_packet.reset(payload)
-        logger.debug(self._create_message("Received Base Packet"))
-        return base_packet
+        base_packet.reset(header_load)
+        remaining_length = base_packet.system_header.payload_length - len(base_packet)
+        if remaining_length < 0:
+            raise Exception("remaining length is less than 0")
+        payload = bytes(base_packet) + await self._read_payload(remaining_length)
+        logger.debug(self._create_message("Received Packet"))
+        return base_packet, payload
 
     async def _read_payload(self, size: int) -> bytes:
         payload = await self._reader.read(size)
@@ -100,63 +103,33 @@ class PacketReader(LabeledComponent):
             raise Exception("Connection disconnected")
         return payload
 
-    async def _extend_packet(
-        self, base_packet: UnalignedBitStructure, new_packet: UnalignedBitStructure
-    ):
-        remaining_length = new_packet.get_size() - len(base_packet)
-        if len(base_packet) == len(new_packet):
-            new_packet.reset(bytes(base_packet))
-            return new_packet
-        if remaining_length < 0:
-            raise Exception("remaining length is less than 0")
-
-        payload = bytes(base_packet) + await self._read_payload(remaining_length)
-        new_packet.reset(payload)
-        return new_packet
-
-    async def _get_cxl_io_base_packet(self, base_packet: BasePacket) -> CxlIoBasePacket:
+    def _get_cxl_io_packet(self, payload: bytes) -> CxlIoBasePacket:
         cxl_io_base_packet = CxlIoBasePacket()
-        await self._extend_packet(base_packet, cxl_io_base_packet)
-        return cxl_io_base_packet
-
-    async def _get_cxl_io_packet(self, base_packet: BasePacket) -> CxlIoBasePacket:
-        cxl_io_base_packet = await self._get_cxl_io_base_packet(base_packet)
-
-        cxl_io_packet = None
+        header_size = len(cxl_io_base_packet.cxl_io_header) + BasePacket.get_size()
+        cxl_io_base_packet.reset(payload[:header_size])
         if cxl_io_base_packet.is_cfg_read():
             cxl_io_packet = CxlIoCfgRdPacket()
-            await self._extend_packet(cxl_io_base_packet, cxl_io_packet)
         elif cxl_io_base_packet.is_cfg_write():
             cxl_io_packet = CxlIoCfgWrPacket()
-            await self._extend_packet(cxl_io_base_packet, cxl_io_packet)
         elif cxl_io_base_packet.is_mem_read():
             cxl_io_packet = CxlIoMemRdPacket()
-            await self._extend_packet(cxl_io_base_packet, cxl_io_packet)
         elif cxl_io_base_packet.is_mem_write():
             cxl_io_packet = CxlIoMemWrPacket()
-            await self._extend_packet(cxl_io_base_packet, cxl_io_packet)
         elif cxl_io_base_packet.is_cpl():
             cxl_io_packet = CxlIoCompletionPacket()
-            await self._extend_packet(cxl_io_base_packet, cxl_io_packet)
         elif cxl_io_base_packet.is_cpld():
             cxl_io_packet = CxlIoCompletionWithDataPacket()
-            await self._extend_packet(cxl_io_base_packet, cxl_io_packet)
 
         if cxl_io_packet is None:
             protocol = cxl_io_base_packet.cxl_io_header.fmt_type
             raise Exception(f"Unsupported CXL.IO protocol {protocol}")
-
+        cxl_io_packet.reset(payload)
         return cxl_io_packet
 
-    async def _get_cxl_mem_base_packet(self, base_packet: BasePacket) -> CxlMemBasePacket:
+    def _get_cxl_mem_packet(self, payload: bytes) -> CxlMemBasePacket:
         cxl_mem_base_packet = CxlMemBasePacket()
-        await self._extend_packet(base_packet, cxl_mem_base_packet)
-        return cxl_mem_base_packet
-
-    async def _get_cxl_mem_packet(self, base_packet: BasePacket) -> CxlMemBasePacket:
-        cxl_mem_base_packet = await self._get_cxl_mem_base_packet(base_packet)
-
-        cxl_mem_packet = None
+        header_size = len(cxl_mem_base_packet.cxl_mem_header) + BasePacket.get_size()
+        cxl_mem_base_packet.reset(payload[:header_size])
         if cxl_mem_base_packet.is_m2sreq():
             cxl_mem_packet = CxlMemM2SReqPacket()
         elif cxl_mem_base_packet.is_m2srwd():
@@ -173,22 +146,16 @@ class PacketReader(LabeledComponent):
             msg_class = cxl_mem_base_packet.cxl_mem_header.msg_class
             raise Exception(f"Unsupported CXL.MEM message class: {msg_class}")
 
-        await self._extend_packet(cxl_mem_base_packet, cxl_mem_packet)
+        cxl_mem_packet.reset(payload)
         return cxl_mem_packet
 
-    async def _get_sideband_base_packet(self, base_packet: BasePacket) -> BaseSidebandPacket:
-        logger.debug(self._create_message("Waiting for remaining packets of BaseSidebandPacket"))
+    def _get_sideband_packet(self, payload: bytes) -> BaseSidebandPacket:
         base_sideband_packet = BaseSidebandPacket()
-        await self._extend_packet(base_packet, base_sideband_packet)
-        logger.debug(self._create_message("Received BaseSidebandPacket"))
-        return base_sideband_packet
-
-    async def _get_sideband_packet(self, base_packet: BasePacket) -> BaseSidebandPacket:
-        base_sideband_packet = await self._get_sideband_base_packet(base_packet)
-        sideband_packet = None
+        header_size = len(base_sideband_packet.sideband_header) + BasePacket.get_size()
+        base_sideband_packet.reset(payload[:header_size])
         if base_sideband_packet.is_connection_request():
             sideband_packet = SidebandConnectionRequestPacket()
-            await self._extend_packet(base_sideband_packet, sideband_packet)
+            sideband_packet.reset(payload)
         elif (
             base_sideband_packet.is_connection_accept()
             or base_sideband_packet.is_connection_reject()
