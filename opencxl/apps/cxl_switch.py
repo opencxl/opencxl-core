@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from asyncio import gather
+from asyncio import gather, create_task
 from dataclasses import dataclass, field
 from typing import List
 
@@ -48,6 +48,7 @@ from opencxl.cxl.cci.vendor_specfic import (
     GetConnectedDevicesCommand,
 )
 from opencxl.cxl.device.single_logical_device import SingleLogicalDeviceConfig
+from opencxl.util.component import RunnableComponent
 
 
 @dataclass
@@ -60,7 +61,7 @@ class CxlSwitchConfig:
     mctp_port: int = 8100
 
 
-class CxlSwitch:
+class CxlSwitch(RunnableComponent):
     # TODO: CE-35, device enumeration from DSP is not supported yet.
     # Passing device configs from an environment file to PhysicalPortManager
     # as a workaround.
@@ -69,6 +70,7 @@ class CxlSwitch:
         switch_config: CxlSwitchConfig,
         device_configs: List[SingleLogicalDeviceConfig],
     ):
+        super().__init__()
         self._switch_connection_manager = SwitchConnectionManager(
             switch_config.port_configs, switch_config.host, switch_config.port
         )
@@ -118,16 +120,31 @@ class CxlSwitch:
         self._switch_connection_manager.register_event_handler(handle_port_event)
         self._virtual_switch_manager.register_event_handler(handle_switch_event)
 
-    async def run(self):
-        tasks = [
-            self._switch_connection_manager.run(),
-            self._physical_port_manager.run(),
-            self._virtual_switch_manager.run(),
-            self._mctp_connection_client.run(),
-            self._mctp_cci_executor.run(),
+    async def _run(self):
+        run_tasks = [
+            create_task(self._switch_connection_manager.run()),
+            create_task(self._physical_port_manager.run()),
+            create_task(self._virtual_switch_manager.run()),
+            create_task(self._mctp_connection_client.run()),
+            create_task(self._mctp_cci_executor.run()),
         ]
-        await gather(*tasks)
+        wait_tasks = [
+            create_task(self._switch_connection_manager.wait_for_ready()),
+            create_task(self._physical_port_manager.wait_for_ready()),
+            create_task(self._virtual_switch_manager.wait_for_ready()),
+            create_task(self._mctp_connection_client.wait_for_ready()),
+            create_task(self._mctp_cci_executor.wait_for_ready()),
+        ]
+        await gather(*wait_tasks)
+        await self._change_status_to_running()
+        await gather(*run_tasks)
 
-    async def stop(self):
-        # NOTE: Check if stop is needed
-        pass
+    async def _stop(self):
+        stop_tasks = [
+            create_task(self._switch_connection_manager.stop()),
+            create_task(self._physical_port_manager.stop()),
+            create_task(self._virtual_switch_manager.stop()),
+            create_task(self._mctp_connection_client.stop()),
+            create_task(self._mctp_cci_executor.stop()),
+        ]
+        await gather(*stop_tasks)
