@@ -25,5 +25,10 @@ def test_downstream_port_device():
 async def test_downstream_port_device_run_stop():
     transport_connection = CxlConnection()
     device = DownstreamPortDevice(transport_connection=transport_connection, port_index=0)
-    tasks = [create_task(device.run()), create_task(device.stop())]
+
+    async def wait_and_stop():
+        await device.wait_for_ready()
+        await device.stop()
+
+    tasks = [create_task(device.run()), create_task(wait_and_stop())]
     await gather(*tasks)

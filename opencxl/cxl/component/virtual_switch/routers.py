@@ -68,6 +68,41 @@ class CxlRouter(RunnableComponent):
             await downstream_connection.target_to_host.put(None)
 
 
+class CxlIoRouter(RunnableComponent):
+    def __init__(
+        self,
+        vcs_id: int,
+        routing_table: RoutingTable,
+        usp_connection: CxlConnection,
+        vppb_connections: List[CxlConnection],
+    ):
+        super().__init__()
+        self._config_space_router = ConfigSpaceRouter(
+            vcs_id, routing_table, usp_connection, vppb_connections
+        )
+        self._mmio_router = MmioRouter(vcs_id, routing_table, usp_connection, vppb_connections)
+
+    async def _run(self):
+        run_tasks = [
+            create_task(self._config_space_router.run()),
+            create_task(self._mmio_router.run()),
+        ]
+        wait_tasks = [
+            create_task(self._config_space_router.wait_for_ready()),
+            create_task(self._mmio_router.wait_for_ready()),
+        ]
+        await gather(*wait_tasks)
+        await self._change_status_to_running()
+        await gather(*run_tasks)
+
+    async def _stop(self):
+        stop_tasks = [
+            create_task(self._config_space_router.stop()),
+            create_task(self._mmio_router.stop()),
+        ]
+        await gather(*stop_tasks)
+
+
 class MmioRouter(CxlRouter):
     def __init__(
         self,

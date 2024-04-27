@@ -12,6 +12,7 @@ from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.component.cxl_mem_manager import CxlMemManager
+from opencxl.cxl.component.cxl_io_manager import CxlIoManager
 from opencxl.cxl.component.cxl_bridge_component import (
     CxlDownstreamPortComponent,
 )
@@ -74,18 +75,32 @@ class DownstreamPortDevice(CxlPortDevice):
 
         super().__init__(transport_connection, port_index)
 
-        # NOTE: Create internal compoments
+        self._dummy_config = dummy_config
         self._is_dummy = dummy_config is not None
+        self._pci_bridge_component = None
+        self._pci_registers = None
         self._upstream_connection = CxlConnection()
 
-        cxl_component = CxlDownstreamPortComponent()
-
-        self._mmio_manager = MmioManager(
-            upstream_fifo=self._upstream_connection.mmio_fifo,
-            downstream_fifo=transport_connection.mmio_fifo,
+        self._cxl_io_manager = CxlIoManager(
+            self._upstream_connection.mmio_fifo,
+            self._transport_connection.mmio_fifo,
+            self._upstream_connection.cfg_fifo,
+            self._transport_connection.cfg_fifo,
+            device_type=PCI_DEVICE_TYPE.DOWNSTREAM_BRIDGE,
+            init_callback=self._init_device,
+            label=self._get_label(),
+        )
+        self._cxl_mem_manager = CxlMemManager(
+            upstream_fifo=self._upstream_connection.cxl_mem_fifo,
+            downstream_fifo=transport_connection.cxl_mem_fifo,
             label=self._get_label(),
         )
 
+    def _init_device(
+        self,
+        mmio_manager: MmioManager,
+        config_space_manager: ConfigSpaceManager,
+    ):
         pci_identity = PciComponentIdentity(
             vendor_id=EEUM_VID,
             device_id=SW_DSP_DID,
@@ -97,30 +112,18 @@ class DownstreamPortDevice(CxlPortDevice):
         self._pci_bridge_component = PciBridgeComponent(
             identity=pci_identity,
             type=PCI_BRIDGE_TYPE.DOWNSTREAM_PORT,
-            mmio_manager=self._mmio_manager,
+            mmio_manager=mmio_manager,
             label=self._get_label(),
         )
         if self._is_dummy:
-            self._pci_bridge_component.set_port_number(dummy_config.vppb_id)
-            self._pci_bridge_component.set_routing_table(dummy_config.routing_table)
-
-        self._config_space_manager = ConfigSpaceManager(
-            upstream_fifo=self._upstream_connection.cfg_fifo,
-            downstream_fifo=transport_connection.cfg_fifo,
-            label=self._get_label(),
-            device_type=PCI_DEVICE_TYPE.DOWNSTREAM_BRIDGE,
-        )
-
-        self._cxl_mem_manager = CxlMemManager(
-            upstream_fifo=self._upstream_connection.cxl_mem_fifo,
-            downstream_fifo=transport_connection.cxl_mem_fifo,
-            label=self._get_label(),
-        )
+            self._pci_bridge_component.set_port_number(self._dummy_config.vppb_id)
+            self._pci_bridge_component.set_routing_table(self._dummy_config.routing_table)
 
         # Create MMIO register
+        cxl_component = CxlDownstreamPortComponent()
         mmio_options = CombinedMmioRegiterOptions(cxl_component=cxl_component)
         mmio_register = CombinedMmioRegister(options=mmio_options)
-        self._mmio_manager.set_bar_entries([BarEntry(mmio_register)])
+        mmio_manager.set_bar_entries([BarEntry(mmio_register)])
 
         # Create Config Space Register
         pci_registers_options = CxlDownstreamPortConfigSpaceOptions(
@@ -133,7 +136,7 @@ class DownstreamPortDevice(CxlPortDevice):
             ),
         )
         self._pci_registers = CxlDownstreamPortConfigSpace(options=pci_registers_options)
-        self._config_space_manager.set_register(self._pci_registers)
+        config_space_manager.set_register(self._pci_registers)
 
     def _get_label(self) -> str:
         if self._is_dummy:
@@ -147,7 +150,7 @@ class DownstreamPortDevice(CxlPortDevice):
         return message
 
     def get_reg_vals(self):
-        return self._config_space_manager.get_register()
+        return self._cxl_io_manager.get_cfg_reg_vals()
 
     def get_upstream_connection(self) -> CxlConnection:
         return self._upstream_connection

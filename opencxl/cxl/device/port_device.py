@@ -18,9 +18,8 @@ from opencxl.util.unaligned_bit_structure import (
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
-from opencxl.util.component import LabeledComponent
-from opencxl.pci.component.config_space_manager import ConfigSpaceManager
-from opencxl.pci.component.mmio_manager import MmioManager
+from opencxl.util.component import RunnableComponent
+from opencxl.cxl.component.cxl_io_manager import CxlIoManager
 from opencxl.cxl.component.cxl_mem_manager import CxlMemManager
 
 
@@ -64,11 +63,10 @@ class SupportedCxlModes(UnalignedBitStructure):
     ]
 
 
-class CxlPortDevice(LabeledComponent):
+class CxlPortDevice(RunnableComponent):
     def __init__(self, transport_connection: CxlConnection, port_index: int):
-        self._mmio_manager: MmioManager
-        self._config_space_manager: ConfigSpaceManager
         self._cxl_mem_manager: CxlMemManager
+        self._cxl_io_manager: CxlIoManager
 
         super().__init__()
         self._port_index = port_index
@@ -88,21 +86,25 @@ class CxlPortDevice(LabeledComponent):
     def get_device_type(self) -> CXL_COMPONENT_TYPE:
         """This must be implemented in the child class"""
 
-    async def run(self):
+    async def _run(self):
         logger.info(self._create_message("Starting"))
-        tasks = [
-            create_task(self._mmio_manager.run()),
-            create_task(self._config_space_manager.run()),
+        run_tasks = [
+            create_task(self._cxl_io_manager.run()),
             create_task(self._cxl_mem_manager.run()),
         ]
-        await gather(*tasks)
+        wait_tasks = [
+            create_task(self._cxl_io_manager.wait_for_ready()),
+            create_task(self._cxl_mem_manager.wait_for_ready()),
+        ]
+        await gather(*wait_tasks)
+        await self._change_status_to_running()
+        await gather(*run_tasks)
         logger.info(self._create_message("Stopped"))
 
-    async def stop(self):
+    async def _stop(self):
         logger.info(self._create_message("Stopping"))
         tasks = [
-            create_task(self._mmio_manager.stop()),
-            create_task(self._config_space_manager.stop()),
+            create_task(self._cxl_io_manager.stop()),
             create_task(self._cxl_mem_manager.stop()),
         ]
         await gather(*tasks)
