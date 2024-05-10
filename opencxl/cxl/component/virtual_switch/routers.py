@@ -12,6 +12,7 @@ from typing import List, cast
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.util.pci import bdf_to_string
+from opencxl.util.number import tlptoh16, tlptoh64
 from opencxl.cxl.component.cxl_connection import CxlConnection, FifoPair
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.transport.transaction import (
@@ -130,9 +131,13 @@ class MmioRouter(CxlRouter):
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
 
             mmio_packet = cast(CxlIoMemReqPacket, packet)
-            address = mmio_packet.mreq_header.addr
-            size = mmio_packet.cxl_io_header.length
-            req_id = mmio_packet.mreq_header.req_id
+            addr_upper = mmio_packet.mreq_header.addr_upper << 8
+            addr_lower = mmio_packet.mreq_header.addr_lower << 2
+            address = tlptoh64(addr_upper | addr_lower)
+            size = (mmio_packet.cxl_io_header.length_upper << 8) | (
+                mmio_packet.cxl_io_header.length_lower & 0xFF
+            )
+            req_id = tlptoh16(mmio_packet.mreq_header.req_id)
             tag = mmio_packet.mreq_header.tag
             target_port = self._routing_table.get_mmio_target_port(address)
             if target_port is None:
@@ -193,16 +198,15 @@ class ConfigSpaceRouter(CxlRouter):
             cxl_io_packet = cast(CxlIoBasePacket, packet)
             if cxl_io_packet.is_cfg_read():
                 cfg_packet = cast(CxlIoCfgRdPacket, packet)
-                dest_id = cfg_packet.cfg_req_header.dest_id
             elif cxl_io_packet.is_cfg_write():
                 cfg_packet = cast(CxlIoCfgWrPacket, packet)
-                dest_id = cfg_packet.cfg_req_header.dest_id
             else:
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
+            dest_id = tlptoh16(cfg_packet.cfg_req_header.dest_id)
 
             logger.debug(self._create_message(f"Destination ID is {bdf_to_string(dest_id)}"))
 
-            req_id = cfg_packet.cfg_req_header.req_id
+            req_id = tlptoh16(cfg_packet.cfg_req_header.req_id)
             tag = cfg_packet.cfg_req_header.tag
             target_port = self._routing_table.get_config_space_target_port(dest_id)
             if target_port is None:
