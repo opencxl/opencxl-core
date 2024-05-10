@@ -11,6 +11,7 @@ from asyncio import create_task, gather
 from opencxl.pci.component.fifo_pair import FifoPair
 from opencxl.pci.config_space.pci import REG_ADDR
 from opencxl.util.unaligned_bit_structure import BitMaskedBitStructure
+from opencxl.util.number import tlptoh16
 from opencxl.cxl.transport.transaction import (
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
@@ -70,8 +71,9 @@ class ConfigSpaceManager(RunnableComponent):
         )
 
     async def _process_cxl_io_cfg_rd(self, cfg_rd_packet: CxlIoCfgRdPacket):
-        bdf_str = bdf_to_string(cfg_rd_packet.cfg_req_header.dest_id)
-        req_id = cfg_rd_packet.cfg_req_header.req_id
+        dest_id = tlptoh16(cfg_rd_packet.cfg_req_header.dest_id)
+        bdf_str = bdf_to_string(dest_id)
+        req_id = tlptoh16(cfg_rd_packet.cfg_req_header.req_id)
         tag = cfg_rd_packet.cfg_req_header.tag
 
         # NOTE: Only downstream port supports non-zero device number.
@@ -110,11 +112,12 @@ class ConfigSpaceManager(RunnableComponent):
 
     async def _process_cxl_io_cfg_wr(self, cfg_wr_packet: CxlIoCfgWrPacket):
         # NOTE: All PCIe devices are single function devices.
-        req_id = cfg_wr_packet.cfg_req_header.req_id
+        req_id = tlptoh16(cfg_wr_packet.cfg_req_header.req_id)
         tag = cfg_wr_packet.cfg_req_header.tag
 
         if cfg_wr_packet.get_function() != 0:
-            bdf_str = bdf_to_string(cfg_wr_packet.cfg_req_header.dest_id)
+            dest_id = tlptoh16(cfg_wr_packet.cfg_req_header.dest_id)
+            bdf_str = bdf_to_string(dest_id)
             logger.debug(
                 self._create_message(
                     f"Received request for {bdf_str}, however, this device supports function 0 only"
@@ -161,7 +164,7 @@ class ConfigSpaceManager(RunnableComponent):
                         self._create_message("Endpoint device should not receive a type1 request")
                     )
                     cfg_req_packet = cast(CxlIoCfgReqPacket, base_packet)
-                    req_id = cfg_req_packet.cfg_req_header.req_id
+                    req_id = tlptoh16(cfg_req_packet.cfg_req_header.req_id)
                     tag = cfg_req_packet.cfg_req_header.tag
                     await self._send_unsupported_request(req_id, tag)
             else:

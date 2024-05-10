@@ -20,7 +20,7 @@ from opencxl.util.pci import (
     extract_device_from_bdf,
     extract_bus_from_bdf,
 )
-from opencxl.util.number import get_randbits
+from opencxl.util.number import get_randbits, htotlp16, htotlp64, tlptoh16
 from opencxl.cxl.transport.common import (
     BasePacket,
     SYSTEM_HEADER_END,
@@ -160,20 +160,22 @@ class CxlIoHeader(UnalignedBitStructure):
     ep: int
     attr: int
     at: int
-    length: int  # in number of DWORDs
+    length_upper: int
+    length_lower: int
     _fields = [
         BitField("fmt_type", 0, 7),
-        BitField("t9", 8, 8),
-        BitField("tc", 9, 11),
-        BitField("t8", 12, 12),
-        BitField("attr_b2", 13, 13),
-        BitField("rsvd", 14, 14),
-        BitField("th", 15, 15),
-        BitField("td", 16, 16),
-        BitField("ep", 17, 17),
-        BitField("attr", 18, 19),
-        BitField("at", 20, 21),
-        BitField("length", 22, 31),
+        BitField("th", 8, 8),
+        BitField("rsvd", 9, 9),
+        BitField("attr_b2", 10, 10),
+        BitField("t8", 11, 11),
+        BitField("tc", 12, 14),
+        BitField("t9", 15, 15),
+        BitField("length_upper", 16, 17),
+        BitField("at", 18, 19),
+        BitField("attr", 20, 21),
+        BitField("ep", 22, 22),
+        BitField("td", 23, 23),
+        BitField("length_lower", 24, 31),
     ]
 
 
@@ -245,17 +247,19 @@ class CxlIoBasePacket(BasePacket):
 class CxlIoMReqHeader(UnalignedBitStructure):
     req_id: int
     tag: int
-    last_dw_be: int
     first_dw_be: int
-    addr: int
-    rsvd: int
+    last_dw_be: int
+    addr_upper: int
+    ph: int
+    addr_lower: int
     _fields = [
         BitField("req_id", 0, 15),
         BitField("tag", 16, 23),
-        BitField("last_dw_be", 24, 27),
-        BitField("first_dw_be", 28, 31),
-        BitField("addr", 32, 93),
-        BitField("rsvd", 94, 95),
+        BitField("first_dw_be", 24, 27),
+        BitField("last_dw_be", 28, 31),
+        BitField("addr_upper", 32, 87),
+        BitField("rsvd", 88, 89),
+        BitField("addr_lower", 90, 95),
     ]
 
     def get_transaction_id(self) -> int:
@@ -280,12 +284,14 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
 
     def fill(self, addr: int, length: int) -> "CxlIoMemRdPacket":
         self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
-        self.cxl_io_header.length = length
+        self.cxl_io_header.length_upper = length & 0x300
+        self.cxl_io_header.length_lower = length & 0xFF
         # TODO: actual ID to be added
-        self.mreq_header.req_id = get_randbits(16)
+        self.mreq_header.req_id = htotlp16(get_randbits(16))
         self.mreq_header.tag = get_randbits(8)
-        self.mreq_header.addr = addr
-        return self
+        addr = htotlp64(addr)
+        self.mreq_header.addr_upper = addr >> 8
+        self.mreq_header.addr_lower = (addr & 0xFF) >> 2
 
     def get_transaction_id(self) -> int:
         return self.mreq_header.get_transaction_id()
@@ -300,7 +306,7 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
         packet.system_header.payload_length = CxlIoMemRdPacket.get_size()
         # override for unit-testing
         if req_id and tag:
-            packet.mreq_header.req_id = req_id
+            packet.mreq_header.req_id = htotlp16(req_id)
             packet.mreq_header.tag = tag
         return packet
 
@@ -323,7 +329,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         packet.data = data
         # override for unit-testing
         if req_id and tag:
-            packet.mreq_header.req_id = req_id
+            packet.mreq_header.req_id = htotlp16(req_id)
             packet.mreq_header.tag = tag
         return packet
 
@@ -331,21 +337,23 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
 class CxlIoCfgReqHeader(UnalignedBitStructure):
     req_id: int
     tag: int
-    last_dw_be: int
     first_dw_be: int
+    last_dw_be: int
     dest_id: int
+    ext_reg_num: int
     rsvd: int
-    reg_num: int
     r: int
+    reg_num: int
     _fields = [
         BitField("req_id", 0, 15),
         BitField("tag", 16, 23),
-        BitField("last_dw_be", 24, 27),
-        BitField("first_dw_be", 28, 31),
+        BitField("first_dw_be", 24, 27),
+        BitField("last_dw_be", 28, 31),
         BitField("dest_id", 32, 47),
-        BitField("rsvd", 48, 51),
-        BitField("reg_num", 52, 61),
-        BitField("r", 62, 63),
+        BitField("ext_reg_num", 48, 51),
+        BitField("rsvd", 52, 55),
+        BitField("r", 56, 57),
+        BitField("reg_num", 58, 63),
     ]
 
     def get_transaction_id(self) -> int:
@@ -374,10 +382,11 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
         self.cxl_io_header.tc = 0b000
         self.cxl_io_header.attr = 0b00
         self.cxl_io_header.at = 0b00
-        self.cxl_io_header.length = 0b0000000001
+        self.cxl_io_header.length_upper = 0b00
+        self.cxl_io_header.length_lower = 0b00000001
 
         # TODO: actual ID to be added
-        self.cfg_req_header.req_id = get_randbits(16)
+        self.cfg_req_header.req_id = htotlp16(get_randbits(16))
         self.cfg_req_header.tag = get_randbits(8)
 
         # compute byte-enable bits
@@ -393,12 +402,13 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
 
         self.cfg_req_header.first_dw_be = first_dw_be
         self.cfg_req_header.last_dw_be = 0b0000
-        self.cfg_req_header.dest_id = id
-        self.cfg_req_header.reg_num = (cfg_addr >> 2) & 0x3FF
+        self.cfg_req_header.dest_id = htotlp16(id)
+        self.cfg_req_header.ext_reg_num = (cfg_addr >> 8) & 0x0F
+        self.cfg_req_header.reg_num = (cfg_addr >> 2) & 0x3F
         return self
 
     def get_cfg_addr_info(self):
-        reg_num = self.cfg_req_header.reg_num
+        reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
         be = self.cfg_req_header.first_dw_be
         b, pos = 1, 0
         while be & b == 0:
@@ -412,13 +422,16 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
         return cfg_addr, size
 
     def get_bus(self):
-        return extract_bus_from_bdf(self.cfg_req_header.dest_id)
+        dest_id = tlptoh16(self.cfg_req_header.dest_id)
+        return extract_bus_from_bdf(dest_id)
 
     def get_device(self):
-        return extract_device_from_bdf(self.cfg_req_header.dest_id)
+        dest_id = tlptoh16(self.cfg_req_header.dest_id)
+        return extract_device_from_bdf(dest_id)
 
     def get_function(self):
-        return extract_function_from_bdf(self.cfg_req_header.dest_id)
+        dest_id = tlptoh16(self.cfg_req_header.dest_id)
+        return extract_function_from_bdf(dest_id)
 
     def get_transaction_id(self) -> int:
         return self.cfg_req_header.get_transaction_id()
@@ -445,7 +458,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
 
         # override for unit-testing
         if req_id and tag:
-            packet.cfg_req_header.req_id = req_id
+            packet.cfg_req_header.req_id = htotlp16(req_id)
             packet.cfg_req_header.tag = tag
         return packet
 
@@ -477,7 +490,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
 
         # override for testing purposes
         if req_id and tag:
-            packet.cfg_req_header.req_id = req_id
+            packet.cfg_req_header.req_id = htotlp16(req_id)
             packet.cfg_req_header.tag = tag
         return packet
 
@@ -491,24 +504,24 @@ class CXL_IO_CPL_STATUS(IntEnum):
 
 class CxlIoCompletionHeader(UnalignedBitStructure):
     cpl_id: int
-    status: CXL_IO_CPL_STATUS
+    byte_count_upper: int
     bcm: int
-    byte_count: int
+    status: CXL_IO_CPL_STATUS
+    byte_count_lower: int
     req_id: int
     tag: int
     rsvd: int
     lower_addr: int
     _fields = [
         BitField("cpl_id", 0, 15),
-        BitField("ep", 16, 16),
-        BitField("load_addr_6", 17, 17),
-        BitField("status", 18, 18),
-        BitField("bcm", 19, 19),
-        BitField("byte_count", 20, 31),
+        BitField("byte_count_upper", 16, 19),
+        BitField("bcm", 20, 20),
+        BitField("status", 21, 23),
+        BitField("byte_count_lower", 24, 31),
         BitField("req_id", 32, 47),
         BitField("tag", 48, 55),
-        BitField("rsvd", 56, 56),
-        BitField("lower_addr", 57, 63),
+        BitField("lower_addr", 56, 62),
+        BitField("rsvd", 63, 63),
     ]
 
     def get_transaction_id(self) -> int:
@@ -539,12 +552,14 @@ class CxlIoCompletionPacket(CxlIoBasePacket):
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
         packet.system_header.payload_length = len(packet)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL
-        packet.cxl_io_header.length = 0
+        packet.cxl_io_header.length_upper = 0b000
+        packet.cxl_io_header.length_lower = 0b00000000
         # TODO: actual ID to be added
-        packet.cpl_header.cpl_id = get_randbits(16)
+        packet.cpl_header.cpl_id = htotlp16(get_randbits(16))
         packet.cpl_header.status = status
-        packet.cpl_header.byte_count = 0
-        packet.cpl_header.req_id = req_id
+        packet.cpl_header.byte_count_upper = 0
+        packet.cpl_header.byte_count_lower = 4
+        packet.cpl_header.req_id = htotlp16(req_id)
         packet.cpl_header.tag = tag
         return packet
 
@@ -576,13 +591,16 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
         packet.system_header.payload_length = len(packet)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
-        packet.cxl_io_header.length = 2  # assume 2 DWORDs (i.e. 8 bytes)
+        # assume 2 DWORDs (i.e. 8 bytes)
+        packet.cxl_io_header.length_upper = 0b00
+        packet.cxl_io_header.length_lower = 0b00000010
         # TODO: actual ID to be added
-        packet.cpl_header.cpl_id = get_randbits(16)
+        packet.cpl_header.cpl_id = htotlp16(get_randbits(16))
         packet.cpl_header.status = status
-        packet.cpl_header.req_id = req_id
+        packet.cpl_header.req_id = htotlp16(req_id)
         packet.cpl_header.tag = tag
-        packet.cpl_header.byte_count = 8  # assume 8 bytes (i.e. 2 DWORDs)
+        packet.cpl_header.byte_count_upper = 0
+        packet.cpl_header.byte_count_lower = 8  # TODO: Need to be computed
         packet.data = data
         return packet
 
