@@ -1,0 +1,30 @@
+name: Run CI for OpenCXL core
+
+on:
+  workflow_dispatch:
+  push:
+jobs:
+  pytest:
+    name: pytest
+    runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/opencxl/core-ci:0.1
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Install Python packages via poetry
+        run: poetry env use python3.11 && poetry install
+      - name: Run pytest
+        run: make test
+  pylint:
+    name: pylint
+    runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/opencxl/core-ci:0.1
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Install Python packages via poetry
+        run: poetry env use python3.11 && poetry install
+      - name: Run pylint
+        run: make lint
