@@ -195,8 +195,8 @@ class CxlRootPortDevice(RunnableComponent):
         )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        check_if_successful_completion(packet)
+        # packet = await cfg_fifo.target_to_host.get()
+        # check_if_successful_completion(packet)
 
     async def set_subordinate_bus(self, bdf: int, subordinate_bus: int):
         bdf_string = bdf_to_string(bdf)
@@ -216,8 +216,8 @@ class CxlRootPortDevice(RunnableComponent):
         )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        check_if_successful_completion(packet)
+        # packet = await cfg_fifo.target_to_host.get()
+        # check_if_successful_completion(packet)
 
     async def set_memory_base(self, bdf: int, address_base: int):
         bdf_string = bdf_to_string(bdf)
@@ -238,8 +238,8 @@ class CxlRootPortDevice(RunnableComponent):
         )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        check_if_successful_completion(packet)
+        # packet = await cfg_fifo.target_to_host.get()
+        # check_if_successful_completion(packet)
 
     async def set_memory_limit(self, bdf: int, address_limit: int):
         logger.info(
@@ -259,8 +259,8 @@ class CxlRootPortDevice(RunnableComponent):
         )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        check_if_successful_completion(packet)
+        # packet = await cfg_fifo.target_to_host.get()
+        # check_if_successful_completion(packet)
 
     async def set_bar0(self, bdf: int, bar_address: int):
         # TODO: Support 64-bit BAR
@@ -275,8 +275,8 @@ class CxlRootPortDevice(RunnableComponent):
         )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        check_if_successful_completion(packet)
+        # packet = await cfg_fifo.target_to_host.get() (again, no completion on writes)
+        # check_if_successful_completion(packet)
 
     async def get_bar0_size(
         self,
@@ -304,8 +304,8 @@ class CxlRootPortDevice(RunnableComponent):
             logger.debug(message)
         packet = CxlIoMemWrPacket.create(address, size, data)
         await self._downstream_connection.mmio_fifo.host_to_target.put(packet)
-        packet = await self._downstream_connection.mmio_fifo.target_to_host.get()
-        assert is_cxl_io_completion_status_sc(packet)
+        # packet = await self._downstream_connection.mmio_fifo.target_to_host.get()
+        # assert is_cxl_io_completion_status_sc(packet)
 
     async def read_mmio(
         self, address: int, size: int = 4, verbose: bool = True

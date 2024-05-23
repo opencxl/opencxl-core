@@ -162,7 +162,7 @@ class MmioManager(PacketProcessor):
                     logger.debug(self._create_message(f"RD: 0x{address:x}[{size}] OOB"))
                     await self._send_completion(req_id, tag, data=0)
                 elif mem_req_packet.is_mem_write():
-                    await self._send_completion(req_id, tag)
+                    # await self._send_completion(req_id, tag) (no need to send completion on write)
                     logger.debug(self._create_message(f"WR: 0x{address:x}[{size}] OOB"))
                 else:
                     raise Exception("Unknown Mem request packet.")
@@ -174,7 +174,7 @@ class MmioManager(PacketProcessor):
             data = cast(CxlIoMemWrPacket, mem_req_packet).data
             logger.debug(self._create_message(f"WR: 0x{address:x}[{size}]=0x{data:08x}"))
             register.write_bytes(start_offset, end_offset, data)
-            await self._send_completion(req_id, tag)
+            # await self._send_completion(req_id, tag) (also no need to send completion on write)
         elif mem_req_packet.is_mem_read():
             logger.debug(self._create_message(f"RD: 0x{address:x}[{size}]"))
             data = register.read_bytes(start_offset, end_offset)
