@@ -67,8 +67,8 @@ class CxlMemManager(PacketProcessor):
         data = mem_wr_packet.data
         await self._memory_device_component.write_mem(address, data)
 
-        packet = CxlMemCmpPacket.create()
-        await self._upstream_fifo.target_to_host.put(packet)
+        # packet = CxlMemCmpPacket.create()
+        # await self._upstream_fifo.target_to_host.put(packet)
 
     async def _process_host_to_target(self):
         logger.debug(self._create_message("Started processing incoming fifo"))

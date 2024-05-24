@@ -108,8 +108,8 @@ async def test_pci_device_config_space():
         logger.info("[PyTest] Testing Config Space Type0 Write (BAR)")
         packet = CxlIoCfgWrPacket.create(create_bdf(0, 0, 0), 0x10, 4, 0xFFFFFFFF, is_type0=True)
         await transport_connection.cfg_fifo.host_to_target.put(packet)
-        # packet = await transport_connection.cfg_fifo.target_to_host.get()
-        # assert is_cxl_io_completion_status_sc(packet)
+        packet = await transport_connection.cfg_fifo.target_to_host.get()
+        assert is_cxl_io_completion_status_sc(packet)
 
         # NOTE: Test Config Space Type0 Read - BAR READ
         logger.info("[PyTest] Testing Config Space Type0 Read (BAR)")
@@ -169,8 +169,8 @@ async def test_pci_device_mmio():
             create_bdf(0, 0, 0), 0x10, 4, value=base_addresss, is_type0=True
         )
         await transport_connection.cfg_fifo.host_to_target.put(packet)
-        # packet = await transport_connection.cfg_fifo.target_to_host.get()
-        # assert is_cxl_io_completion_status_sc(packet)
+        packet = await transport_connection.cfg_fifo.target_to_host.get()
+        assert is_cxl_io_completion_status_sc(packet)
 
     async def test_mmio(transport_connection: PciConnection):
         logger.info("[PyTest] Accessing MMIO register")
