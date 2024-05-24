@@ -16,7 +16,8 @@ from opencxl.cxl.transport.transaction import (
     CxlMemM2SRwDPacket,
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
-    CxlMemMemDataPacket
+    CxlMemMemDataPacket,
+    CxlMemCmpPacket
 )
 from opencxl.cxl.component.cxl_memory_device_component import CxlMemoryDeviceComponent
 from opencxl.pci.component.packet_processor import PacketProcessor
@@ -65,6 +66,9 @@ class CxlMemManager(PacketProcessor):
         address = mem_wr_packet.get_address()
         data = mem_wr_packet.data
         await self._memory_device_component.write_mem(address, data)
+
+        packet = CxlMemCmpPacket.create()
+        await self._upstream_fifo.target_to_host.put(packet)
 
     async def _process_host_to_target(self):
         logger.debug(self._create_message("Started processing incoming fifo"))

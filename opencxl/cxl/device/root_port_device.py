@@ -41,7 +41,8 @@ from opencxl.cxl.transport.transaction import (
     CxlMemMemDataPacket,
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
-    is_cxl_mem_data
+    is_cxl_mem_data,
+    is_cxl_mem_completion
 )
 
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
@@ -416,6 +417,9 @@ class CxlRootPortDevice(RunnableComponent):
         packet = CxlMemMemWrPacket.create(address, data)
         await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
         try:
+            async with asyncio.timeout(3):
+                packet = await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
+            assert is_cxl_mem_completion(packet)
             return address - self._cxl_hpa_base
         except asyncio.exceptions.TimeoutError:
             logger.error(self._create_message("CXL.mem Write: Timed-out"))
