@@ -79,7 +79,6 @@ async def test_mmio_manager_write():
     await mmio_manager._process_host_to_target(run_once=True)
     assert upstream_fifo.host_to_target.qsize() == 0
     bar_entry.register.write_bytes.assert_not_called()
-    # assert upstream_fifo.target_to_host.qsize() == 1
 
     # bar_entry.base_address = 0x1000
     # bar_entry.register = None
