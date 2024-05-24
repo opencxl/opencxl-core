@@ -41,8 +41,7 @@ from opencxl.cxl.transport.transaction import (
     CxlMemMemDataPacket,
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
-    is_cxl_mem_completion,
-    is_cxl_mem_data,
+    is_cxl_mem_data
 )
 
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
