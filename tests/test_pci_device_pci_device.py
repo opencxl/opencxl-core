@@ -132,8 +132,8 @@ async def test_pci_device_config_space():
         logger.info("[PyTest] Testing Config Space Type1 Write - Expect UR")
         packet = CxlIoCfgWrPacket.create(create_bdf(0, 0, 0), 0x10, 4, 0xFFFFFFFF, is_type0=False)
         await transport_connection.cfg_fifo.host_to_target.put(packet)
-        # packet = await transport_connection.cfg_fifo.target_to_host.get()
-        # assert is_cxl_io_completion_status_ur(packet)
+        packet = await transport_connection.cfg_fifo.target_to_host.get()
+        assert is_cxl_io_completion_status_ur(packet)
 
     async def wait_test_stop():
         await device.wait_for_ready()
