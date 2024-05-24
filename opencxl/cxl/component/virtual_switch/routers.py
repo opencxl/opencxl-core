@@ -146,7 +146,6 @@ class MmioRouter(CxlRouter):
                     await self._send_completion(req_id, tag, data=0)
                 elif mmio_packet.is_mem_write():
                     logger.debug(self._create_message(f"WR: 0x{address:x}[{size}] OOB"))
-                    # await self._send_completion(req_id, tag) (no need to send completion on write)
                 continue
 
             if target_port >= len(self._downstream_connections):

@@ -41,8 +41,7 @@ from opencxl.cxl.transport.transaction import (
     CxlMemMemDataPacket,
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
-    is_cxl_mem_completion,
-    is_cxl_mem_data,
+    is_cxl_mem_data
 )
 
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
@@ -195,8 +194,8 @@ class CxlRootPortDevice(RunnableComponent):
         )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        # packet = await cfg_fifo.target_to_host.get()
-        # check_if_successful_completion(packet)
+        packet = await cfg_fifo.target_to_host.get()
+        check_if_successful_completion(packet)
 
     async def set_subordinate_bus(self, bdf: int, subordinate_bus: int):
         bdf_string = bdf_to_string(bdf)
@@ -216,8 +215,8 @@ class CxlRootPortDevice(RunnableComponent):
         )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        # packet = await cfg_fifo.target_to_host.get()
-        # check_if_successful_completion(packet)
+        packet = await cfg_fifo.target_to_host.get()
+        check_if_successful_completion(packet)
 
     async def set_memory_base(self, bdf: int, address_base: int):
         bdf_string = bdf_to_string(bdf)
@@ -238,8 +237,8 @@ class CxlRootPortDevice(RunnableComponent):
         )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        # packet = await cfg_fifo.target_to_host.get()
-        # check_if_successful_completion(packet)
+        packet = await cfg_fifo.target_to_host.get()
+        check_if_successful_completion(packet)
 
     async def set_memory_limit(self, bdf: int, address_limit: int):
         logger.info(
@@ -259,8 +258,8 @@ class CxlRootPortDevice(RunnableComponent):
         )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        # packet = await cfg_fifo.target_to_host.get()
-        # check_if_successful_completion(packet)
+        packet = await cfg_fifo.target_to_host.get()
+        check_if_successful_completion(packet)
 
     async def set_bar0(self, bdf: int, bar_address: int):
         # TODO: Support 64-bit BAR
@@ -275,8 +274,8 @@ class CxlRootPortDevice(RunnableComponent):
         )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        # packet = await cfg_fifo.target_to_host.get() (again, no completion on writes)
-        # check_if_successful_completion(packet)
+        packet = await cfg_fifo.target_to_host.get()
+        check_if_successful_completion(packet)
 
     async def get_bar0_size(
         self,
@@ -419,9 +418,11 @@ class CxlRootPortDevice(RunnableComponent):
         packet = CxlMemMemWrPacket.create(address, data)
         await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
         try:
+            """
             async with asyncio.timeout(3):
                 packet = await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
             assert is_cxl_mem_completion(packet)
+            """
             return address - self._cxl_hpa_base
         except asyncio.exceptions.TimeoutError:
             logger.error(self._create_message("CXL.mem Write: Timed-out"))
