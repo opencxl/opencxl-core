@@ -41,8 +41,8 @@ from opencxl.cxl.transport.transaction import (
     CxlMemMemDataPacket,
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
-    is_cxl_mem_completion,
     is_cxl_mem_data,
+    is_cxl_mem_completion
 )
 
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
@@ -304,8 +304,6 @@ class CxlRootPortDevice(RunnableComponent):
             logger.debug(message)
         packet = CxlIoMemWrPacket.create(address, size, data)
         await self._downstream_connection.mmio_fifo.host_to_target.put(packet)
-        packet = await self._downstream_connection.mmio_fifo.target_to_host.get()
-        assert is_cxl_io_completion_status_sc(packet)
 
     async def read_mmio(
         self, address: int, size: int = 4, verbose: bool = True

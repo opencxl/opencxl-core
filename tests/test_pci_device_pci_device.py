@@ -178,8 +178,6 @@ async def test_pci_device_mmio():
         data = 0xDEADBEEF
         packet = CxlIoMemWrPacket.create(base_addresss, 4, data=data)
         await transport_connection.mmio_fifo.host_to_target.put(packet)
-        packet = await transport_connection.mmio_fifo.target_to_host.get()
-        assert is_cxl_io_completion_status_sc(packet)
 
         # NOTE: Confirm 0xDEADBEEF is written
         packet = CxlIoMemRdPacket.create(base_addresss, 4)
@@ -192,14 +190,10 @@ async def test_pci_device_mmio():
         # NOTE: Write OOB (Upper Boundary), Expect No Error
         packet = CxlIoMemWrPacket.create(base_addresss + bar_size, 4, data=data)
         await transport_connection.mmio_fifo.host_to_target.put(packet)
-        packet = await transport_connection.mmio_fifo.target_to_host.get()
-        assert is_cxl_io_completion_status_sc(packet)
 
         # NOTE: Write OOB (Lower Boundary), Expect No Error
         packet = CxlIoMemWrPacket.create(base_addresss - 4, 4, data=data)
         await transport_connection.mmio_fifo.host_to_target.put(packet)
-        packet = await transport_connection.mmio_fifo.target_to_host.get()
-        assert is_cxl_io_completion_status_sc(packet)
 
         # NOTE: Read OOB (Upper Boundary), Expect 0
         packet = CxlIoMemRdPacket.create(base_addresss + bar_size, 4)
