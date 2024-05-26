@@ -150,7 +150,8 @@ class CxlPacketProcessor(RunnableComponent):
                                 f"Received {self._incoming_dir} CXL.io (MRD/MWR) packet"
                             )
                         )
-                        self._push_tlp_table_entry(cxl_io_packet)
+                        if cxl_io_packet.is_mem_write() is False:
+                            self._push_tlp_table_entry(cxl_io_packet)
                         await self._incoming.mmio.put(cxl_io_packet)
                     else:
                         logger.warning(self._create_message("Unexpected CXL.io packet"))
@@ -220,7 +221,8 @@ class CxlPacketProcessor(RunnableComponent):
                 logger.debug(
                     self._create_message(f"Received {self._outgoing_dir} CXL.io (MRD/MWR) packet")
                 )
-                self._push_tlp_table_entry(cxl_io_packet)
+                if cxl_io_packet.is_mem_write() is False:
+                    self._push_tlp_table_entry(cxl_io_packet)
             self._writer.write(bytes(packet))
             await self._writer.drain()
         logger.debug(self._create_message("Stopped outgoing MMIO FIFO processor"))
