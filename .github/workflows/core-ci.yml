@@ -3,6 +3,7 @@ name: Run CI for OpenCXL core
 on:
   workflow_dispatch:
   push:
+  pull_request:
 jobs:
   pytest:
     name: pytest
