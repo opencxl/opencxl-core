@@ -287,12 +287,16 @@ async def test_cxl_host_ete():
         memory_file=f"mem{switch_port}.bin",
         port=switch_port,
     )
+    
+    print("A" * 20)
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
     test_mode_host = CxlHost(
         port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
     )
+
+    print("B" * 20)
 
     start_tasks = [
         asyncio.create_task(host.run()),
@@ -311,6 +315,8 @@ async def test_cxl_host_ete():
         asyncio.create_task(sld.wait_for_ready()),
     ]
     await asyncio.gather(*wait_tasks)
+    
+    print("C" * 20)
 
     data = 0xA5A5
     valid_addr = 0x40
@@ -325,6 +331,8 @@ async def test_cxl_host_ete():
         asyncio.create_task(test_mode_host._reinit(invalid_addr)),
     ]
     await asyncio.gather(*test_tasks)
+    
+    print("D" * 20)
 
     stop_tasks = [
         asyncio.create_task(sw_conn_manager.stop()),
