@@ -28,7 +28,6 @@ from opencxl.cxl.transport.transaction import (
     CxlIoCfgWrPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
-    CxlIoCompletionPacket,
     CxlIoCompletionWithDataPacket,
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
