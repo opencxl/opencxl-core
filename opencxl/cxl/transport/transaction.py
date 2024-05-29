@@ -21,7 +21,7 @@ from opencxl.util.pci import (
     extract_device_from_bdf,
     extract_bus_from_bdf,
 )
-from opencxl.util.number import get_randbits, htotlp16, htotlp64, tlptoh16
+from opencxl.util.number import get_randbits, htotlp16, htotlp64, tlptoh16, extract_upper, extract_lower
 from opencxl.cxl.transport.common import (
     BasePacket,
     SYSTEM_HEADER_END,
@@ -37,6 +37,7 @@ class SIDEBAND_TYPES(IntEnum):
     CONNECTION_ACCEPT = 1
     CONNECTION_REJECT = 2
     CONNECTION_DISCONNECTED = 3
+
 
 
 class SidebandHeaderPacket(UnalignedBitStructure):
@@ -319,12 +320,6 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         DynamicByteField("data", CXL_IO_MREQ_FIELD_START, 0x0),
     ]
 
-    def __init__(self, dynamic_data_sz: int = 0):
-        super().__init__()
-        if dynamic_data_sz > 0:
-            assert isinstance(self._fields[-1], DynamicByteField)
-            self._fields[-1].width = dynamic_data_sz
-
     @staticmethod
     def create(
         addr: int, length: int, data: int, req_id: int = None, tag: int = None
@@ -333,13 +328,11 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         packet.fill(addr, length)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
 
-        # because the width of the dynamically sized data field is by default 0,
-        # the following call will (conveniently) return the width of the entire 
-        # packet, minus the dynamically sized portion.
-        
-        packet.system_header.payload_length = CxlIoMemWrPacket.get_size()
-        
+        packet.directly_set_dynamic_width(length * 8)
         packet.data = data
+
+        packet.system_header.payload_length = CxlIoMemWrPacket.get_size()
+
         # override for unit-testing
         if req_id and tag:
             packet.mreq_header.req_id = htotlp16(req_id)
@@ -593,12 +586,13 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
             CXL_IO_CPL_HEADER_END,
             CxlIoCompletionHeader,
         ),
-        ByteField("data", CXL_IO_CPL_FIELD_START, CXL_IO_CPL_FIELD_START + 0x07),
+        DynamicByteField("data", CXL_IO_CPL_FIELD_START, 0x0),
     ]
 
     @staticmethod
     def create(
-        req_id: int, tag: int, data: int, status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC
+        req_id: int, tag: int, data: int, status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
+        pload_width: int = 0x08
     ) -> "CxlIoCompletionWithDataPacket":
         packet = CxlIoCompletionWithDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
@@ -612,9 +606,13 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         packet.cpl_header.status = status
         packet.cpl_header.req_id = htotlp16(req_id)
         packet.cpl_header.tag = tag
-        packet.cpl_header.byte_count_upper = 0
-        packet.cpl_header.byte_count_lower = 8  # TODO: Need to be computed
+
+        packet.cpl_header.byte_count_upper = extract_upper(pload_width, 4, 12)
+        packet.cpl_header.byte_count_lower = extract_lower(pload_width, 8, 12)
+
+        packet.directly_set_dynamic_width(pload_width * 8)
         packet.data = data
+
         return packet
 
     def get_transaction_id(self) -> int:

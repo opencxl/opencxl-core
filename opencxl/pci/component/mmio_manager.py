@@ -132,9 +132,13 @@ class MmioManager(PacketProcessor):
             return entry.register, offset
         return None, None
 
-    async def _send_completion(self, req_id: int, tag: int, data: int = None):
+    async def _send_completion(self, req_id: int, tag: int, data: int = None, data_width: int = 0):
         if data is not None:
-            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data)
+            if data >= (1 << (data_width * 8)):
+                raise Exception(
+                    f"'Data: {data} could not possibly fit within width: {data_width}"
+                )
+            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_width=data_width)
         else:
             packet = CxlIoCompletionPacket.create(req_id, tag)
         await self._upstream_fifo.target_to_host.put(packet)
@@ -160,7 +164,7 @@ class MmioManager(PacketProcessor):
             else:
                 if mem_req_packet.is_mem_read():
                     logger.debug(self._create_message(f"RD: 0x{address:x}[{size}] OOB"))
-                    await self._send_completion(req_id, tag, data=0)
+                    await self._send_completion(req_id, tag, data=0, data_width=size)
                 elif mem_req_packet.is_mem_write():
                     logger.debug(self._create_message(f"WR: 0x{address:x}[{size}] OOB"))
                 else:
@@ -176,7 +180,7 @@ class MmioManager(PacketProcessor):
         elif mem_req_packet.is_mem_read():
             logger.debug(self._create_message(f"RD: 0x{address:x}[{size}]"))
             data = register.read_bytes(start_offset, end_offset)
-            await self._send_completion(req_id, tag, data)
+            await self._send_completion(req_id, tag, data, size)
         else:
             raise Exception("Unsupported MMIO packet")
 
