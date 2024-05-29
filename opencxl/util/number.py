@@ -106,3 +106,40 @@ def tlptoh64(n):
     if sys.byteorder == "big":
         return n
     return bswap64(n)
+
+def extract_upper(from_what: int, how_much: int, how_long: int):
+    """
+    Extracts and returns the upper `how_much` bits from `from_what`.
+    `from_what` is assumed to be `how_long` bits wide.
+    If `from_what` could not possibly be `how_long` bits wide, 
+    ValueError is raised.
+    If `how_much > how_long`, then for obvious reasons ValueError
+    is raised again.
+    Ex. `extract_upper(0b1101010010, 5, 12) == 0b00110`.
+    `extract_upper(0b10000010, 1, 2) -> ValueError` 
+    """
+    if from_what >= (1 << how_long):
+        raise ValueError(f"{from_what} does not fit within a width of {how_long} bits.")
+    if how_much > how_long:
+        raise ValueError(f"It does not make sense that {how_much} (how_much) > {how_long} (how_long)")
+    full_mask = (1 << how_long) - 1
+    b_mask = (1 << (how_long - how_much)) - 1
+    b_mask = (~b_mask) & full_mask
+    return (from_what & b_mask) >> (how_long - how_much)
+
+def extract_lower(from_what: int, how_much: int, how_long: int):
+    """
+    Extracts and returns the lower `how_much` bits from `from_what`.
+    `from_what` is assumed to be `how_long` bits wide.
+    If `from_what` could not possibly be `how_long` bits wide, 
+    ValueError is raised.
+    If `how_much > how_long`, then for obvious reasons ValueError
+    is raised again.
+    Ex. `extract_upper(0b1101010010, 5, 12) == 0b10010`.
+    `extract_upper(0b10000010, 1, 2) -> ValueError` 
+    """
+    if from_what >= (1 << how_long):
+        raise ValueError(f"{from_what} does not fit within a width of {how_long} bits.")
+    if how_much > how_long:
+        raise ValueError(f"It does not make sense that {how_much} (how_much) > {how_long} (how_long)")
+    return ((1 << how_much) - 1) & from_what
