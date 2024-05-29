@@ -13,6 +13,7 @@ from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
     BitField,
     ByteField,
+    DynamicByteField,
     StructureField,
 )
 from opencxl.util.pci import (
@@ -315,8 +316,14 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
     data: int
     # TODO: Support dynamic data size. Fixed to 8 for now.
     _fields = CxlIoMemReqPacket._fields + [
-        ByteField("data", CXL_IO_MREQ_FIELD_START, CXL_IO_MREQ_FIELD_START + 0x07),
+        DynamicByteField("data", CXL_IO_MREQ_FIELD_START, 0x0),
     ]
+
+    def __init__(self, dynamic_data_sz: int = 0):
+        super().__init__()
+        if dynamic_data_sz > 0:
+            assert isinstance(self._fields[-1], DynamicByteField)
+            self._fields[-1].width = dynamic_data_sz
 
     @staticmethod
     def create(
@@ -325,7 +332,13 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         packet = CxlIoMemWrPacket()
         packet.fill(addr, length)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
+
+        # because the width of the dynamically sized data field is by default 0,
+        # the following call will (conveniently) return the width of the entire 
+        # packet, minus the dynamically sized portion.
+        
         packet.system_header.payload_length = CxlIoMemWrPacket.get_size()
+        
         packet.data = data
         # override for unit-testing
         if req_id and tag:
@@ -455,7 +468,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
             CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
         )
         packet.system_header.payload_length = CxlIoCfgRdPacket.get_size()
-
+        
         # override for unit-testing
         if req_id and tag:
             packet.cfg_req_header.req_id = htotlp16(req_id)
