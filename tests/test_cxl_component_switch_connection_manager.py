@@ -357,7 +357,6 @@ async def test_switch_connection_manager_handle_mmio_packet():
         logger.info("[PyTest] Checking MMIO request packets received from server")
         server_connection = manager.get_cxl_connection(0)
         await server_connection.mmio_fifo.host_to_target.get()
-        await server_connection.mmio_fifo.host_to_target.get()
 
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()
@@ -457,8 +456,6 @@ async def test_switch_connection_manager_handle_cfg_completion():
         tag = 0xA5
         req1 = CxlIoCfgWrPacket.create(0, 0x10, 4, 0xDEADBEEF, req_id=req_id, tag=tag)
         await client_connection.cfg_fifo.host_to_target.put(req1)
-        cpl1 = CxlIoCompletionPacket.create(req_id, tag)
-        await server_connection.cfg_fifo.target_to_host.put(cpl1)
 
         tag = 0xA6
         req2 = CxlIoCfgRdPacket.create(0, 0x10, 4, req_id=req_id, tag=tag)
@@ -468,12 +465,13 @@ async def test_switch_connection_manager_handle_cfg_completion():
 
         logger.info("[PyTest] Checking config space completion packets received from client")
         rcvd_packets = []
-        for _ in range(2):
-            rcvd_packets.append(await client_connection.cfg_fifo.host_to_target.get())
-            rcvd_packets.append(await server_connection.cfg_fifo.target_to_host.get())
+        rcvd_packets.append(await client_connection.cfg_fifo.host_to_target.get())
+        rcvd_packets.append(await client_connection.cfg_fifo.host_to_target.get())
+        rcvd_packets.append(await server_connection.cfg_fifo.target_to_host.get())
 
-        assert bytes(rcvd_packets[1]) == bytes(cpl1)
-        assert bytes(rcvd_packets[3]) == bytes(cpl2)
+        assert bytes(rcvd_packets[0]) == bytes(req1)
+        assert bytes(rcvd_packets[1]) == bytes(req2)
+        assert bytes(rcvd_packets[2]) == bytes(cpl2)
 
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()
@@ -523,8 +521,6 @@ async def test_switch_connection_manager_handle_mmio_completion():
         tag = 0x1
         req1 = CxlIoMemWrPacket.create(0x10, 4, 0xDEADBEEF, req_id=req_id, tag=tag)
         await client_connection.mmio_fifo.host_to_target.put(req1)
-        cpl1 = CxlIoCompletionPacket.create(req_id, tag)
-        await server_connection.mmio_fifo.target_to_host.put(cpl1)
 
         tag = 0x2
         req2 = CxlIoMemRdPacket.create(0x10, 4, req_id=req_id, tag=tag)
@@ -534,12 +530,13 @@ async def test_switch_connection_manager_handle_mmio_completion():
 
         logger.info("[PyTest] Checking MMIO completion packets received from client")
         rcvd_packets = []
-        for _ in range(2):
-            rcvd_packets.append(await client_connection.mmio_fifo.host_to_target.get())
-            rcvd_packets.append(await server_connection.mmio_fifo.target_to_host.get())
+        rcvd_packets.append(await client_connection.mmio_fifo.host_to_target.get()) # wr
+        rcvd_packets.append(await client_connection.mmio_fifo.host_to_target.get()) # rd
+        rcvd_packets.append(await server_connection.mmio_fifo.target_to_host.get()) # cpld
 
-        assert bytes(rcvd_packets[1]) == bytes(cpl1)
-        assert bytes(rcvd_packets[3]) == bytes(cpl2)
+        assert bytes(rcvd_packets[0]) == bytes(req1)
+        assert bytes(rcvd_packets[1]) == bytes(req2)
+        assert bytes(rcvd_packets[2]) == bytes(cpl2)
 
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()
