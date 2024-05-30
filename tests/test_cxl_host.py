@@ -263,7 +263,6 @@ async def test_cxl_host_util_client():
 @pytest.mark.asyncio
 async def test_cxl_host_ete():
     # pylint: disable=protected-access
-    print("!" * 20)
     host_port = BASE_TEST_PORT + pytest.PORT.TEST_5
     util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 50
     switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 51
@@ -276,7 +275,6 @@ async def test_cxl_host_ete():
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=sw_conn_manager, port_configs=port_configs
     )
-    print("Z" * 20)
 
     switch_configs = [
         VirtualSwitchConfig(upstream_port_index=0, vppb_counts=1, initial_bounds=[1])
@@ -290,16 +288,12 @@ async def test_cxl_host_ete():
         memory_file=f"mem{switch_port}.bin",
         port=switch_port,
     )
-    
-    print("A" * 20)
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
     test_mode_host = CxlHost(
         port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
     )
-
-    print("B" * 20)
 
     start_tasks = [
         asyncio.create_task(host.run()),
@@ -310,7 +304,6 @@ async def test_cxl_host_ete():
         asyncio.create_task(sld.run()),
     ]
 
-    print("^" * 20)
     wait_tasks = [
         asyncio.create_task(sw_conn_manager.wait_for_ready()),
         asyncio.create_task(physical_port_manager.wait_for_ready()),
@@ -320,8 +313,6 @@ async def test_cxl_host_ete():
         asyncio.create_task(sld.wait_for_ready()),
     ]
     await asyncio.gather(*wait_tasks)
- 
-    print("C" * 20)
 
     data = 0xA5A5
     valid_addr = 0x40
@@ -336,8 +327,6 @@ async def test_cxl_host_ete():
         asyncio.create_task(test_mode_host._reinit(invalid_addr)),
     ]
     await asyncio.gather(*test_tasks)
-    
-    print("D" * 20)
 
     stop_tasks = [
         asyncio.create_task(sw_conn_manager.stop()),

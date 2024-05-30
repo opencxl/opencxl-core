@@ -13,7 +13,7 @@ from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
     BitField,
     ByteField,
-    DynamicByteField,
+    DynamicByteFieldSpawner,
     StructureField,
 )
 from opencxl.util.pci import (
@@ -21,7 +21,10 @@ from opencxl.util.pci import (
     extract_device_from_bdf,
     extract_bus_from_bdf,
 )
-from opencxl.util.number import get_randbits, htotlp16, htotlp64, tlptoh16, extract_upper, extract_lower
+from opencxl.util.number import (
+    get_randbits, htotlp16, htotlp64,
+    tlptoh16, extract_upper, extract_lower,
+)
 from opencxl.cxl.transport.common import (
     BasePacket,
     SYSTEM_HEADER_END,
@@ -317,21 +320,24 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
     data: int
     # TODO: Support dynamic data size. Fixed to 8 for now.
     _fields = CxlIoMemReqPacket._fields + [
-        DynamicByteField("data", CXL_IO_MREQ_FIELD_START, 0x0),
+        DynamicByteFieldSpawner("data", CXL_IO_MREQ_FIELD_START, 0x0),
     ]
 
     @staticmethod
     def create(
         addr: int, length: int, data: int, req_id: int = None, tag: int = None
     ) -> "CxlIoMemWrPacket":
+        """
+        `length` is measured in DWORDs.
+        """
         packet = CxlIoMemWrPacket()
         packet.fill(addr, length)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
 
-        packet.directly_set_dynamic_width(length * 8)
+        packet.directly_set_dynamic_width(length * 32)
         packet.data = data
 
-        packet.system_header.payload_length = CxlIoMemWrPacket.get_size()
+        packet.system_header.payload_length = len(packet)
 
         # override for unit-testing
         if req_id and tag:
@@ -461,7 +467,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
             CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
         )
         packet.system_header.payload_length = CxlIoCfgRdPacket.get_size()
-        
+
         # override for unit-testing
         if req_id and tag:
             packet.cfg_req_header.req_id = htotlp16(req_id)
@@ -586,7 +592,7 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
             CXL_IO_CPL_HEADER_END,
             CxlIoCompletionHeader,
         ),
-        DynamicByteField("data", CXL_IO_CPL_FIELD_START, 0x0),
+        DynamicByteFieldSpawner("data", CXL_IO_CPL_FIELD_START, 0x0),
     ]
 
     @staticmethod
@@ -597,12 +603,12 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         # for config reads, always 1 DWORD (4 bytes)
         packet = CxlIoCompletionWithDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
-        packet.system_header.payload_length = len(packet) + pload_width
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
 
         # convert to DWORDs
         packet.cxl_io_header.length_upper = extract_upper(pload_width // 4, 2, 10)
         packet.cxl_io_header.length_lower = extract_lower(pload_width // 4, 8, 10)
+
         # TODO: actual ID to be added
         packet.cpl_header.cpl_id = htotlp16(get_randbits(16))
         packet.cpl_header.status = status
@@ -612,8 +618,10 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         packet.cpl_header.byte_count_upper = extract_upper(pload_width, 4, 12)
         packet.cpl_header.byte_count_lower = extract_lower(pload_width, 8, 12)
 
-        packet.directly_set_dynamic_width(pload_width * 8) # pload_width is in bytes
+        packet.directly_set_dynamic_width(pload_width)
         packet.data = data
+
+        packet.system_header.payload_length = len(packet)
 
         return packet
 
