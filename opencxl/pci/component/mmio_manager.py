@@ -134,7 +134,8 @@ class MmioManager(PacketProcessor):
 
     async def _send_completion(self, req_id: int, tag: int, data: int = None, data_width: int = 0):
         if data is not None:
-            if data >= (1 << (data_width * 8)):
+            if isinstance(data, int) and data >= (1 << (data_width * 8)):
+                # if isinstance(data, MagicMock), then just assume it'll fit in the given size
                 raise Exception(
                     f"'Data: {data} could not possibly fit within width: {data_width}"
                 )

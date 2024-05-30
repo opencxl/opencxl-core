@@ -73,6 +73,7 @@ class SwitchConnectionManager(RunnableComponent):
 
     async def _run(self):
         try:
+            logger.debug(self._create_message("Hello"))
             logger.info(self._create_message("Creating TCP server"))
             server = await self._create_server()
             self._server_task = asyncio.create_task(server.serve_forever())
@@ -138,9 +139,9 @@ class SwitchConnectionManager(RunnableComponent):
             logger.warning(self._create_message(str(e)))
 
         if port_index is None:
-            logger.info(self._create_message("Closed connnection"))
+            logger.info(self._create_message("Closed connection"))
         else:
-            logger.info(self._create_message(f"Closed connnection for port {port_index}"))
+            logger.info(self._create_message(f"Closed connection for port {port_index}"))
 
     async def _send_confirmation(self, writer: asyncio.StreamWriter):
         sideband_response = BaseSidebandPacket.create(SIDEBAND_TYPES.CONNECTION_ACCEPT)
