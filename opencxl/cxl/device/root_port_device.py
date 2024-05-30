@@ -704,7 +704,7 @@ class CxlRootPortDevice(RunnableComponent):
         bdf_str = bdf_to_string(bdf)
         vid_did = await self.read_vid_did(bdf)
         if vid_did is None:
-            logger.info(self._create_message(f"Device not found at {bdf_str}"))
+            logger.warning(self._create_message(f"Device not found at {bdf_str}"))
             return mmio_enum_info
 
         class_code = await self.read_class_code(bdf)

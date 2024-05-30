@@ -107,23 +107,9 @@ class ConfigSpaceManager(RunnableComponent):
         )
         value = self._register.read_bytes(cfg_addr, cfg_addr + size - 1)
 
-        logger.info(
-            self._create_message("Read bytes")
-        )
-
         completion_packet = CxlIoCompletionWithDataPacket.create(req_id, tag, value)
-        print("asdf", completion_packet.system_header.payload_length)
-        print("~", bytes(completion_packet).hex())
-        print("asdf", completion_packet.system_header.payload_length)
 
-        logger.info(
-            self._create_message(completion_packet.get_pretty_string())
-        )
         await self._upstream_fifo.target_to_host.put(completion_packet)
-        print("hex", bytes(completion_packet).hex())
-        logger.info(
-            self._create_message("Put packet")
-        )
 
     async def _process_cxl_io_cfg_wr(self, cfg_wr_packet: CxlIoCfgWrPacket):
         # NOTE: All PCIe devices are single function devices.
