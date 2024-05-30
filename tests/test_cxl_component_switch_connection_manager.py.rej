@@ -1,0 +1,8 @@
+diff a/tests/test_cxl_component_switch_connection_manager.py b/tests/test_cxl_component_switch_connection_manager.py	(rejected hunks)
+@@ -28,7 +28,6 @@ from opencxl.cxl.transport.transaction import (
+     CxlIoCfgWrPacket,
+     CxlIoMemRdPacket,
+     CxlIoMemWrPacket,
+     CxlIoCompletionWithDataPacket,
+     CxlMemMemRdPacket,
+     CxlMemMemWrPacket,
