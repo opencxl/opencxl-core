@@ -7,20 +7,12 @@
 
 from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
-    BitField,
     ByteField,
-    DynamicByteField,
-    StructureField,
+    DynamicByteFieldSpawner,
 )
 
 from opencxl.cxl.transport.transaction import (
-    CxlIoCfgRdPacket,
-    CxlIoCfgWrPacket,
-    CxlIoMemRdPacket,
     CxlIoMemWrPacket,
-    CxlIoCompletionWithDataPacket,
-    is_cxl_io_completion_status_sc,
-    is_cxl_io_completion_status_ur,
 )
 
 class DynamicByteStructure(UnalignedBitStructure):
@@ -32,7 +24,7 @@ class DynamicByteStructure(UnalignedBitStructure):
         ByteField("field1", 0, 0),  # 1 Byte
         ByteField("field2", 1, 2),  # 2 Bytes
         ByteField("field3", 3, 5),  # 3 Bytes
-        DynamicByteField("payload", 6, 0)
+        DynamicByteFieldSpawner("payload", 6, 0)
     ]
 
 def test_basic_dbf():
@@ -65,4 +57,3 @@ def test_io_mem_wr():
     data = 0xDEADBEEF
     packet = CxlIoMemWrPacket.create(addr, 4, data=data)
     assert packet.data == data
-

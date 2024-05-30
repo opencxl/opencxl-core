@@ -67,6 +67,31 @@ class DynamicByteField:
         return self.attribute == FIELD_ATTR.RO or self.attribute == FIELD_ATTR.HW_INIT
 
 @dataclass
+class DynamicByteFieldSpawner:
+    """
+    Dynamic byte fields may have different sizes depending on which
+    packet they currently belong to. In order to prevent nasty side
+    effects, we have to create a "spawner" class that initializes
+    a new dynamic byte field every time a dynamically-sized packet
+    is created.
+    """
+    name: str
+    start: int
+    width: int
+    type: ByteFieldType = field(default=int)
+    attribute: FIELD_ATTR = FIELD_ATTR.RW
+    default: int = 0
+    mask: Optional[int] = None
+
+    def is_read_only(self):
+        return self.attribute == FIELD_ATTR.RO or self.attribute == FIELD_ATTR.HW_INIT
+
+    def spawn(self):
+        return DynamicByteField(self.name, self.start, self.width, 
+                                self.type, self.attribute, self.default, 
+                                self.mask)
+    
+@dataclass
 class StructureField:
     name: str
     start: int
@@ -304,8 +329,8 @@ class UnalignedBitStructure:
                 self._add_bit_field(field)
             elif type(field) == ByteField:
                 self._add_byte_field(field)
-            elif type(field) == DynamicByteField:
-                self._add_dynamic_byte_field(field)
+            elif type(field) == DynamicByteFieldSpawner:
+                self._add_dynamic_byte_field(field.spawn())
             elif type(field) == StructureField:
                 self._add_structured_field(field)
 
@@ -321,7 +346,7 @@ class UnalignedBitStructure:
                 bit_fields += 1
             elif type(field) == ByteField:
                 byte_fields += 1
-            elif type(field) == DynamicByteField:
+            elif type(field) == DynamicByteFieldSpawner:
                 dynamic_byte_fields += 1
             elif type(field) == StructureField:
                 structure_fields += 1
@@ -346,11 +371,11 @@ class UnalignedBitStructure:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': DataField.start isn't aligned to the previous field"
                 )
-            if type(field) != DynamicByteField and field.end < field.start:
+            if type(field) != DynamicByteFieldSpawner and field.end < field.start:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': DataField.end cannot be less than DataField.start"
                 )
-            elif type(field) == DynamicByteField and field.width < 0:
+            elif type(field) == DynamicByteFieldSpawner and field.width < 0:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': A byte field with negative width is nonsensical"
                 )
@@ -359,7 +384,7 @@ class UnalignedBitStructure:
                     f"'{self._class_name}.{field.name}: DynamicByteFields must be the last field in their respective packets"
                 )
             
-            if type(field) != DynamicByteField:
+            if type(field) != DynamicByteFieldSpawner:
                 last_offset = field.end
             else:
                 last_offset += field.width
@@ -387,6 +412,11 @@ class UnalignedBitStructure:
 
     @classmethod
     def get_size(cls, fields: Optional[List[DataField]] = None) -> int:
+        """
+        It is usually a bad idea to call this method on a dynamically-sized
+        packet class, since the returned size will __not__ include the size
+        of the dynamically-sized field (which is by default 0)
+        """
         if not fields:
             fields = cls._fields
         last_field = fields[-1]
@@ -395,7 +425,7 @@ class UnalignedBitStructure:
             return (last_field.end + 1) // BITS_IN_BYTE
         elif type(last_field) == ByteField or type(last_field) == StructureField:
             return last_field.end + 1
-        elif type(last_field) == DynamicByteField:
+        elif type(last_field) == DynamicByteFieldSpawner:
             return last_field.start + last_field.width
         raise Exception(f"Unexpected field type {type(last_field).__name__}")
 
