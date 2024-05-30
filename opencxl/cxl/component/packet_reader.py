@@ -55,10 +55,10 @@ class PacketReader(LabeledComponent):
         except Exception as e:
             logger.debug(self._create_message(str(e)))
             if str(e) != "Connection disconnected":
-                logger.info(traceback.format_exc())
+                logger.debug(traceback.format_exc())
             raise Exception("PacketReader is aborted") from e
         except CancelledError as exc:
-            logger.info(self._create_message("Aborted"))
+            logger.debug(self._create_message("Aborted"))
             raise Exception("PacketReader is aborted") from exc
         finally:
             self._task = None
