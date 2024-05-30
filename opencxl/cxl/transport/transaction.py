@@ -592,15 +592,17 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
     @staticmethod
     def create(
         req_id: int, tag: int, data: int, status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
-        pload_width: int = 0x08
+        pload_width: int = 0x04
     ) -> "CxlIoCompletionWithDataPacket":
+        # for config reads, always 1 DWORD (4 bytes)
         packet = CxlIoCompletionWithDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = len(packet) + pload_width
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
-        # assume 2 DWORDs (i.e. 8 bytes)
-        packet.cxl_io_header.length_upper = 0b00
-        packet.cxl_io_header.length_lower = 0b00000010
+
+        # convert to DWORDs
+        packet.cxl_io_header.length_upper = extract_upper(pload_width // 4, 2, 10)
+        packet.cxl_io_header.length_lower = extract_lower(pload_width // 4, 8, 10)
         # TODO: actual ID to be added
         packet.cpl_header.cpl_id = htotlp16(get_randbits(16))
         packet.cpl_header.status = status
@@ -610,7 +612,7 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         packet.cpl_header.byte_count_upper = extract_upper(pload_width, 4, 12)
         packet.cpl_header.byte_count_lower = extract_lower(pload_width, 8, 12)
 
-        packet.directly_set_dynamic_width(pload_width * 8)
+        packet.directly_set_dynamic_width(pload_width * 8) # pload_width is in bytes
         packet.data = data
 
         return packet

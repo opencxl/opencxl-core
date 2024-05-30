@@ -273,9 +273,12 @@ class CxlRootPortDevice(RunnableComponent):
             bar_address,
             is_type0=is_type0,
         )
+        logger.info(self._create_message("made packet"))
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
+        logger.info(self._create_message("put packet"))
         packet = await cfg_fifo.target_to_host.get()
+        logger.info(self._create_message("got (supposedly) cpl packet"))
         check_if_successful_completion(packet)
 
     async def get_bar0_size(
@@ -286,6 +289,9 @@ class CxlRootPortDevice(RunnableComponent):
         bus = extract_bus_from_bdf(bdf)
         is_type0 = bus == self._secondary_bus
         packet = CxlIoCfgRdPacket.create(bdf, BAR_OFFSETS.BAR0, BAR_REGISTER_SIZE, is_type0)
+        logger.info(
+            self._create_message("Created packet to get bar0 size")
+        )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
         packet = await cfg_fifo.target_to_host.get()
@@ -337,15 +343,34 @@ class CxlRootPortDevice(RunnableComponent):
         bus = extract_bus_from_bdf(bdf)
         is_type0 = bus == self._secondary_bus
         packet = CxlIoCfgRdPacket.create(bdf, cfg_addr, size, is_type0)
+        logger.info(
+            self._create_message("Created packet to get config data")
+        )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
+        logger.info(
+            self._create_message("Done waiting (1)")
+        )
         packet = await cfg_fifo.target_to_host.get()
+        logger.info(
+            self._create_message("Done waiting (2)")
+        )
         base_packet = cast(BasePacket, packet)
         return self._get_cxl_io_completion_data(base_packet)
 
     async def read_vid_did(self, bdf: int) -> Optional[int]:
+
+        logger.info(
+            self._create_message("read vid, did")
+        )
+
         vid = await self.read_config(bdf, REG_ADDR.VENDOR_ID.START, REG_ADDR.VENDOR_ID.LEN)
         did = await self.read_config(bdf, REG_ADDR.DEVICE_ID.START, REG_ADDR.DEVICE_ID.LEN)
+        
+        logger.info(
+            self._create_message("read vid, did --- done waiting")
+        )
+
         if did is None or vid is None:
             return None
         return (did << 16) | vid
@@ -606,7 +631,11 @@ class CxlRootPortDevice(RunnableComponent):
     ) -> List[DeviceEnumerationInfo]:
         bdf_list = generate_bdfs_for_bus(bus)
         devices: List[DeviceEnumerationInfo] = []
-
+    
+        logger.info(
+            self._create_message("scan buses")
+        )
+        
         for bdf in bdf_list:
             vid_did = await self.read_vid_did(bdf)
             if vid_did is None:
@@ -679,7 +708,11 @@ class CxlRootPortDevice(RunnableComponent):
                 await self.scan_pci_capabilities(bdf, info.capabilities)
                 await self.scan_component_registers(info)
                 devices.append(info)
-
+    
+        logger.info(
+            self._create_message("set buses --- finished")
+        )
+        
         return devices
 
     async def scan_devices(self) -> EnumerationInfo:
@@ -745,6 +778,10 @@ class CxlRootPortDevice(RunnableComponent):
 
         await self.set_secondary_bus(usp_bdf, next_bus)
         await self.set_subordinate_bus(usp_bdf, next_bus)
+ 
+        logger.info(
+            self._create_message("set buses")
+        )
 
         for dsp_bdf in generate_bdfs_for_bus(next_bus):
             # --------------------------------------------------

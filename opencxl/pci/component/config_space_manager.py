@@ -102,13 +102,22 @@ class ConfigSpaceManager(RunnableComponent):
 
         # TODO: Fix OOB
 
-        logger.debug(
+        logger.info(
             self._create_message(f"[RD] Config Space - ADDR: 0x{cfg_addr:04x}, SIZE: {size}")
         )
         value = self._register.read_bytes(cfg_addr, cfg_addr + size - 1)
 
-        completion_packet = CxlIoCompletionWithDataPacket.create(req_id, tag, value, pload_width=size)
+        logger.info(
+            self._create_message("Read bytes")
+        )
+
+        completion_packet = CxlIoCompletionWithDataPacket.create(req_id, tag, value)
+
         await self._upstream_fifo.target_to_host.put(completion_packet)
+
+        logger.info(
+            self._create_message("Put packet")
+        )
 
     async def _process_cxl_io_cfg_wr(self, cfg_wr_packet: CxlIoCfgWrPacket):
         # NOTE: All PCIe devices are single function devices.

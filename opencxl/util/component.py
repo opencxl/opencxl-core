@@ -11,7 +11,7 @@ from asyncio import create_task, gather, Condition
 from typing import Optional
 from opencxl.util.logger import logger
 import traceback
-
+import time
 
 class COMPONENT_STATUS(Enum):
     STOPPED = auto()
@@ -25,11 +25,12 @@ class LabeledComponent:
         self._label = label
 
     def _create_message(self, message):
+        ret_message = f"[{time.time():.4f}] "
         if self._label:
-            message = f"[{self.__class__.__name__}:{self._label}] {message}"
+            ret_message += f"[{self.__class__.__name__}:{self._label}] {message}"
         else:
-            message = f"[{self.__class__.__name__}] {message}"
-        return message
+            ret_message += f"[{self.__class__.__name__}] {message}"
+        return ret_message
 
 
 class RunnableComponent(LabeledComponent):
