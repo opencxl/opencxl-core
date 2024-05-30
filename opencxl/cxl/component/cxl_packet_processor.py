@@ -126,7 +126,7 @@ class CxlPacketProcessor(RunnableComponent):
                 if packet.is_cxl_io():
                     cxl_io_packet = cast(CxlIoBasePacket, packet)
                     if cxl_io_packet.is_cpl() or cxl_io_packet.is_cpld():
-                        logger.debug(
+                        logger.info(
                             self._create_message(
                                 f"Received {self._incoming_dir} CXL.io (CPL/CPLD) packet"
                             )
@@ -137,7 +137,7 @@ class CxlPacketProcessor(RunnableComponent):
                         else:
                             await self._incoming.mmio.put(cxl_io_packet)
                     elif cxl_io_packet.is_cfg():
-                        logger.debug(
+                        logger.info(
                             self._create_message(
                                 f"Received {self._incoming_dir} CXL.io (CFG_RD/CFG_WR) packet"
                             )
@@ -145,7 +145,7 @@ class CxlPacketProcessor(RunnableComponent):
                         self._push_tlp_table_entry(cxl_io_packet)
                         await self._incoming.cfg_space.put(cxl_io_packet)
                     elif cxl_io_packet.is_mmio():
-                        logger.debug(
+                        logger.info(
                             self._create_message(
                                 f"Received {self._incoming_dir} CXL.io (MRD/MWR) packet"
                             )
@@ -168,13 +168,13 @@ class CxlPacketProcessor(RunnableComponent):
                     logger.debug(self._create_message(message))
                     raise Exception(message)
             except Exception as e:
-                logger.debug(self._create_message(str(e)))
+                logger.info(self._create_message(str(e)))
                 notification_packet = BaseSidebandPacket.create(
                     SIDEBAND_TYPES.CONNECTION_DISCONNECTED
                 )
                 await self._notify_outgoing_processors(notification_packet)
                 break
-        logger.debug(self._create_message(f"Stopped {self._incoming_dir} packet processor"))
+        logger.info(self._create_message(f"Stopped {self._incoming_dir} packet processor"))
 
     async def _notify_outgoing_processors(self, packet):
         await self._outgoing.cfg_space.put(packet)
@@ -185,22 +185,24 @@ class CxlPacketProcessor(RunnableComponent):
         logger.debug(self._create_message("Starting outgoing CFG FIFO processor"))
         while True:
             packet = await self._outgoing.cfg_space.get()
+            print("GOT", packet.get_pretty_string(), bytes(packet).hex())
             if self._is_disconnection_notification(packet):
                 break
 
             cxl_io_packet = cast(CxlIoBasePacket, packet)
             if cxl_io_packet.is_cpl() or cxl_io_packet.is_cpld():
-                logger.debug(
+                logger.info(
                     self._create_message(f"Received {self._outgoing_dir} CXL.io (CPL/CPLD) packet")
                 )
                 self._pop_tlp_table_entry(cxl_io_packet)
             else:
-                logger.debug(
+                logger.info(
                     self._create_message(
                         f"Received {self._outgoing_dir} CXL.io (CFG_RD/CFG_WR) packet"
                     )
                 )
                 self._push_tlp_table_entry(cxl_io_packet)
+            print(bytes(packet).hex())
             self._writer.write(bytes(packet))
             await self._writer.drain()
         logger.debug(self._create_message("Stopped outgoing CFG FIFO processor"))
