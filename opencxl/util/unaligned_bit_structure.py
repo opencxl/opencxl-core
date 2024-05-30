@@ -715,6 +715,8 @@ class BitMaskedBitStructure(UnalignedBitStructure):
 
         selected_field = None
         for field in self._fields:
+            if type(field) == DynamicByteField:
+                continue
             if field.start <= offset and offset <= field.end:
                 selected_field = field
                 break
