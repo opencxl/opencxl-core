@@ -88,10 +88,8 @@ class PacketReader(LabeledComponent):
     async def _get_payload(self) -> Tuple[BasePacket, bytes]:
         logger.debug(self._create_message("Waiting Packet"))
         header_load = await self._read_payload(BasePacket.get_size())
-        print("[?]", header_load.hex())
         base_packet = BasePacket()
         base_packet.reset(header_load)
-        logger.info(bytes(base_packet.system_header).hex())
         remaining_length = base_packet.system_header.payload_length - len(base_packet)
         if remaining_length < 0:
             raise Exception("remaining length is less than 0")
