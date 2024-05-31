@@ -54,7 +54,7 @@ class ByteField:
         return self.attribute == FIELD_ATTR.RO or self.attribute == FIELD_ATTR.HW_INIT
 
 @dataclass
-class DynamicByteField:
+class DynamicByteFieldInstance:
     name: str
     start: int
     width: int
@@ -67,7 +67,7 @@ class DynamicByteField:
         return self.attribute == FIELD_ATTR.RO or self.attribute == FIELD_ATTR.HW_INIT
 
 @dataclass
-class DynamicByteFieldSpawner:
+class DynamicByteField:
     """
     Dynamic byte fields may have different sizes depending on which
     packet they currently belong to. In order to prevent nasty side
@@ -87,9 +87,9 @@ class DynamicByteFieldSpawner:
         return self.attribute == FIELD_ATTR.RO or self.attribute == FIELD_ATTR.HW_INIT
 
     def spawn(self):
-        return DynamicByteField(self.name, self.start, self.width, 
-                                self.type, self.attribute, self.default, 
-                                self.mask)
+        return DynamicByteFieldInstance(self.name, self.start, self.width, 
+                                        self.type, self.attribute, self.default, 
+                                        self.mask)
     
 @dataclass
 class StructureField:
@@ -329,7 +329,7 @@ class UnalignedBitStructure:
                 self._add_bit_field(field)
             elif type(field) == ByteField:
                 self._add_byte_field(field)
-            elif type(field) == DynamicByteFieldSpawner:
+            elif type(field) == DynamicByteField:
                 self._add_dynamic_byte_field(field.spawn())
             elif type(field) == StructureField:
                 self._add_structured_field(field)
@@ -346,7 +346,7 @@ class UnalignedBitStructure:
                 bit_fields += 1
             elif type(field) == ByteField:
                 byte_fields += 1
-            elif type(field) == DynamicByteFieldSpawner:
+            elif type(field) == DynamicByteField:
                 dynamic_byte_fields += 1
             elif type(field) == StructureField:
                 structure_fields += 1
@@ -371,11 +371,11 @@ class UnalignedBitStructure:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': DataField.start isn't aligned to the previous field"
                 )
-            if type(field) != DynamicByteFieldSpawner and field.end < field.start:
+            if type(field) != DynamicByteField and field.end < field.start:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': DataField.end cannot be less than DataField.start"
                 )
-            elif type(field) == DynamicByteFieldSpawner and field.width < 0:
+            elif type(field) == DynamicByteField and field.width < 0:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': A byte field with negative width is nonsensical"
                 )
@@ -384,7 +384,7 @@ class UnalignedBitStructure:
                     f"'{self._class_name}.{field.name}: DynamicByteFields must be the last field in their respective packets"
                 )
             
-            if type(field) != DynamicByteFieldSpawner:
+            if type(field) != DynamicByteField:
                 last_offset = field.end
             else:
                 last_offset += field.width
@@ -423,7 +423,7 @@ class UnalignedBitStructure:
             return (last_field.end + 1) // BITS_IN_BYTE
         elif type(last_field) == ByteField or type(last_field) == StructureField:
             return last_field.end + 1
-        elif type(last_field) == DynamicByteFieldSpawner:
+        elif type(last_field) == DynamicByteField:
             return last_field.start + last_field.width
         raise Exception(f"Unexpected field type {type(last_field).__name__}")
 
@@ -518,7 +518,7 @@ class UnalignedBitStructure:
             property(make_getter(field.start, field.end), make_setter(field.start, field.end)),
         )
 
-    def _add_dynamic_byte_field(self: "UnalignedBitStructure", field: DynamicByteField):
+    def _add_dynamic_byte_field(self: "UnalignedBitStructure", field: DynamicByteFieldInstance):
         self._add_field_name(field.name)
         if self._dynamic_field is not None:
             raise Exception(
@@ -527,13 +527,13 @@ class UnalignedBitStructure:
         else:
             self._dynamic_field = field
 
-        def make_setter(field: DynamicByteField):
+        def make_setter(field: DynamicByteFieldInstance):
             def setter(self: "UnalignedBitStructure", value: int):
                 self._data.write_bytes(field.start, field.start + field.width - 1, value)
 
             return setter
         
-        def make_getter(field: DynamicByteField):
+        def make_getter(field: DynamicByteFieldInstance):
             def getter(self: "UnalignedBitStructure") -> int:
                 return self._data.read_bytes(field.start, field.start + field.width - 1)
 
@@ -630,7 +630,7 @@ class UnalignedBitStructure:
             elif type(field) == StructureField:
                 string += f"{indent_str}{field.name}:\n"
                 string += getattr(self, field.name).get_pretty_string(indent + 2)
-            elif type(field) == DynamicByteField:
+            elif type(field) == DynamicByteFieldInstance:
                 string += f"{indent_str}{field.name}: <-- {hex(getattr(self, field.name))} -->\n"
         return string
 
@@ -743,7 +743,7 @@ class BitMaskedBitStructure(UnalignedBitStructure):
 
         selected_field = None
         for field in self._fields:
-            if type(field) == DynamicByteField:
+            if type(field) == DynamicByteFieldInstance:
                 continue
             if field.start <= offset and offset <= field.end:
                 selected_field = field
