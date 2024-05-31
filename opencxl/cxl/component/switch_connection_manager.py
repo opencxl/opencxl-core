@@ -73,7 +73,6 @@ class SwitchConnectionManager(RunnableComponent):
 
     async def _run(self):
         try:
-            logger.debug(self._create_message("Hello"))
             logger.info(self._create_message("Creating TCP server"))
             server = await self._create_server()
             self._server_task = asyncio.create_task(server.serve_forever())
