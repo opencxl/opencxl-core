@@ -631,6 +631,454 @@ def is_cxl_io_completion_status_ur(packet: BasePacket) -> bool:
 
 
 #
+# Packet Definitions for PAYLOAD_TYPE.CXL_CACHE
+#
+
+
+class CXL_CACHE_MSG_CLASS(IntEnum):
+    D2H_REQ = 1
+    D2H_RSP = 2
+    D2H_DATA = 3
+    H2D_REQ = 4
+    H2D_RSP = 5
+    H2D_DATA = 6
+
+
+class CxlCacheHeaderPacket(UnalignedBitStructure):
+    port_index: int
+    msg_class: CXL_CACHE_MSG_CLASS
+    _fields = [ByteField("port_index", 0, 0), ByteField("msg_class", 1, 1)]
+
+
+CXL_CACHE_HEADER_START = SYSTEM_HEADER_END + 1
+CXL_CACHE_HEADER_END = CXL_CACHE_HEADER_START + CxlCacheHeaderPacket.get_size() - 1
+CXL_CACHE_FIELD_START = CXL_CACHE_HEADER_END + 1
+
+
+class CxlCacheBasePacket(BasePacket):
+    cxl_cache_header: CxlCacheHeaderPacket
+    _fields = BasePacket._fields + [
+        StructureField(
+            "cxl_cache_header",
+            CXL_CACHE_HEADER_START,
+            CXL_CACHE_HEADER_END,
+            CxlCacheHeaderPacket,
+        ),
+    ]
+
+    def is_d2hreq(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.D2H_REQ
+
+    def is_d2hrsp(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.D2H_RSP
+
+    def is_d2hdata(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.D2H_DATA
+
+    def is_h2dreq(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.H2D_REQ
+
+    def is_h2drsp(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.H2D_RSP
+
+    def is_h2ddata(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.H2D_DATA
+
+
+# Table 3-22
+class CXL_CACHE_D2HREQ_OPCODE(IntEnum):
+    CACHE_RD_CURR = 0b00001
+    CACHE_RD_OWN = 0b00010
+    CACHE_RD_SHARED = 0b00011
+    CACHE_RD_ANY = 0b00100
+    CACHE_RD_OWN_NO_DATA = 0b00101
+    CACHE_I_TO_M_WR = 0b00110
+    CACHE_WR_CUR = 0b00111
+    CACHE_CL_FLUSH = 0b01000
+    CACHE_CLEAN_EVICT = 0b01001
+    CACHE_DIRTY_EVICT = 0b01010
+    CACHE_CLEAN_EVICT_NO_DATA = 0b01011
+    CACHE_WEAKLY_ORDERED_WR_INV = 0b01100
+    CACHE_WEAKLY_ORDERED_WR_INV_F = 0b01101
+    CACHE_WR_INV = 0b01110
+    CACHE_CACHE_FLUSHED = 0b10000
+
+
+# Table 3-14
+class CXL_CACHE_NON_TEMPORAL_ENCODINGS(IntEnum):
+    DEFAULT = 0
+    LRU = 1
+
+
+# Table 3-13
+class CxlCacheD2HReqHeader(UnalignedBitStructure):
+    valid: int
+    cache_opcode: CXL_CACHE_D2HREQ_OPCODE
+    cq_id: int
+    nt: CXL_CACHE_NON_TEMPORAL_ENCODINGS
+    cache_id: int
+    addr: int
+    rsvd: int
+    _fields = [
+        BitField("valid", 0, 0),
+        BitField("cache_opcode", 1, 5),
+        BitField("cq_id", 6, 17),
+        BitField("nt", 18, 18),
+        BitField("cache_id", 19, 22),
+        BitField("addr", 23, 68),
+        BitField("rsvd", 69, 75),
+    ]
+
+
+# Table 3-25
+class CXL_CACHE_D2HRSP_OPCODE(IntEnum):
+    RSP_I_HIT_I = 0b00100
+    RSP_V_HIT_V = 0b00110
+    RSP_I_HIT_SE = 0b00101
+    RSP_S_HIT_SE = 0b00001
+    RSP_S_FWD_M = 0b00111
+    RSP_I_FWD_M = 0b01111
+    RSP_V_FWD_V = 0b10110
+
+
+# Table 3-15
+class CxlCacheD2HRspHeader(UnalignedBitStructure):
+    valid: int
+    cache_opcode: CXL_CACHE_D2HRSP_OPCODE
+    uqid: int
+    rsvd: int
+    _fields = [
+        BitField("valid", 0, 0),
+        BitField("cache_opcode", 1, 5),
+        BitField("uqid", 6, 17),
+        BitField("rsvd", 18, 23),
+    ]
+
+
+# Table 3-16
+class CxlCacheD2HDataHeader(UnalignedBitStructure):
+    valid: int
+    uqid: int
+    bogus: int
+    poison: int
+    bep: int
+    rsvd: int
+    _fields = [
+        BitField("valid", 0, 0),
+        BitField("uqid", 1, 12),
+        BitField("bogus", 13, 13),
+        BitField("poison", 14, 14),
+        BitField("bep", 15, 15),
+        BitField("rsvd", 16, 23),
+    ]
+
+
+# Table 3-26
+class CXL_CACHE_H2DREQ_OPCODE(IntEnum):
+    SNP_DATA = 0b001
+    SNP_INV = 0b010
+    SNP_CUR = 0b011
+
+
+# Table 3-17
+class CxlCacheH2DReqHeader(UnalignedBitStructure):
+    valid: int
+    cache_opcode: CXL_CACHE_H2DREQ_OPCODE
+    addr: int
+    uqid: int
+    cache_id: int
+    rsvd: int
+    _fields = [
+        BitField("valid", 0, 0),
+        BitField("cache_opcode", 1, 3),
+        BitField("addr", 4, 49),
+        BitField("uqid", 50, 61),
+        BitField("cache_id", 62, 65),
+        BitField("rsvd", 66, 71),
+    ]
+
+
+# Table 3-27
+class CXL_CACHE_H2DRSP_OPCODE(IntEnum):
+    WRITE_PULL = 0b0001
+    GO = 0b0100
+    GO_WRITE_PULL = 0b0101
+    EXT_CMP = 0b0110
+    GO_WRITE_PULL_DROP = 0b1000
+    RSVD = 0b1100
+    FAST_GO_WRITE_PULL = 0b1101
+    GO_ERR_WRITE_PUL = 0b1111
+
+
+# Table 3-19
+class CXL_CACHE_H2DRSP_PRE(IntEnum):
+    HOST_CACHE_MISS_LOCAL_CPU_SOCKET = 0b00
+    HOST_CACHE_HIT = 0b01
+    HOST_CACHE_MISS_REMOTE_CPU_SOCKET = 0b10
+    RSVD = 0b11
+
+
+# Table 3-20
+class CXL_CACHE_H2DRSP_CACHE_STATE(IntEnum):
+    INVALID = 0b0011
+    SHARED = 0b0001
+    EXCLUSIVE = 0b0010
+    MODIFIED = 0b0110
+    ERROR = 0b0100
+
+
+# Table 3-18
+class CxlCacheH2DRspHeader(UnalignedBitStructure):
+    valid: int
+    cache_opcode: CXL_CACHE_H2DRSP_OPCODE
+    rsp_data: int  # Could be CXL_CACHE_H2DRSP_CACHE_STATE
+    rsp_pre: CXL_CACHE_H2DRSP_PRE
+    cq_id: int
+    cache_id: int
+    rsvd: int
+    _fields = [
+        BitField("valid", 0, 0),
+        BitField("cache_opcode", 1, 4),
+        BitField("rsp_data", 5, 16),
+        BitField("rsp_pre", 17, 18),
+        BitField("cq_id", 19, 30),
+        BitField("cache_id", 31, 34),
+        BitField("rsvd", 35, 39),
+    ]
+
+
+# Table 3-21
+class CxlCacheH2DDataHeader(UnalignedBitStructure):
+    valid: int
+    cq_id: int
+    poison: int
+    go_err: int
+    cache_id: int
+    rsvd: int
+    _fields = [
+        BitField("valid", 0, 0),
+        BitField("cq_id", 1, 12),
+        BitField("poison", 13, 13),
+        BitField("go_err", 14, 14),
+        BitField("cache_id", 15, 18),
+        BitField("rsvd", 19, 27),
+    ]
+
+
+D2HREQ_HEADER_START = CXL_CACHE_HEADER_END + 1
+D2HREQ_HEADER_END = D2HREQ_HEADER_START + CxlCacheD2HReqHeader.get_size() - 1
+D2HREQ_FIELD_START = D2HREQ_HEADER_END + 1
+
+
+class CxlCacheD2HReqPacket(CxlCacheBasePacket):
+    d2hreq_header: CxlCacheD2HReqHeader
+    _fields = CxlCacheBasePacket._fields + [
+        StructureField(
+            "d2hreq_header",
+            D2HREQ_HEADER_START,
+            D2HREQ_HEADER_END,
+            CxlCacheD2HReqHeader,
+        ),
+    ]
+
+    def get_address(self) -> int:
+        return self.d2hreq_header.addr << 6
+
+
+D2HRSP_HEADER_START = CXL_CACHE_HEADER_END + 1
+D2HRSP_HEADER_END = D2HRSP_HEADER_START + CxlCacheD2HRspHeader.get_size() - 1
+D2HRSP_FIELD_START = D2HRSP_HEADER_END + 1
+
+
+class CxlCacheD2HRspPacket(CxlCacheBasePacket):
+    d2hrsp_header: CxlCacheD2HRspHeader
+    _fields = CxlCacheBasePacket._fields + [
+        StructureField(
+            "d2hrsp_header",
+            D2HRSP_HEADER_START,
+            D2HRSP_HEADER_END,
+            CxlCacheD2HRspHeader,
+        ),
+    ]
+
+
+D2HDATA_HEADER_START = CXL_CACHE_HEADER_END + 1
+D2HDATA_HEADER_END = D2HDATA_HEADER_START + CxlCacheD2HDataHeader.get_size() - 1
+D2HDATA_FIELD_START = D2HDATA_HEADER_END + 1
+
+
+class CxlCacheD2HDataPacket(CxlCacheBasePacket):
+    d2hdata_header: CxlCacheD2HDataHeader
+    data: int
+    _fields = CxlCacheBasePacket._fields + [
+        StructureField(
+            "d2hdata_header",
+            D2HRSP_HEADER_START,
+            D2HRSP_HEADER_END,
+            CxlCacheD2HDataHeader,
+        ),
+        ByteField("data", D2HDATA_FIELD_START, D2HDATA_FIELD_START + 63),
+    ]
+
+
+H2DREQ_HEADER_START = CXL_CACHE_HEADER_END + 1
+H2DREQ_HEADER_END = H2DREQ_HEADER_START + CxlCacheH2DReqHeader.get_size() - 1
+H2DREQ_FIELD_START = H2DREQ_HEADER_END + 1
+
+
+class CxlCacheH2DReqPacket(CxlCacheBasePacket):
+    h2dreq_header: CxlCacheH2DReqHeader
+    _fields = CxlCacheBasePacket._fields + [
+        StructureField(
+            "h2dreq_header",
+            H2DREQ_HEADER_START,
+            H2DREQ_HEADER_END,
+            CxlCacheH2DReqHeader,
+        ),
+    ]
+
+    def get_address(self) -> int:
+        return self.h2dreq_header.addr << 6
+
+    def get_opcode(self) -> CXL_CACHE_H2DREQ_OPCODE:
+        return self.h2dreq_header.cache_opcode
+
+
+H2DRSP_HEADER_START = CXL_CACHE_HEADER_END + 1
+H2DRSP_HEADER_END = H2DRSP_HEADER_START + CxlCacheH2DRspHeader.get_size() - 1
+H2DRSP_FIELD_START = H2DRSP_HEADER_END + 1
+
+
+class CxlCacheH2DRspPacket(CxlCacheBasePacket):
+    h2drsp_header: CxlCacheH2DRspHeader
+    _fields = CxlCacheBasePacket._fields + [
+        StructureField(
+            "h2drsp_header",
+            H2DRSP_HEADER_START,
+            H2DRSP_HEADER_END,
+            CxlCacheH2DRspHeader,
+        ),
+    ]
+
+    def get_opcode(self) -> CXL_CACHE_H2DRSP_OPCODE:
+        return self.h2drsp_header.cache_opcode
+
+
+H2DDATA_HEADER_START = CXL_CACHE_HEADER_END + 1
+H2DDATA_HEADER_END = H2DDATA_HEADER_START + CxlCacheH2DDataHeader.get_size() - 1
+H2DDATA_FIELD_START = H2DDATA_HEADER_END + 1
+
+
+class CxlCacheH2DDataPacket(CxlCacheBasePacket):
+    h2ddata_header: CxlCacheH2DDataHeader
+    data: int
+    _fields = CxlCacheBasePacket._fields + [
+        StructureField(
+            "h2ddata_header",
+            H2DDATA_HEADER_START,
+            H2DDATA_HEADER_END,
+            CxlCacheH2DDataHeader,
+        ),
+        ByteField("data", H2DDATA_FIELD_START, H2DDATA_FIELD_START + 63),
+    ]
+
+    def get_cqid(self) -> int:
+        return self.h2ddata_header.cq_id
+
+    def get_cache_id(self) -> int:
+        return self.h2ddata_header.cache_id
+
+
+# Helper classes
+class CxlCacheCacheD2HReqPacket(CxlCacheD2HReqPacket):
+    @staticmethod
+    # read length is assumed to be 64 for now
+    def create(
+        addr: int, cache_id: int, opcode: CXL_CACHE_D2HREQ_OPCODE
+    ) -> "CxlCacheCacheD2HReqPacket":
+        packet = CxlCacheCacheD2HReqPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_length = len(packet)
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_REQ
+        packet.d2hreq_header.valid = 0b1
+        packet.d2hreq_header.cache_opcode = opcode
+        packet.d2hreq_header.cache_id = cache_id
+        if addr % 0x40:
+            raise Exception("Address must be a multiple of 0x40")
+        packet.d2hreq_header.addr = addr >> 6
+        return packet
+
+
+class CxlCacheCacheD2HRspPacket(CxlCacheD2HRspPacket):
+    @staticmethod
+    # read length is assumed to be 64 for now
+    def create(uqid: int, opcode: CXL_CACHE_D2HRSP_OPCODE) -> "CxlCacheCacheD2HRspPacket":
+        packet = CxlCacheCacheD2HRspPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_length = len(packet)
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_REQ
+        packet.d2hrsp_header.valid = 0b1
+        packet.d2hrsp_header.uqid = uqid
+        packet.d2hrsp_header.cache_opcode = opcode
+        return packet
+
+
+class CxlCacheCacheD2HDataPacket(CxlCacheD2HDataPacket):
+    @staticmethod
+    def create(uqid: int, data: int) -> "CxlCacheCacheD2HDataPacket":
+        packet = CxlCacheCacheD2HDataPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_length = len(packet)
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_DATA
+        packet.d2hdata_header.valid = 0b1
+        packet.d2hdata_header.uqid = uqid
+        packet.d2hdata_header.poison = 0b0
+        packet.data = data
+        return packet
+
+
+class CxlCacheCacheH2DReqPacket(CxlCacheH2DReqPacket):
+    @staticmethod
+    # read length is assumed to be 64 for now
+    def create(addr: int, opcode: CXL_CACHE_H2DREQ_OPCODE) -> "CxlCacheCacheH2DReqPacket":
+        packet = CxlCacheCacheH2DReqPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_length = len(packet)
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_REQ
+        packet.h2dreq_header.valid = 0b1
+        packet.h2dreq_header.cache_opcode = opcode
+        if addr % 0x40:
+            raise Exception("Address must be a multiple of 0x40")
+        packet.h2dreq_header.addr = addr >> 6
+        return packet
+
+
+class CxlCacheCacheH2DRspPacket(CxlCacheH2DRspPacket):
+    @staticmethod
+    # read length is assumed to be 64 for now
+    def create(opcode: CXL_CACHE_H2DRSP_OPCODE) -> "CxlCacheCacheH2DRspPacket":
+        packet = CxlCacheCacheH2DRspPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_length = len(packet)
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_RSP
+        packet.h2drsp_header.valid = 0b1
+        packet.h2drsp_header.cache_opcode = opcode
+        return packet
+
+
+class CxlCacheCacheH2DDataPacket(CxlCacheH2DDataPacket):
+    @staticmethod
+    def create(data: int) -> "CxlCacheCacheH2DDataPacket":
+        packet = CxlCacheCacheH2DDataPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_length = len(packet)
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
+        packet.h2ddata_header.valid = 0b1
+        packet.data = data
+        return packet
+
+
+#
 # Packet Definitions for PAYLOAD_TYPE.CXL_MEM
 #
 
