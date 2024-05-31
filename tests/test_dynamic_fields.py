@@ -8,7 +8,7 @@
 from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
     ByteField,
-    DynamicByteFieldSpawner,
+    DynamicByteField,
 )
 
 from opencxl.cxl.transport.transaction import (
@@ -24,7 +24,7 @@ class DynamicByteStructure(UnalignedBitStructure):
         ByteField("field1", 0, 0),  # 1 Byte
         ByteField("field2", 1, 2),  # 2 Bytes
         ByteField("field3", 3, 5),  # 3 Bytes
-        DynamicByteFieldSpawner("payload", 6, 0)
+        DynamicByteField("payload", 6, 0)
     ]
 
 def test_basic_dbf():

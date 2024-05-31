@@ -13,7 +13,7 @@ from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
     BitField,
     ByteField,
-    DynamicByteFieldSpawner,
+    DynamicByteField,
     StructureField,
 )
 from opencxl.util.pci import (
@@ -320,7 +320,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
     data: int
     # TODO: Support dynamic data size. Fixed to 8 for now.
     _fields = CxlIoMemReqPacket._fields + [
-        DynamicByteFieldSpawner("data", CXL_IO_MREQ_FIELD_START, 0x0),
+        DynamicByteField("data", CXL_IO_MREQ_FIELD_START, 0x0),
     ]
 
     @staticmethod
@@ -592,7 +592,7 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
             CXL_IO_CPL_HEADER_END,
             CxlIoCompletionHeader,
         ),
-        DynamicByteFieldSpawner("data", CXL_IO_CPL_FIELD_START, 0x0),
+        DynamicByteField("data", CXL_IO_CPL_FIELD_START, 0x0),
     ]
 
     @staticmethod
