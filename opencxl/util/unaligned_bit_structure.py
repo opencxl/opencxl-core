@@ -183,7 +183,7 @@ class ShareableByteArray:
             self._data.extend(bytearray([0] * (new_size - self.size)))
         # truncation
         else:
-            self._data = self._data[0 : new_size]
+            self._data = self._data[:new_size]
         self.size = new_size
 
     def get_hex_dump(self, line_length: int = 16):
@@ -334,7 +334,7 @@ class UnalignedBitStructure:
             elif type(field) == StructureField:
                 self._add_structured_field(field)
 
-    def _check_if_fields_are_valid(self) -> bool:
+    def _check_if_fields_are_valid(self):
         fields = self._fields
         bit_fields = 0
         byte_fields = 0
@@ -400,8 +400,6 @@ class UnalignedBitStructure:
             self._last_offset = last_offset / BITS_IN_BYTE
         else:
             self._last_offset = last_offset
-
-        return True
 
     @staticmethod
     def ascii_str_to_int(ascii_str: str, length: int) -> int:
