@@ -21,7 +21,8 @@ from opencxl.util.unaligned_bit_structure import (
 class PAYLOAD_TYPE(IntEnum):
     CXL = 0  # packet based on CPI
     CXL_IO = 1  # Custom packet for CXL.io
-    CXL_MEM = 2  # Custom packet for CXL.cachemem
+    CXL_MEM = 2  # Custom packet for CXL.mem
+    CXL_CACHE = 3  # Custom packet for CXL.cache
     SIDEBAND = 15
 
 
