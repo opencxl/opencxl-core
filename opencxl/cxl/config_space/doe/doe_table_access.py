@@ -97,8 +97,10 @@ class DoeTableAccessProtocol(DoeMailboxProtocolBase):
 
         # TODO: Calculate checksum
         cdat_header = CdatHeader()
+        cdat_header.length = len(cdat_header)
         self._entries.append(cdat_header)
         for entry in entries:
+            cdat_header.length += entry.length
             self._entries.append(entry)
 
     def process_request(self, mailbox_context: DoeMailboxContext) -> bool:
