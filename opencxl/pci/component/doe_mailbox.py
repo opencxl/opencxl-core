@@ -188,7 +188,7 @@ class DoeMailboxComponent:
             return
 
         logger.debug(
-            "[DOE] Invalid protocol: Vendor ID = 0x%04x, Data Object Type = 0x%02x",
+            "[DOE] Valid protocol: Vendor ID = 0x%04x, Data Object Type = 0x%02x",
             vendor_id,
             data_object_type,
         )
