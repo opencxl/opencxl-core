@@ -13,4 +13,5 @@ from opencxl.pci.component.pci_connection import PciConnection
 @dataclass
 class CxlConnection(PciConnection):
     cxl_mem_fifo: FifoPair = field(default_factory=FifoPair)
+    cxl_cache_fifo: FifoPair = field(default_factory=FifoPair)
     cci_fifo: FifoPair = field(default_factory=FifoPair)
