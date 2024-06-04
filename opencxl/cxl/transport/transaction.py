@@ -1016,7 +1016,7 @@ class CxlCacheCacheD2HRspPacket(CxlCacheD2HRspPacket):
         packet = CxlCacheCacheD2HRspPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
-        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_REQ
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_RSP
         packet.d2hrsp_header.valid = 0b1
         packet.d2hrsp_header.uqid = uqid
         packet.d2hrsp_header.cache_opcode = opcode
