@@ -47,6 +47,7 @@ disable = [
   "missing-class-docstring",
   "pointless-string-statement",
   "too-many-arguments",
+  "too-many-branches",
   "broad-exception-raised",
   "broad-exception-caught",
   "redefined-builtin",

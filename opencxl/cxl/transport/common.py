@@ -58,6 +58,9 @@ class BasePacket(UnalignedBitStructure):
     def is_cxl_mem(self) -> bool:
         return self.system_header.payload_type == PAYLOAD_TYPE.CXL_MEM
 
+    def is_cxl_cache(self) -> bool:
+        return self.system_header.payload_type == PAYLOAD_TYPE.CXL_CACHE
+
     def is_sideband(self) -> bool:
         return self.system_header.payload_type == PAYLOAD_TYPE.SIDEBAND
 
