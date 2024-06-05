@@ -57,6 +57,7 @@ def validate_log_level(ctx, param, level):
 @click.option("--log-file", help="<Log File> output path.")
 @click.option("--pcap-file", help="<Packet Capture File> output path.")
 @click.option("--log-level", callback=validate_log_level, help="Specify log level.")
+@click.option("--no-hm", is_flag=True, default=False, help="Do not start HostManager.")
 @click.option("--show-timestamp", is_flag=True, default=False, help="Show timestamp.")
 @click.option("--show-loglevel", is_flag=True, default=False, help="Show log level.")
 @click.option("--show-linenumber", is_flag=True, default=False, help="Show line number.")
@@ -67,6 +68,7 @@ def start(
     log_level,
     log_file,
     pcap_file,
+    no_hm,
     show_timestamp,
     show_loglevel,
     show_linenumber,
@@ -123,15 +125,17 @@ def start(
         t_sgroup.start()
 
     if "host" in comp or "host-group" in comp:
-        t_hm = threading.Thread(target=start_host_manager, args=(ctx,))
-        threads.append(t_hm)
-        t_hm.start()
+        hm_mode = not no_hm
+        if hm_mode:
+            t_hm = threading.Thread(target=start_host_manager, args=(ctx,))
+            threads.append(t_hm)
+            t_hm.start()
         if "host" in comp:
             t_host = threading.Thread(target=start_host, args=(ctx,))
             threads.append(t_host)
             t_host.start()
         elif "host-group" in comp:
-            t_hgroup = threading.Thread(target=start_host_group, args=(ctx, config_file))
+            t_hgroup = threading.Thread(target=start_host_group, args=(ctx, config_file, hm_mode))
             threads.append(t_hgroup)
             t_hgroup.start()
 
@@ -187,8 +191,8 @@ def start_host(ctx):
     ctx.invoke(cxl_host.start)
 
 
-def start_host_group(ctx, config_file):
-    ctx.invoke(cxl_host.start_group, config_file=config_file)
+def start_host_group(ctx, config_file, hm_mode):
+    ctx.invoke(cxl_host.start_group, config_file=config_file, hm_mode=hm_mode)
 
 
 def start_sld(ctx, config_file):
