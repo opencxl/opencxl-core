@@ -57,6 +57,7 @@ def validate_log_level(ctx, param, level):
 @click.option("--log-file", help="<Log File> output path.")
 @click.option("--pcap-file", help="<Packet Capture File> output path.")
 @click.option("--log-level", callback=validate_log_level, help="Specify log level.")
+@click.option("--no-hm", is_flag=True, default=False, help="Do not start HostManager.")
 @click.option("--show-timestamp", is_flag=True, default=False, help="Show timestamp.")
 @click.option("--show-loglevel", is_flag=True, default=False, help="Show log level.")
 @click.option("--show-linenumber", is_flag=True, default=False, help="Show line number.")
@@ -67,6 +68,7 @@ def start(
     log_level,
     log_file,
     pcap_file,
+    no_hm,
     show_timestamp,
     show_loglevel,
     show_linenumber,
@@ -131,7 +133,7 @@ def start(
             threads.append(t_host)
             t_host.start()
         elif "host-group" in comp:
-            t_hgroup = threading.Thread(target=start_host_group, args=(ctx, config_file))
+            t_hgroup = threading.Thread(target=start_host_group, args=(ctx, config_file, no_hm))
             threads.append(t_hgroup)
             t_hgroup.start()
 
@@ -187,8 +189,8 @@ def start_host(ctx):
     ctx.invoke(cxl_host.start)
 
 
-def start_host_group(ctx, config_file):
-    ctx.invoke(cxl_host.start_group, config_file=config_file)
+def start_host_group(ctx, config_file, no_hm):
+    ctx.invoke(cxl_host.start_group, config_file=config_file, no_hm=no_hm)
 
 
 def start_sld(ctx, config_file):
