@@ -27,7 +27,7 @@ class LabeledComponent:
         if self._label:
             message = f"[{self.__class__.__name__}:{self._label}] {message}"
         else:
-            message += f"[{self.__class__.__name__}] {message}"
+            message = f"[{self.__class__.__name__}] {message}"
         return message
 
 
