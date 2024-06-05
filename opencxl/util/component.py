@@ -12,6 +12,7 @@ from typing import Optional
 from opencxl.util.logger import logger
 import traceback
 
+
 class COMPONENT_STATUS(Enum):
     STOPPED = auto()
     STARTING = auto()

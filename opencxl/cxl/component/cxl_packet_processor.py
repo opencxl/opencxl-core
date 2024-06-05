@@ -119,7 +119,9 @@ class CxlPacketProcessor(RunnableComponent):
         return fifo_type
 
     async def _process_incoming_packets(self):
-        logger.debug(self._create_message(f"Starting {self._incoming_dir} packet processor"))
+        logger.debug(
+            self._create_message(f"Starting {self._incoming_dir} packet processor")
+        )
         while True:
             try:
                 packet = await self._reader.get_packet()
@@ -159,7 +161,9 @@ class CxlPacketProcessor(RunnableComponent):
                         raise Exception("Received unexpected CXL.io packet")
                 elif packet.is_cxl_mem():
                     logger.debug(
-                        self._create_message(f"Received {self._incoming_dir} CXL.mem packet")
+                        self._create_message(
+                            f"Received {self._incoming_dir} CXL.mem packet"
+                        )
                     )
                     cxl_mem_packet = cast(CxlMemBasePacket, packet)
                     await self._incoming.cxl_mem.put(cxl_mem_packet)
@@ -174,7 +178,9 @@ class CxlPacketProcessor(RunnableComponent):
                 )
                 await self._notify_outgoing_processors(notification_packet)
                 break
-        logger.info(self._create_message(f"Stopped {self._incoming_dir} packet processor"))
+        logger.info(
+            self._create_message(f"Stopped {self._incoming_dir} packet processor")
+        )
 
     async def _notify_outgoing_processors(self, packet):
         await self._outgoing.cfg_space.put(packet)
@@ -191,7 +197,9 @@ class CxlPacketProcessor(RunnableComponent):
             cxl_io_packet = cast(CxlIoBasePacket, packet)
             if cxl_io_packet.is_cpl() or cxl_io_packet.is_cpld():
                 logger.info(
-                    self._create_message(f"Received {self._outgoing_dir} CXL.io (CPL/CPLD) packet")
+                    self._create_message(
+                        f"Received {self._outgoing_dir} CXL.io (CPL/CPLD) packet"
+                    )
                 )
                 self._pop_tlp_table_entry(cxl_io_packet)
             else:
@@ -214,12 +222,16 @@ class CxlPacketProcessor(RunnableComponent):
             cxl_io_packet = cast(CxlIoBasePacket, packet)
             if cxl_io_packet.is_cpl() or cxl_io_packet.is_cpld():
                 logger.debug(
-                    self._create_message(f"Received {self._outgoing_dir} CXL.io (CPL/CPLD) packet")
+                    self._create_message(
+                        f"Received {self._outgoing_dir} CXL.io (CPL/CPLD) packet"
+                    )
                 )
                 self._pop_tlp_table_entry(cxl_io_packet)
             else:
                 logger.debug(
-                    self._create_message(f"Received {self._outgoing_dir} CXL.io (MRD/MWR) packet")
+                    self._create_message(
+                        f"Received {self._outgoing_dir} CXL.io (MRD/MWR) packet"
+                    )
                 )
                 if cxl_io_packet.is_mem_write() is False:
                     self._push_tlp_table_entry(cxl_io_packet)

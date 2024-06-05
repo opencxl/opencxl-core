@@ -22,8 +22,12 @@ from opencxl.util.pci import (
     extract_bus_from_bdf,
 )
 from opencxl.util.number import (
-    get_randbits, htotlp16, htotlp64,
-    tlptoh16, extract_upper, extract_lower,
+    get_randbits,
+    htotlp16,
+    htotlp64,
+    tlptoh16,
+    extract_upper,
+    extract_lower,
 )
 from opencxl.cxl.transport.common import (
     BasePacket,
@@ -40,7 +44,6 @@ class SIDEBAND_TYPES(IntEnum):
     CONNECTION_ACCEPT = 1
     CONNECTION_REJECT = 2
     CONNECTION_DISCONNECTED = 3
-
 
 
 class SidebandHeaderPacket(UnalignedBitStructure):
@@ -201,16 +204,28 @@ class CxlIoBasePacket(BasePacket):
     ]
 
     def is_cfg_type0(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.CFG_RD0, CXL_IO_FMT_TYPE.CFG_WR0)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.CFG_RD0,
+            CXL_IO_FMT_TYPE.CFG_WR0,
+        )
 
     def is_cfg_type1(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.CFG_RD1, CXL_IO_FMT_TYPE.CFG_WR1)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.CFG_RD1,
+            CXL_IO_FMT_TYPE.CFG_WR1,
+        )
 
     def is_cfg_read(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.CFG_RD0, CXL_IO_FMT_TYPE.CFG_RD1)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.CFG_RD0,
+            CXL_IO_FMT_TYPE.CFG_RD1,
+        )
 
     def is_cfg_write(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.CFG_WR0, CXL_IO_FMT_TYPE.CFG_WR1)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.CFG_WR0,
+            CXL_IO_FMT_TYPE.CFG_WR1,
+        )
 
     def is_cpl(self) -> bool:
         return self.cxl_io_header.fmt_type == CXL_IO_FMT_TYPE.CPL
@@ -235,10 +250,16 @@ class CxlIoBasePacket(BasePacket):
         )
 
     def is_mem_read(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.MRD_32B, CXL_IO_FMT_TYPE.MRD_64B)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.MRD_32B,
+            CXL_IO_FMT_TYPE.MRD_64B,
+        )
 
     def is_mem_write(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.MWR_32B, CXL_IO_FMT_TYPE.MWR_64B)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.MWR_32B,
+            CXL_IO_FMT_TYPE.MWR_64B,
+        )
 
     @staticmethod
     def build_transaction_id(req_id: int, tag: int) -> int:
@@ -304,7 +325,9 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
 
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
     @staticmethod
-    def create(addr: int, length: int, req_id: int = None, tag: int = None) -> "CxlIoMemRdPacket":
+    def create(
+        addr: int, length: int, req_id: int = None, tag: int = None
+    ) -> "CxlIoMemRdPacket":
         packet = CxlIoMemRdPacket()
         packet.fill(addr, length)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
@@ -373,7 +396,9 @@ class CxlIoCfgReqHeader(UnalignedBitStructure):
 
 
 CXL_IO_CFG_REQ_HEADER_START = CXL_IO_BASE_FIELD_START
-CXL_IO_CFG_REQ_HEADER_END = CXL_IO_CFG_REQ_HEADER_START + CxlIoCfgReqHeader.get_size() - 1
+CXL_IO_CFG_REQ_HEADER_END = (
+    CXL_IO_CFG_REQ_HEADER_START + CxlIoCfgReqHeader.get_size() - 1
+)
 CXL_IO_CFG_REQ_FIELD_START = CXL_IO_CFG_REQ_HEADER_END + 1
 
 
@@ -478,7 +503,9 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
 class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
     value: int
     _fields = CxlIoCfgReqPacket._fields + [
-        ByteField("value", CXL_IO_CFG_REQ_FIELD_START, CXL_IO_CFG_REQ_FIELD_START + 0x03),
+        ByteField(
+            "value", CXL_IO_CFG_REQ_FIELD_START, CXL_IO_CFG_REQ_FIELD_START + 0x03
+        ),
     ]
 
     @staticmethod
@@ -597,8 +624,11 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
 
     @staticmethod
     def create(
-        req_id: int, tag: int, data: int, status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
-        pload_width: int = 0x04
+        req_id: int,
+        tag: int,
+        data: int,
+        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
+        pload_width: int = 0x04,
     ) -> "CxlIoCompletionWithDataPacket":
         # for config reads, always 1 DWORD (4 bytes)
         packet = CxlIoCompletionWithDataPacket()
@@ -1033,7 +1063,9 @@ class CxlCacheCacheD2HReqPacket(CxlCacheD2HReqPacket):
 class CxlCacheCacheD2HRspPacket(CxlCacheD2HRspPacket):
     @staticmethod
     # read length is assumed to be 64 for now
-    def create(uqid: int, opcode: CXL_CACHE_D2HRSP_OPCODE) -> "CxlCacheCacheD2HRspPacket":
+    def create(
+        uqid: int, opcode: CXL_CACHE_D2HRSP_OPCODE
+    ) -> "CxlCacheCacheD2HRspPacket":
         packet = CxlCacheCacheD2HRspPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
@@ -1061,7 +1093,9 @@ class CxlCacheCacheD2HDataPacket(CxlCacheD2HDataPacket):
 class CxlCacheCacheH2DReqPacket(CxlCacheH2DReqPacket):
     @staticmethod
     # read length is assumed to be 64 for now
-    def create(addr: int, opcode: CXL_CACHE_H2DREQ_OPCODE) -> "CxlCacheCacheH2DReqPacket":
+    def create(
+        addr: int, opcode: CXL_CACHE_H2DREQ_OPCODE
+    ) -> "CxlCacheCacheH2DReqPacket":
         packet = CxlCacheCacheH2DReqPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)

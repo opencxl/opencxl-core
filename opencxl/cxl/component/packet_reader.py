@@ -164,7 +164,9 @@ class PacketReader(LabeledComponent):
         return sideband_packet
 
     async def _get_sideband_connection_request_packet(self, packets: bytes):
-        remaining_packets_size = SidebandConnectionRequestPacket.get_size() - len(packets)
+        remaining_packets_size = SidebandConnectionRequestPacket.get_size() - len(
+            packets
+        )
         remaining_packets = await self._reader.read(remaining_packets_size)
         if not remaining_packets:
             raise Exception("Connection disconnected")

@@ -58,7 +58,9 @@ class CxlRouter(RunnableComponent):
     async def _run(self):
         tasks = [create_task(self._process_host_to_target_packets())]
         for downstream_connection in self._downstream_connections:
-            task = create_task(self._process_target_to_host_packets(downstream_connection))
+            task = create_task(
+                self._process_target_to_host_packets(downstream_connection)
+            )
             tasks.append(task)
         await self._change_status_to_running()
         await gather(*tasks)
@@ -81,7 +83,9 @@ class CxlIoRouter(RunnableComponent):
         self._config_space_router = ConfigSpaceRouter(
             vcs_id, routing_table, usp_connection, vppb_connections
         )
-        self._mmio_router = MmioRouter(vcs_id, routing_table, usp_connection, vppb_connections)
+        self._mmio_router = MmioRouter(
+            vcs_id, routing_table, usp_connection, vppb_connections
+        )
 
     async def _run(self):
         run_tasks = [
@@ -166,7 +170,9 @@ class MmioRouter(CxlRouter):
         Note that data_width should be in bytes.
         """
         if data is not None:
-            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_width=data_len)
+            packet = CxlIoCompletionWithDataPacket.create(
+                req_id, tag, data, pload_width=data_len
+            )
         else:
             packet = CxlIoCompletionPacket.create(req_id, tag)
         await self._upstream_connection.target_to_host.put(packet)
@@ -206,14 +212,18 @@ class ConfigSpaceRouter(CxlRouter):
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
             dest_id = tlptoh16(cfg_packet.cfg_req_header.dest_id)
 
-            logger.debug(self._create_message(f"Destination ID is {bdf_to_string(dest_id)}"))
+            logger.debug(
+                self._create_message(f"Destination ID is {bdf_to_string(dest_id)}")
+            )
 
             req_id = tlptoh16(cfg_packet.cfg_req_header.req_id)
             tag = cfg_packet.cfg_req_header.tag
             target_port = self._routing_table.get_config_space_target_port(dest_id)
             if target_port is None:
                 logger.debug(
-                    self._create_message(f"Request to {bdf_to_string(dest_id)} is not routable")
+                    self._create_message(
+                        f"Request to {bdf_to_string(dest_id)} is not routable"
+                    )
                 )
                 await self._send_unsupported_request(req_id, tag)
                 continue
@@ -271,7 +281,9 @@ class CxlMemRouter(CxlRouter):
 
             target_port = self._routing_table.get_cxl_mem_target_port(addr)
             if target_port is None:
-                logger.warning(self._create_message("Received unroutable CXL.mem packet"))
+                logger.warning(
+                    self._create_message("Received unroutable CXL.mem packet")
+                )
                 continue
             if target_port >= len(self._downstream_connections):
                 raise Exception("target_port is out of bound")

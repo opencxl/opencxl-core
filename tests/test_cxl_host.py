@@ -19,7 +19,10 @@ from opencxl.apps.cxl_host import CxlHostManager, CxlHost, CxlHostUtilClient
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
 from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
-from opencxl.cxl.component.virtual_switch_manager import VirtualSwitchManager, VirtualSwitchConfig
+from opencxl.cxl.component.virtual_switch_manager import (
+    VirtualSwitchManager,
+    VirtualSwitchConfig,
+)
 from opencxl.apps.single_logical_device import SingleLogicalDeviceClient
 
 BASE_TEST_PORT = 9300
@@ -69,14 +72,18 @@ class DummyHost:
     async def _dummy_mem_read(self, addr: int) -> jsonrpcserver.Result:
         if self._is_valid_addr(addr) is False:
             return jsonrpcserver.Error(
-                ERROR_INTERNAL_ERROR, f"Invalid Params: 0x{addr:x} is not a valid address"
+                ERROR_INTERNAL_ERROR,
+                f"Invalid Params: 0x{addr:x} is not a valid address",
             )
         return jsonrpcserver.Success({"result": addr})
 
-    async def _dummy_mem_write(self, addr: int, data: int = None) -> jsonrpcserver.Result:
+    async def _dummy_mem_write(
+        self, addr: int, data: int = None
+    ) -> jsonrpcserver.Result:
         if self._is_valid_addr(addr) is False:
             return jsonrpcserver.Error(
-                ERROR_INTERNAL_ERROR, f"Invalid Params: 0x{addr:x} is not a valid address"
+                ERROR_INTERNAL_ERROR,
+                f"Invalid Params: 0x{addr:x} is not a valid address",
             )
         return jsonrpcserver.Success({"result": data})
 
@@ -146,7 +153,9 @@ async def test_cxl_host_manager_send_util_and_recv_host():
 
     cmd = request_json("UTIL_CXL_MEM_READ", params={"port": 0, "addr": 0x40})
     await send_util_and_check_host(host_client, util_client, cmd)
-    cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": 0x40, "data": 0xA5A5})
+    cmd = request_json(
+        "UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": 0x40, "data": 0xA5A5}
+    )
     await send_util_and_check_host(host_client, util_client, cmd)
     cmd = request_json("UTIL_REINIT", params={"port": 0, "hpa_base": 0x40})
     await send_util_and_check_host(host_client, util_client, cmd)
@@ -180,7 +189,9 @@ async def test_cxl_host_manager_handle_res():
     data = 0xA5A5
     cmd = request_json("UTIL_CXL_MEM_READ", params={"port": 0, "addr": addr})
     await send_and_check_res(util_client, cmd, addr)
-    cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": addr, "data": data})
+    cmd = request_json(
+        "UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": addr, "data": data}
+    )
     await send_and_check_res(util_client, cmd, data)
 
     await host.conn_close()
