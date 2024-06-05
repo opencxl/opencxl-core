@@ -133,7 +133,8 @@ def start(
             threads.append(t_host)
             t_host.start()
         elif "host-group" in comp:
-            t_hgroup = threading.Thread(target=start_host_group, args=(ctx, config_file, no_hm))
+            hm_mode = not no_hm
+            t_hgroup = threading.Thread(target=start_host_group, args=(ctx, config_file, hm_mode))
             threads.append(t_hgroup)
             t_hgroup.start()
 
@@ -189,8 +190,8 @@ def start_host(ctx):
     ctx.invoke(cxl_host.start)
 
 
-def start_host_group(ctx, config_file, no_hm):
-    ctx.invoke(cxl_host.start_group, config_file=config_file, no_hm=no_hm)
+def start_host_group(ctx, config_file, hm_mode):
+    ctx.invoke(cxl_host.start_group, config_file=config_file, hm_mode=hm_mode)
 
 
 def start_sld(ctx, config_file):

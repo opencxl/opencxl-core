@@ -29,11 +29,11 @@ class CxlHost(RunnableComponent):
     def __init__(
         self,
         port_index: int,
-        no_hm: bool = False,
         switch_host: str = "0.0.0.0",
         switch_port: int = 8000,
         host_host: str = "0.0.0.0",
         host_port: int = 8300,
+        hm_mode: bool = True,
         test_mode: bool = False,
     ):
         label = f"Port{port_index}"
@@ -47,13 +47,15 @@ class CxlHost(RunnableComponent):
             "HOST_CXL_MEM_WRITE": self._cxl_mem_write,
             "HOST_REINIT": self._reinit,
         }
-        if not no_hm:
+        if hm_mode:
             self._host_manager_conn_client = HostManagerConnClient(
                 port_index=port_index, host=host_host, port=host_port, methods=self._methods
             )
         else:
             logger.debug(
-                "[CXLHost] HostManagerConnClient is not starting because of the --no-hm arg."
+                self._create_message(
+                    "HostManagerConnClient is not starting because of the --no-hm arg."
+                )
             )
         self._root_port_device = CxlRootPortDevice(
             downstream_connection=self._switch_conn_client.get_cxl_connection(),
@@ -61,7 +63,7 @@ class CxlHost(RunnableComponent):
             test_mode=self._test_mode,
         )
         self._port_index = port_index
-        self._no_hm = no_hm
+        self._hm_mode = hm_mode
 
     def _is_valid_addr(self, addr: int) -> bool:
         return 0 <= addr <= self._root_port_device.get_used_hpa_size() and (addr % 0x40 == 0)
@@ -102,7 +104,7 @@ class CxlHost(RunnableComponent):
             asyncio.create_task(self._switch_conn_client.run()),
             asyncio.create_task(self._root_port_device.run()),
         ]
-        if not self._no_hm:
+        if self._hm_mode:
             tasks.append(asyncio.create_task(self._host_manager_conn_client.run()))
         await self._switch_conn_client.wait_for_ready()
         await self._root_port_device.wait_for_ready()
@@ -114,7 +116,7 @@ class CxlHost(RunnableComponent):
             asyncio.create_task(self._switch_conn_client.stop()),
             asyncio.create_task(self._root_port_device.stop()),
         ]
-        if not self._no_hm:
+        if self._hm_mode:
             tasks.append(asyncio.create_task(self._host_manager_conn_client.stop()))
         await asyncio.gather(*tasks)
 

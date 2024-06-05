@@ -44,7 +44,7 @@ async def run_host_group(host_clients):
     await asyncio.gather(*tasks)
 
 
-def start_group(config_file: str, no_hm: bool = False):
+def start_group(config_file: str, hm_mode: bool = True):
     logger.info(f"Starting CXL Host Group - Config: {config_file}")
     try:
         environment = parse_cxl_environment(config_file)
@@ -55,7 +55,7 @@ def start_group(config_file: str, no_hm: bool = False):
     host_clients = []
     for idx, port_config in enumerate(environment.switch_config.port_configs):
         if port_config.type == PORT_TYPE.USP:
-            host_clients.append(CxlHost(port_index=idx, no_hm=no_hm))
+            host_clients.append(CxlHost(port_index=idx, hm_mode=hm_mode))
     asyncio.run(run_host_group(host_clients))
 
 
