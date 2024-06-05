@@ -66,17 +66,13 @@ class MmioManager(PacketProcessor):
     def set_memory_base(self, memory_base: int):
         if self._downstream_fifo is None:
             raise Exception("Setting memory base is prohibited for an endpoint device")
-        logger.debug(
-            self._create_message(f"Setting memory base to 0x{memory_base:08x}")
-        )
+        logger.debug(self._create_message(f"Setting memory base to 0x{memory_base:08x}"))
         self._memory_base = memory_base
 
     def set_memory_limit(self, memory_limit: int):
         if self._downstream_fifo is None:
             raise Exception("Setting memory base is prohibited for an endpoint device")
-        logger.debug(
-            self._create_message(f"Setting memory limit to 0x{memory_limit:08x}")
-        )
+        logger.debug(self._create_message(f"Setting memory limit to 0x{memory_limit:08x}"))
         self._memory_limit = memory_limit
 
     def set_prefetchable_memory_base(self, memory_base: int):
@@ -115,9 +111,7 @@ class MmioManager(PacketProcessor):
     def set_bar(self, index: int, base_address: int):
         if index >= len(self._bar_entries):
             return
-        logger.debug(
-            self._create_message(f"[BAR] setting BAR{index} = 0x{base_address:08x}")
-        )
+        logger.debug(self._create_message(f"[BAR] setting BAR{index} = 0x{base_address:08x}"))
         self._bar_entries[index].base_address = base_address
 
     def _get_register_and_offset(
@@ -138,26 +132,18 @@ class MmioManager(PacketProcessor):
             return entry.register, offset
         return None, None
 
-    async def _send_completion(
-        self, req_id: int, tag: int, data: int = None, data_len: int = 0
-    ):
+    async def _send_completion(self, req_id: int, tag: int, data: int = None, data_len: int = 0):
         if data is not None:
             if isinstance(data, int) and data >= (1 << (data_len * 8)):
                 # if isinstance(data, MagicMock), then just assume it'll fit in the given size
-                raise Exception(
-                    f"'Data: {data} could not possibly fit within length: {data_len}"
-                )
-            packet = CxlIoCompletionWithDataPacket.create(
-                req_id, tag, data, pload_len=data_len
-            )
+                raise Exception(f"'Data: {data} could not possibly fit within length: {data_len}")
+            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_len=data_len)
         else:
             packet = CxlIoCompletionPacket.create(req_id, tag)
         await self._upstream_fifo.target_to_host.put(packet)
 
     async def _forward_request(self, packet: CxlIoBasePacket):
-        logger.debug(
-            self._create_message("Forwarding request to the next child device")
-        )
+        logger.debug(self._create_message("Forwarding request to the next child device"))
         await self._downstream_fifo.host_to_target.put(packet)
 
     async def _process_mmio_packet(self, mem_req_packet: CxlIoMemReqPacket):
@@ -188,9 +174,7 @@ class MmioManager(PacketProcessor):
         end_offset = offset + size - 1
         if mem_req_packet.is_mem_write():
             data = cast(CxlIoMemWrPacket, mem_req_packet).data
-            logger.debug(
-                self._create_message(f"WR: 0x{address:x}[{size}]=0x{data:08x}")
-            )
+            logger.debug(self._create_message(f"WR: 0x{address:x}[{size}]=0x{data:08x}"))
             register.write_bytes(start_offset, end_offset, data)
         elif mem_req_packet.is_mem_read():
             logger.debug(self._create_message(f"RD: 0x{address:x}[{size}]"))
@@ -215,14 +199,10 @@ class MmioManager(PacketProcessor):
         address_start = address
         address_end = address + size - 1
         if address_start >= self._memory_base and address_end <= self._memory_limit:
-            logger.debug(
-                self._create_message("Requested address is within the memory range")
-            )
+            logger.debug(self._create_message("Requested address is within the memory range"))
             return True
 
-        logger.debug(
-            self._create_message("Requested address is out of the memory range")
-        )
+        logger.debug(self._create_message("Requested address is out of the memory range"))
         return False
 
     async def _process_host_to_target(self, run_once: bool = False):
@@ -230,9 +210,7 @@ class MmioManager(PacketProcessor):
         while True:
             packet = await self._upstream_fifo.host_to_target.get()
             if packet is None:
-                logger.debug(
-                    self._create_message("Stopped processing host to target fifo")
-                )
+                logger.debug(self._create_message("Stopped processing host to target fifo"))
                 break
 
             base_packet = cast(BasePacket, packet)

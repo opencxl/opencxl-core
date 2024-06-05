@@ -55,10 +55,10 @@ class PacketReader(LabeledComponent):
         except Exception as e:
             logger.debug(self._create_message(str(e)))
             if str(e) != "Connection disconnected":
-                logger.info(traceback.format_exc())
+                logger.debug(traceback.format_exc())
             raise Exception("PacketReader is aborted") from e
         except CancelledError as exc:
-            logger.info(self._create_message("Aborted"))
+            logger.debug(self._create_message("Aborted"))
             raise Exception("PacketReader is aborted") from exc
         finally:
             self._task = None
@@ -164,9 +164,7 @@ class PacketReader(LabeledComponent):
         return sideband_packet
 
     async def _get_sideband_connection_request_packet(self, packets: bytes):
-        remaining_packets_size = SidebandConnectionRequestPacket.get_size() - len(
-            packets
-        )
+        remaining_packets_size = SidebandConnectionRequestPacket.get_size() - len(packets)
         remaining_packets = await self._reader.read(remaining_packets_size)
         if not remaining_packets:
             raise Exception("Connection disconnected")

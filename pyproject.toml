@@ -62,3 +62,6 @@ disable = [
   "too-many-statements",
 ]
 jobs = 4
+
+[tool.black]
+line-length = 100

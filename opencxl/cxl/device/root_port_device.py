@@ -81,9 +81,7 @@ class DvsecRegisterLocators:
 
 @dataclass
 class PciDvsecCapabilities:
-    register_locators: DvsecRegisterLocators = field(
-        default_factory=DvsecRegisterLocators
-    )
+    register_locators: DvsecRegisterLocators = field(default_factory=DvsecRegisterLocators)
 
 
 @dataclass
@@ -182,9 +180,7 @@ class CxlRootPortDevice(RunnableComponent):
     async def set_secondary_bus(self, bdf: int, secondary_bus: int):
         bdf_string = bdf_to_string(bdf)
         logger.info(
-            self._create_message(
-                f"Setting secondary bus of device {bdf_string} to {secondary_bus}"
-            )
+            self._create_message(f"Setting secondary bus of device {bdf_string} to {secondary_bus}")
         )
         bus = extract_bus_from_bdf(bdf)
         is_type0 = bus == self._secondary_bus
@@ -287,9 +283,7 @@ class CxlRootPortDevice(RunnableComponent):
         # TODO: Support 64-bit BAR
         bus = extract_bus_from_bdf(bdf)
         is_type0 = bus == self._secondary_bus
-        packet = CxlIoCfgRdPacket.create(
-            bdf, BAR_OFFSETS.BAR0, BAR_REGISTER_SIZE, is_type0
-        )
+        packet = CxlIoCfgRdPacket.create(bdf, BAR_OFFSETS.BAR0, BAR_REGISTER_SIZE, is_type0)
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
         packet = await cfg_fifo.target_to_host.get()
@@ -300,9 +294,7 @@ class CxlRootPortDevice(RunnableComponent):
             return cpld_packet.data
         return 0xFFFFFFFF - cpld_packet.data + 1
 
-    async def write_mmio(
-        self, address: int, data: int, size: int = 4, verbose: bool = True
-    ):
+    async def write_mmio(self, address: int, data: int, size: int = 4, verbose: bool = True):
         message = self._create_message(f"MMIO: Writing 0x{data:08x} to 0x{address:08x}")
         if verbose:
             logger.info(message)
@@ -350,20 +342,14 @@ class CxlRootPortDevice(RunnableComponent):
         return self._get_cxl_io_completion_data(base_packet)
 
     async def read_vid_did(self, bdf: int) -> Optional[int]:
-        vid = await self.read_config(
-            bdf, REG_ADDR.VENDOR_ID.START, REG_ADDR.VENDOR_ID.LEN
-        )
-        did = await self.read_config(
-            bdf, REG_ADDR.DEVICE_ID.START, REG_ADDR.DEVICE_ID.LEN
-        )
+        vid = await self.read_config(bdf, REG_ADDR.VENDOR_ID.START, REG_ADDR.VENDOR_ID.LEN)
+        did = await self.read_config(bdf, REG_ADDR.DEVICE_ID.START, REG_ADDR.DEVICE_ID.LEN)
         if did is None or vid is None:
             return None
         return (did << 16) | vid
 
     async def read_class_code(self, bdf: int) -> int:
-        data = await self.read_config(
-            bdf, REG_ADDR.CLASS_CODE.START, REG_ADDR.CLASS_CODE.LEN
-        )
+        data = await self.read_config(bdf, REG_ADDR.CLASS_CODE.START, REG_ADDR.CLASS_CODE.LEN)
         if data is None:
             raise Exception("Failed to read class code")
         return data
@@ -397,17 +383,13 @@ class CxlRootPortDevice(RunnableComponent):
         return data
 
     async def read_memory_base(self, bdf: int) -> int:
-        data = await self.read_config(
-            bdf, REG_ADDR.MEMORY_BASE.START, REG_ADDR.MEMORY_BASE.LEN
-        )
+        data = await self.read_config(bdf, REG_ADDR.MEMORY_BASE.START, REG_ADDR.MEMORY_BASE.LEN)
         if data is None:
             raise Exception("Failed to read memory base")
         return data
 
     async def read_memory_limit(self, bdf: int) -> int:
-        data = await self.read_config(
-            bdf, REG_ADDR.MEMORY_LIMIT.START, REG_ADDR.MEMORY_LIMIT.LEN
-        )
+        data = await self.read_config(bdf, REG_ADDR.MEMORY_LIMIT.START, REG_ADDR.MEMORY_LIMIT.LEN)
         if data is None:
             raise Exception("Failed to read memory limit")
         return data
@@ -418,9 +400,7 @@ class CxlRootPortDevice(RunnableComponent):
         await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
         try:
             async with asyncio.timeout(3):
-                packet = (
-                    await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
-                )
+                packet = await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
             assert is_cxl_mem_data(packet)
             mem_data_packet = cast(CxlMemMemDataPacket, packet)
             return mem_data_packet.data
@@ -430,17 +410,13 @@ class CxlRootPortDevice(RunnableComponent):
 
     async def cxl_mem_write(self, address: int, data: int) -> int:
         logger.info(
-            self._create_message(
-                f"CXL.mem Write: HPA addr:0x{address:08x} data:0x{data:08x}"
-            )
+            self._create_message(f"CXL.mem Write: HPA addr:0x{address:08x} data:0x{data:08x}")
         )
         packet = CxlMemMemWrPacket.create(address, data)
         await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
         try:
             async with asyncio.timeout(3):
-                packet = (
-                    await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
-                )
+                packet = await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
             assert is_cxl_mem_completion(packet)
             return address - self._cxl_hpa_base
         except asyncio.exceptions.TimeoutError:
@@ -469,9 +445,7 @@ class CxlRootPortDevice(RunnableComponent):
             await self.set_bar0(bdf, memory_base)
             if mmio_enum_info is not None:
                 mmio_enum_info.bar_blocks.append(
-                    BarEnumerationInfo(
-                        memory_base=memory_base, memory_limit=memory_base + size - 1
-                    )
+                    BarEnumerationInfo(memory_base=memory_base, memory_limit=memory_base + size - 1)
                 )
         else:
             await self.set_bar0(bdf, 0)
@@ -487,16 +461,12 @@ class CxlRootPortDevice(RunnableComponent):
         for block_index in range(blocks):
             block_offset = block_offset_base + block_index * block_size
 
-            register_offset_low = await self.read_config(
-                bdf, cap_offset + block_offset, 4
-            )
+            register_offset_low = await self.read_config(bdf, cap_offset + block_offset, 4)
             if register_offset_low is None:
                 raise Exception(
                     f"Failed to read Register Block {block_index + 1} - Register Offset Low"
                 )
-            register_offset_high = await self.read_config(
-                bdf, cap_offset + block_offset + 4, 4
-            )
+            register_offset_high = await self.read_config(bdf, cap_offset + block_offset + 4, 4)
             if register_offset_high is None:
                 raise Exception(
                     f"Failed to read Register Block {block_index + 1} - Register Offset High"
@@ -508,9 +478,7 @@ class CxlRootPortDevice(RunnableComponent):
 
             if register_block_identifier == 0x01:
                 component_registers = DvsecRegisterLocator()
-                capabilities.dvsec.register_locators.component_registers = (
-                    component_registers
-                )
+                capabilities.dvsec.register_locators.component_registers = component_registers
                 component_registers.bar = register_bir
                 component_registers.offset = bar_offset
                 logger.info(
@@ -527,9 +495,7 @@ class CxlRootPortDevice(RunnableComponent):
                 )
             elif register_block_identifier == 0x03:
                 cxl_device_registers = DvsecRegisterLocator()
-                capabilities.dvsec.register_locators.cxl_device_registers = (
-                    cxl_device_registers
-                )
+                capabilities.dvsec.register_locators.cxl_device_registers = cxl_device_registers
                 cxl_device_registers.bar = register_bir
                 cxl_device_registers.offset = bar_offset
                 logger.info(
@@ -545,9 +511,7 @@ class CxlRootPortDevice(RunnableComponent):
                     )
                 )
 
-    async def scan_dvsec(
-        self, bdf: int, cap_offset: int, capabilities: PciCapabilities
-    ):
+    async def scan_dvsec(self, bdf: int, cap_offset: int, capabilities: PciCapabilities):
         dvsec_header1 = await self.read_config(bdf, cap_offset + 0x04, 4)
         if dvsec_header1 is None:
             raise Exception("Failed to read DVSEC Header 1")
@@ -561,13 +525,9 @@ class CxlRootPortDevice(RunnableComponent):
         dvsec_id = dvsec_header2
 
         if vendor_id == 0x1E98 and revision_id == 0x0 and dvsec_id == 0x0008:
-            await self.scan_dvsec_register_locator(
-                bdf, cap_offset, length, capabilities
-            )
+            await self.scan_dvsec_register_locator(bdf, cap_offset, length, capabilities)
 
-    async def scan_pcie_cap_helper(
-        self, bdf: int, offset: int, capabilities: PciCapabilities
-    ):
+    async def scan_pcie_cap_helper(self, bdf: int, offset: int, capabilities: PciCapabilities):
         data = await self.read_config(bdf, offset, 4)
         if data is None:
             return
@@ -588,9 +548,7 @@ class CxlRootPortDevice(RunnableComponent):
         await self.scan_pcie_cap_helper(bdf, PCIE_CONFIG_BASE, capabilities)
 
     async def scan_component_registers(self, info: DeviceEnumerationInfo):
-        component_registers = (
-            info.capabilities.dvsec.register_locators.component_registers
-        )
+        component_registers = info.capabilities.dvsec.register_locators.component_registers
         if not component_registers:
             return
 
@@ -600,26 +558,18 @@ class CxlRootPortDevice(RunnableComponent):
         cxl_cachemem_offset = mmio_base + component_register_offset + 0x1000
 
         logger.info(
-            self._create_message(
-                f"Scanning Component Registers at 0x{cxl_cachemem_offset:x}"
-            )
+            self._create_message(f"Scanning Component Registers at 0x{cxl_cachemem_offset:x}")
         )
 
-        cxl_capability_header = await self.read_mmio(
-            cxl_cachemem_offset, 4, verbose=False
-        )
+        cxl_capability_header = await self.read_mmio(cxl_cachemem_offset, 4, verbose=False)
         cxl_capability_id = cxl_capability_header & 0xFFFF
         cxl_capability_version = (cxl_capability_header >> 16) & 0xF
         cxl_cachemem_version = (cxl_capability_header >> 20) & 0xF
         array_size = (cxl_capability_header >> 24) & 0xFF
 
         logger.debug(self._create_message(f"cxl_capability_id: {cxl_capability_id:x}"))
-        logger.debug(
-            self._create_message(f"cxl_capability_version: {cxl_capability_version:x}")
-        )
-        logger.debug(
-            self._create_message(f"cxl_cachemem_version: {cxl_cachemem_version:x}")
-        )
+        logger.debug(self._create_message(f"cxl_capability_version: {cxl_capability_version:x}"))
+        logger.debug(self._create_message(f"cxl_cachemem_version: {cxl_cachemem_version:x}"))
         logger.debug(self._create_message(f"array_size: {array_size:x}"))
 
         if cxl_capability_id != 0x0001:
@@ -664,12 +614,8 @@ class CxlRootPortDevice(RunnableComponent):
             if (class_code >> 8) == BRIDGE_CLASS:
                 secondary_bus = await self.read_secondary_bus(bdf)
                 subordinate_bus = await self.read_subordinate_bus(bdf)
-                memory_base = memory_base_regval_to_addr(
-                    await self.read_memory_base(bdf)
-                )
-                memory_limit = memory_limit_regval_to_addr(
-                    await self.read_memory_limit(bdf)
-                )
+                memory_base = memory_base_regval_to_addr(await self.read_memory_base(bdf))
+                memory_limit = memory_limit_regval_to_addr(await self.read_memory_limit(bdf))
 
                 logger.info(
                     self._create_message(
@@ -734,18 +680,14 @@ class CxlRootPortDevice(RunnableComponent):
 
     async def scan_devices(self) -> EnumerationInfo:
         enumeration_info = EnumerationInfo()
-        logger.info(
-            self._create_message(f"Scanning devices under bus {self._secondary_bus}")
-        )
+        logger.info(self._create_message(f"Scanning devices under bus {self._secondary_bus}"))
         devices = await self.scan_bus(self._secondary_bus)
         enumeration_info.devices = devices
         return enumeration_info
 
     async def enumerate(self, memory_base_address: int) -> MmioEnumerationInfo:
         logger.info(
-            self._create_message(
-                f"Starting PCI device enumeration at bus {self._secondary_bus}"
-            )
+            self._create_message(f"Starting PCI device enumeration at bus {self._secondary_bus}")
         )
         mmio_enum_info = MmioEnumerationInfo()
         bdf = create_bdf(self._secondary_bus, 0, 0)
@@ -757,11 +699,7 @@ class CxlRootPortDevice(RunnableComponent):
 
         class_code = await self.read_class_code(bdf)
         if (class_code >> 8) == BRIDGE_CLASS:
-            logger.info(
-                self._create_message(
-                    f"A switch upstream port device found at {bdf_str}"
-                )
-            )
+            logger.info(self._create_message(f"A switch upstream port device found at {bdf_str}"))
             return await self.enumerate_switch(memory_base_address)
 
         logger.info(self._create_message(f"An Endpoint device found at {bdf_str}"))
@@ -771,9 +709,7 @@ class CxlRootPortDevice(RunnableComponent):
     async def enumerate_ep(
         self, bdf: int, memory_base_address: int, mmio_enum_info: MmioEnumerationInfo
     ):
-        size = await self.check_bar_size_and_set(
-            bdf, memory_base_address, mmio_enum_info
-        )
+        size = await self.check_bar_size_and_set(bdf, memory_base_address, mmio_enum_info)
         if size == 0:
             return
         mmio_enum_info.memory_base = memory_base_address
@@ -824,9 +760,7 @@ class CxlRootPortDevice(RunnableComponent):
             logger.info(self._create_message(f"Setting up DSP at ({dsp_bdf_str})"))
             next_bus = next_bus + 1
 
-            size = await self.check_bar_size_and_set(
-                dsp_bdf, dsp_memory_start, mmio_enum_info
-            )
+            size = await self.check_bar_size_and_set(dsp_bdf, dsp_memory_start, mmio_enum_info)
 
             if size > 0:
                 memory_end += memory_range
@@ -923,28 +857,14 @@ class CxlRootPortDevice(RunnableComponent):
             interleaving_granularity & 0xF | (interleaving_way & 0xF) << 4 | commit << 9
         )
 
-        logger.info(
-            self._create_message(
-                f"HDM Decoder {decoder_index}, HPA Base: 0x{hpa_base:x}"
-            )
-        )
-        logger.info(
-            self._create_message(
-                f"HDM Decoder {decoder_index}, HPA Size: 0x{hpa_size:x}"
-            )
-        )
+        logger.info(self._create_message(f"HDM Decoder {decoder_index}, HPA Base: 0x{hpa_base:x}"))
+        logger.info(self._create_message(f"HDM Decoder {decoder_index}, HPA Size: 0x{hpa_size:x}"))
 
         await self.write_mmio(decoder_base_low_offset, decoder_base_low, verbose=False)
-        await self.write_mmio(
-            decoder_base_high_offset, decoder_base_high, verbose=False
-        )
+        await self.write_mmio(decoder_base_high_offset, decoder_base_high, verbose=False)
         await self.write_mmio(decoder_size_low_offset, decoder_size_low, verbose=False)
-        await self.write_mmio(
-            decoder_size_high_offset, decoder_size_high, verbose=False
-        )
-        await self.write_mmio(
-            decoder_control_register_offset, decoder_control, verbose=False
-        )
+        await self.write_mmio(decoder_size_high_offset, decoder_size_high, verbose=False)
+        await self.write_mmio(decoder_control_register_offset, decoder_control, verbose=False)
 
     async def configure_hdm_decoder_switch(
         self,
@@ -960,11 +880,7 @@ class CxlRootPortDevice(RunnableComponent):
             return 0
 
         register_offset = info.component_registers.hdm_decoder
-        logger.debug(
-            self._create_message(
-                f"HDM Decoder Capability Offset: 0x{register_offset:x}"
-            )
-        )
+        logger.debug(self._create_message(f"HDM Decoder Capability Offset: 0x{register_offset:x}"))
         logger.info(
             self._create_message(
                 f"Setting HDM Decoder {decoder_index} (Switch) of {bdf_to_string(info.bdf)}"
@@ -1006,11 +922,7 @@ class CxlRootPortDevice(RunnableComponent):
             return 0
 
         register_offset = info.component_registers.hdm_decoder
-        logger.debug(
-            self._create_message(
-                f"HDM Decoder Capability Offset: 0x{register_offset:x}"
-            )
-        )
+        logger.debug(self._create_message(f"HDM Decoder Capability Offset: 0x{register_offset:x}"))
         logger.info(
             self._create_message(
                 f"Setting HDM Decoder {decoder_index} (Device) of {bdf_to_string(info.bdf)}"
@@ -1043,14 +955,10 @@ class CxlRootPortDevice(RunnableComponent):
         hdm_decoder_cap = await self.read_mmio(register_offset, verbose=False)
         decoder_count_index = hdm_decoder_cap & 0xF
         if decoder_count_index >= len(decoder_counter_map):
-            raise Exception(
-                f"HDM Decoder counter index, {decoder_count_index}, is not supported"
-            )
+            raise Exception(f"HDM Decoder counter index, {decoder_count_index}, is not supported")
         return decoder_counter_map[decoder_count_index]
 
-    async def get_next_available_decoder_index(
-        self, info: DeviceEnumerationInfo
-    ) -> Optional[int]:
+    async def get_next_available_decoder_index(self, info: DeviceEnumerationInfo) -> Optional[int]:
         decoder_count = await self.get_hdm_decoder_count(info)
         if decoder_count == 0:
             return None
@@ -1058,9 +966,7 @@ class CxlRootPortDevice(RunnableComponent):
         register_offset = info.component_registers.hdm_decoder
         next_available_decoder = None
         for decoder_index in range(decoder_count):
-            decoder_control_register_offset = (
-                0x20 + decoder_index * 0x20 + register_offset
-            )
+            decoder_control_register_offset = 0x20 + decoder_index * 0x20 + register_offset
             decoder_control_register_value = await self.read_mmio(
                 decoder_control_register_offset, verbose=False
             )
@@ -1076,13 +982,9 @@ class CxlRootPortDevice(RunnableComponent):
         cxl_devices = usp.get_all_cxl_devices()
         logger.info(self._create_message(f"Found {len(cxl_devices)} CXL devices"))
         for cxl_device in cxl_devices:
-            logger.info(
-                self._create_message(f"CXL device at {bdf_to_string(cxl_device.bdf)}")
-            )
+            logger.info(self._create_message(f"CXL device at {bdf_to_string(cxl_device.bdf)}"))
             decoder_count = await self.get_hdm_decoder_count(cxl_device)
-            logger.info(
-                self._create_message(f"Number of HDM decoders: {decoder_count}")
-            )
+            logger.info(self._create_message(f"Number of HDM decoders: {decoder_count}"))
             decoder_index = await self.get_next_available_decoder_index(cxl_device)
             if decoder_index is None:
                 continue
@@ -1090,9 +992,7 @@ class CxlRootPortDevice(RunnableComponent):
             hpa_base = cxl_hpa_base + self._used_hpa_size
             hpa_size = cxl_device.cxl_device_size
 
-            await self.configure_hdm_decoder_device(
-                cxl_device, decoder_index, hpa_base, hpa_size
-            )
+            await self.configure_hdm_decoder_device(cxl_device, decoder_index, hpa_base, hpa_size)
 
             if cxl_device.parent is None:
                 continue

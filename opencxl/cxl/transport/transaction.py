@@ -325,9 +325,7 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
 
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
     @staticmethod
-    def create(
-        addr: int, length: int, req_id: int = None, tag: int = None
-    ) -> "CxlIoMemRdPacket":
+    def create(addr: int, length: int, req_id: int = None, tag: int = None) -> "CxlIoMemRdPacket":
         packet = CxlIoMemRdPacket()
         packet.fill(addr, length)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
@@ -396,9 +394,7 @@ class CxlIoCfgReqHeader(UnalignedBitStructure):
 
 
 CXL_IO_CFG_REQ_HEADER_START = CXL_IO_BASE_FIELD_START
-CXL_IO_CFG_REQ_HEADER_END = (
-    CXL_IO_CFG_REQ_HEADER_START + CxlIoCfgReqHeader.get_size() - 1
-)
+CXL_IO_CFG_REQ_HEADER_END = CXL_IO_CFG_REQ_HEADER_START + CxlIoCfgReqHeader.get_size() - 1
 CXL_IO_CFG_REQ_FIELD_START = CXL_IO_CFG_REQ_HEADER_END + 1
 
 
@@ -503,9 +499,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
 class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
     value: int
     _fields = CxlIoCfgReqPacket._fields + [
-        ByteField(
-            "value", CXL_IO_CFG_REQ_FIELD_START, CXL_IO_CFG_REQ_FIELD_START + 0x03
-        ),
+        ByteField("value", CXL_IO_CFG_REQ_FIELD_START, CXL_IO_CFG_REQ_FIELD_START + 0x03),
     ]
 
     @staticmethod
@@ -1063,9 +1057,7 @@ class CxlCacheCacheD2HReqPacket(CxlCacheD2HReqPacket):
 class CxlCacheCacheD2HRspPacket(CxlCacheD2HRspPacket):
     @staticmethod
     # read length is assumed to be 64 for now
-    def create(
-        uqid: int, opcode: CXL_CACHE_D2HRSP_OPCODE
-    ) -> "CxlCacheCacheD2HRspPacket":
+    def create(uqid: int, opcode: CXL_CACHE_D2HRSP_OPCODE) -> "CxlCacheCacheD2HRspPacket":
         packet = CxlCacheCacheD2HRspPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
@@ -1093,9 +1085,7 @@ class CxlCacheCacheD2HDataPacket(CxlCacheD2HDataPacket):
 class CxlCacheCacheH2DReqPacket(CxlCacheH2DReqPacket):
     @staticmethod
     # read length is assumed to be 64 for now
-    def create(
-        addr: int, opcode: CXL_CACHE_H2DREQ_OPCODE
-    ) -> "CxlCacheCacheH2DReqPacket":
+    def create(addr: int, opcode: CXL_CACHE_H2DREQ_OPCODE) -> "CxlCacheCacheH2DReqPacket":
         packet = CxlCacheCacheH2DReqPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)

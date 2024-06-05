@@ -57,9 +57,7 @@ class ConfigSpaceManager(RunnableComponent):
         return self._register
 
     async def _forward_request(self, packet: CxlIoBasePacket):
-        logger.debug(
-            self._create_message("Forwarding request to the next child device")
-        )
+        logger.debug(self._create_message("Forwarding request to the next child device"))
         await self._downstream_fifo.host_to_target.put(packet)
 
     async def _send_unsupported_request(self, req_id, tag):
@@ -104,10 +102,8 @@ class ConfigSpaceManager(RunnableComponent):
 
         # TODO: Fix OOB
 
-        logger.info(
-            self._create_message(
-                f"[RD] Config Space - ADDR: 0x{cfg_addr:04x}, SIZE: {size}"
-            )
+        logger.debug(
+            self._create_message(f"[RD] Config Space - ADDR: 0x{cfg_addr:04x}, SIZE: {size}")
         )
         value = self._register.read_bytes(cfg_addr, cfg_addr + size - 1)
 
@@ -151,9 +147,7 @@ class ConfigSpaceManager(RunnableComponent):
         while True:
             packet = await self._upstream_fifo.host_to_target.get()
             if packet is None:
-                logger.debug(
-                    self._create_message("Stop processing host to target fifo")
-                )
+                logger.debug(self._create_message("Stop processing host to target fifo"))
                 break
             base_packet = cast(CxlIoBasePacket, packet)
             logger.debug(self._create_message("Received host to target packet"))
@@ -168,9 +162,7 @@ class ConfigSpaceManager(RunnableComponent):
                     await self._forward_request(base_packet)
                 else:
                     logger.warning(
-                        self._create_message(
-                            "Endpoint device should not receive a type1 request"
-                        )
+                        self._create_message("Endpoint device should not receive a type1 request")
                     )
                     cfg_req_packet = cast(CxlIoCfgReqPacket, base_packet)
                     req_id = tlptoh16(cfg_req_packet.cfg_req_header.req_id)
@@ -187,38 +179,24 @@ class ConfigSpaceManager(RunnableComponent):
             if packet.is_cfg_read():
                 read_packet = cast(CxlIoCfgRdPacket, packet)
                 if read_packet.get_bus() == bus:
-                    logger.debug(
-                        self._create_message("Changing request type1 to type0")
-                    )
+                    logger.debug(self._create_message("Changing request type1 to type0"))
                     packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CFG_RD0
             elif packet.is_cfg_write():
                 write_packet = cast(CxlIoCfgWrPacket, packet)
                 if write_packet.get_bus() == bus:
-                    logger.debug(
-                        self._create_message("Changing request type1 to type0")
-                    )
+                    logger.debug(self._create_message("Changing request type1 to type0"))
                     packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CFG_WR0
         return packet
 
     async def _process_target_to_host(self):
         if not self._is_bridge():
-            logger.debug(
-                self._create_message(
-                    "Skipped processing downstream target to host fifo"
-                )
-            )
+            logger.debug(self._create_message("Skipped processing downstream target to host fifo"))
             return
-        logger.debug(
-            self._create_message("Started processing downstream target to host fifo")
-        )
+        logger.debug(self._create_message("Started processing downstream target to host fifo"))
         while True:
             packet = await self._downstream_fifo.target_to_host.get()
             if packet is None:
-                logger.debug(
-                    self._create_message(
-                        "Stop processing downstream target to host fifo"
-                    )
-                )
+                logger.debug(self._create_message("Stop processing downstream target to host fifo"))
                 break
             logger.debug(self._create_message("Received target to host packet"))
             await self._upstream_fifo.target_to_host.put(packet)

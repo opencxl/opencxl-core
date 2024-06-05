@@ -180,9 +180,7 @@ class ShareableByteArray:
         return self.size
 
     def __int__(self) -> int:
-        return int.from_bytes(
-            self._data[self.offset : self.offset + self.size], "little"
-        )
+        return int.from_bytes(self._data[self.offset : self.offset + self.size], "little")
 
     def __bytes__(self) -> bytes:
         return bytes(self._data[self.offset : self.offset + self.size])
@@ -210,8 +208,7 @@ class ShareableByteArray:
     def get_hex_dump(self, line_length: int = 16):
         hex_string = " ".join(f"{byte:02x}" for byte in self._data)
         return "\n".join(
-            hex_string[i : i + line_length * 3]
-            for i in range(0, len(hex_string), line_length * 3)
+            hex_string[i : i + line_length * 3] for i in range(0, len(hex_string), line_length * 3)
         )
 
     def write_bytes(self, start_offset: int, end_offset: int, value: int):
@@ -337,18 +334,14 @@ class UnalignedBitStructure:
         elif self._fields:
             size = UnalignedBitStructure.get_size(self._fields)
             if self._verbose:
-                logger.debug(
-                    f"[Structure] Creating a new data buffer, size: 0x{size:x}"
-                )
+                logger.debug(f"[Structure] Creating a new data buffer, size: 0x{size:x}")
             self._data = ShareableByteArray(size)
             if self._verbose:
                 logger.debug(
                     f"[Structure] {self._class_name}: Creating Byte Array of size {size:x}"
                 )
         else:
-            raise Exception(
-                f"{self._class_name}: self._fields must not be an empty array"
-            )
+            raise Exception(f"{self._class_name}: self._fields must not be an empty array")
 
         for field in self._fields:
             if type(field) == BitField:
@@ -468,9 +461,7 @@ class UnalignedBitStructure:
         self._dynamic_field.length = new_dy_fld_length
         self._data.resize(len(self) + new_dy_fld_length - old_length)
 
-    def _adjust_dynamic_length_if_exists(
-        self, prev_struct_length: int, new_struct_length: int
-    ):
+    def _adjust_dynamic_length_if_exists(self, prev_struct_length: int, new_struct_length: int):
         """
         When this structure's data is reset, if it contains a dynamic field, the length of that
         dynamic field may need adjustment. This function adjusts the dynamic field length, given
@@ -543,14 +534,10 @@ class UnalignedBitStructure:
         setattr(
             self.__class__,
             field.name,
-            property(
-                make_getter(field.start, field.end), make_setter(field.start, field.end)
-            ),
+            property(make_getter(field.start, field.end), make_setter(field.start, field.end)),
         )
 
-    def _add_dynamic_byte_field(
-        self: "UnalignedBitStructure", field: DynamicByteFieldInstance
-    ):
+    def _add_dynamic_byte_field(self: "UnalignedBitStructure", field: DynamicByteFieldInstance):
         self._add_field_name(field.name)
         if self._dynamic_field is not None:
             raise Exception(
@@ -561,9 +548,7 @@ class UnalignedBitStructure:
 
         def make_setter(field: DynamicByteFieldInstance):
             def setter(self: "UnalignedBitStructure", value: int):
-                self._data.write_bytes(
-                    field.start, field.start + field.length - 1, value
-                )
+                self._data.write_bytes(field.start, field.start + field.length - 1, value)
 
             return setter
 
@@ -574,9 +559,7 @@ class UnalignedBitStructure:
             return getter
 
         if field.default > 0:
-            self._data.write_bytes(
-                field.start, field.start + field.length, field.default
-            )
+            self._data.write_bytes(field.start, field.start + field.length, field.default)
 
         setattr(
             self.__class__,
@@ -660,13 +643,9 @@ class UnalignedBitStructure:
         string = ""
         for field in self._fields:
             if type(field) == BitField:
-                string += (
-                    f"{indent_str}{field.name}: {hex(getattr(self, field.name))}\n"
-                )
+                string += f"{indent_str}{field.name}: {hex(getattr(self, field.name))}\n"
             elif type(field) == ByteField:
-                string += (
-                    f"{indent_str}{field.name}: {hex(getattr(self, field.name))}\n"
-                )
+                string += f"{indent_str}{field.name}: {hex(getattr(self, field.name))}\n"
             elif type(field) == StructureField:
                 string += f"{indent_str}{field.name}:\n"
                 string += getattr(self, field.name).get_pretty_string(indent + 2)
@@ -843,7 +822,9 @@ class BitMaskedBitStructure(UnalignedBitStructure):
                     value_str = format(value, f"0{leading_zeros}x")
                     mask = self._bitmask_bytes.read_bytes(start_offset, end_offset)
                     mask_str = format(mask, f"0{leading_zeros}x")
-                    message = f"{prefix}{field.name}{field_range}: 0x{value_str} [MASK: 0x{mask_str}]"
+                    message = (
+                        f"{prefix}{field.name}{field_range}: 0x{value_str} [MASK: 0x{mask_str}]"
+                    )
                     logger.debug(message)
                 else:
                     field_range = ""
@@ -852,7 +833,9 @@ class BitMaskedBitStructure(UnalignedBitStructure):
                     value_str = format(value, f"0{leading_zeros}x")
                     mask = self._bitmask_bytes.read_bytes(field.start, field.end)
                     mask_str = format(mask, f"0{leading_zeros}x")
-                    message = f"{prefix}{field.name}{field_range}: 0x{value_str} [MASK: 0x{mask_str}]"
+                    message = (
+                        f"{prefix}{field.name}{field_range}: 0x{value_str} [MASK: 0x{mask_str}]"
+                    )
                     logger.debug(message)
             # else:
             #     raise Exception("Only ByteField is expected")

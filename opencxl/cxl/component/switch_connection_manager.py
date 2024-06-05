@@ -67,9 +67,7 @@ class SwitchConnectionManager(RunnableComponent):
         self._host = host
         self._port = port
         self._connection_timeout_ms = connection_timeout_ms
-        self._ports = [
-            SwitchPort(port_config=port_config) for port_config in port_configs
-        ]
+        self._ports = [SwitchPort(port_config=port_config) for port_config in port_configs]
         self._server_task = None
         self._event_handler = None
 
@@ -88,35 +86,23 @@ class SwitchConnectionManager(RunnableComponent):
 
         for port_index, port in enumerate(self._ports):
             if port.packet_processor is not None:
-                logger.info(
-                    self._create_message(
-                        f"Stopping PacketProcessor for port {port_index}"
-                    )
-                )
+                logger.info(self._create_message(f"Stopping PacketProcessor for port {port_index}"))
                 await port.packet_processor.stop()
-                logger.info(
-                    self._create_message(
-                        f"Stopped PacketProcessor for port {port_index}"
-                    )
-                )
+                logger.info(self._create_message(f"Stopped PacketProcessor for port {port_index}"))
 
     async def _stop(self):
         logger.info(self._create_message("Canceling TCP server task"))
         self._server_task.cancel()
 
     async def _create_server(self):
-        async def handle_client(
-            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-        ):
+        async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
             port_index = None
             try:
                 logger.info(self._create_message("Found a new socket connection"))
                 port_index = await self._wait_for_connection_request(reader)
                 await self._send_confirmation(writer)
                 logger.info(
-                    self._create_message(
-                        f"Binding incoming connection to port {port_index}"
-                    )
+                    self._create_message(f"Binding incoming connection to port {port_index}")
                 )
                 await self._update_connection_status(port_index, connected=True)
                 await self._start_packet_processor(reader, writer, port_index)
@@ -152,9 +138,7 @@ class SwitchConnectionManager(RunnableComponent):
         if port_index is None:
             logger.info(self._create_message("Closed connection"))
         else:
-            logger.info(
-                self._create_message(f"Closed connection for port {port_index}")
-            )
+            logger.info(self._create_message(f"Closed connection for port {port_index}"))
 
     async def _send_confirmation(self, writer: asyncio.StreamWriter):
         sideband_response = BaseSidebandPacket.create(SIDEBAND_TYPES.CONNECTION_ACCEPT)
@@ -183,10 +167,7 @@ class SwitchConnectionManager(RunnableComponent):
             raise Exception(message)
 
         base_sideband_packet = cast(BaseSidebandPacket, packet)
-        if (
-            base_sideband_packet.sideband_header.type
-            != SIDEBAND_TYPES.CONNECTION_REQUEST
-        ):
+        if base_sideband_packet.sideband_header.type != SIDEBAND_TYPES.CONNECTION_REQUEST:
             message = "Handshake Error"
             logger.debug(self._create_message(message))
             logger.debug(self._create_message(base_packet.get_pretty_string()))
@@ -197,9 +178,7 @@ class SwitchConnectionManager(RunnableComponent):
 
         # TODO: CE-32, ensure incoming device is connected to a correct port.
         logger.debug(
-            self._create_message(
-                "Checking if the connection request had a valid port index"
-            )
+            self._create_message("Checking if the connection request had a valid port index")
         )
         if port_index < 0 or port_index >= len(self._ports):
             raise Exception(f"Invalid port number: {port_index}")
@@ -214,15 +193,11 @@ class SwitchConnectionManager(RunnableComponent):
         writer: asyncio.StreamWriter,
         port_index: int,
     ):
-        logger.info(
-            self._create_message(f"Starting PacketProcessor for port {port_index}")
-        )
+        logger.info(self._create_message(f"Starting PacketProcessor for port {port_index}"))
         cxl_connection = self._ports[port_index].cxl_connection
         port_config = self._ports[port_index].port_config
         component_type = (
-            CXL_COMPONENT_TYPE.USP
-            if port_config.type == PORT_TYPE.USP
-            else CXL_COMPONENT_TYPE.DSP
+            CXL_COMPONENT_TYPE.USP if port_config.type == PORT_TYPE.USP else CXL_COMPONENT_TYPE.DSP
         )
         packet_processor = CxlPacketProcessor(
             reader,
