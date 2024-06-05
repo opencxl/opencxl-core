@@ -125,15 +125,16 @@ def start(
         t_sgroup.start()
 
     if "host" in comp or "host-group" in comp:
-        t_hm = threading.Thread(target=start_host_manager, args=(ctx,))
-        threads.append(t_hm)
-        t_hm.start()
+        hm_mode = not no_hm
+        if hm_mode:
+            t_hm = threading.Thread(target=start_host_manager, args=(ctx,))
+            threads.append(t_hm)
+            t_hm.start()
         if "host" in comp:
             t_host = threading.Thread(target=start_host, args=(ctx,))
             threads.append(t_host)
             t_host.start()
         elif "host-group" in comp:
-            hm_mode = not no_hm
             t_hgroup = threading.Thread(target=start_host_group, args=(ctx, config_file, hm_mode))
             threads.append(t_hgroup)
             t_hgroup.start()
