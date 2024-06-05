@@ -146,6 +146,7 @@ class ConfigSpaceManager(RunnableComponent):
         await self._upstream_fifo.target_to_host.put(completion_packet)
 
     async def _process_host_to_target(self):
+        # pylint: disable=duplicate-code
         logger.debug(self._create_message("Started processing host to target fifo"))
         while True:
             packet = await self._upstream_fifo.host_to_target.get()
@@ -177,6 +178,7 @@ class ConfigSpaceManager(RunnableComponent):
                     await self._send_unsupported_request(req_id, tag)
             else:
                 raise Exception("Unexpected packet received from ConfigSpaceManager")
+        # pylint: enable=duplicate-code
 
     def _convert_request_type_when_needed(self, packet: CxlIoBasePacket):
         offset = REG_ADDR.SECONDARY_BUS_NUMBER.START

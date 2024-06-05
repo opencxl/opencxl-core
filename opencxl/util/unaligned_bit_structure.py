@@ -69,7 +69,7 @@ class ByteField:
 class DynamicByteFieldInstance:
     name: str
     start: int
-    width: int
+    length: int
     type: ByteFieldType = field(default=int)
     attribute: FIELD_ATTR = FIELD_ATTR.RW
     default: int = 0
@@ -91,7 +91,7 @@ class DynamicByteField:
 
     name: str
     start: int
-    width: int
+    length: int
     type: ByteFieldType = field(default=int)
     attribute: FIELD_ATTR = FIELD_ATTR.RW
     default: int = 0
@@ -104,7 +104,7 @@ class DynamicByteField:
         return DynamicByteFieldInstance(
             self.name,
             self.start,
-            self.width,
+            self.length,
             self.type,
             self.attribute,
             self.default,
@@ -198,7 +198,7 @@ class ShareableByteArray:
 
     def resize(self, new_size: int):
         if new_size < 0:
-            raise Exception("Cannot resize ShareableByteArray to negative width!")
+            raise Exception("Cannot resize ShareableByteArray to negative length!")
         # extension
         if new_size > self.size:
             self._data.extend(bytearray([0] * (new_size - self.size)))
@@ -401,9 +401,9 @@ class UnalignedBitStructure:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': DataField.end cannot be less than DataField.start"
                 )
-            elif type(field) == DynamicByteField and field.width < 0:
+            elif type(field) == DynamicByteField and field.length < 0:
                 raise Exception(
-                    f"'{self._class_name}.{field.name}': A byte field with negative width is nonsensical"
+                    f"'{self._class_name}.{field.name}': A byte field with negative length is nonsensical"
                 )
             if type(field) == DynamicByteField and f_idx != len(fields) - 1:
                 raise Exception(
@@ -413,7 +413,7 @@ class UnalignedBitStructure:
             if type(field) != DynamicByteField:
                 last_offset = field.end
             else:
-                last_offset += field.width
+                last_offset += field.length
 
         if bit_fields > 0 and (last_offset + 1) % 8 != 0:
             raise Exception(
@@ -450,7 +450,7 @@ class UnalignedBitStructure:
         elif type(last_field) == ByteField or type(last_field) == StructureField:
             return last_field.end + 1
         elif type(last_field) == DynamicByteField:
-            return last_field.start + last_field.width
+            return last_field.start + last_field.length
         raise Exception(f"Unexpected field type {type(last_field).__name__}")
 
     @classmethod
@@ -461,27 +461,27 @@ class UnalignedBitStructure:
     def get_size_from_options(options: Optional[TypedDict]) -> int:
         return 0
 
-    def directly_set_dynamic_width(self, new_dy_fld_width: int):
+    def directly_set_dynamic_length(self, new_dy_fld_length: int):
         if self._dynamic_field is None:
             return
-        old_width = self._dynamic_field.width
-        self._dynamic_field.width = new_dy_fld_width
-        self._data.resize(len(self) + new_dy_fld_width - old_width)
+        old_length = self._dynamic_field.length
+        self._dynamic_field.length = new_dy_fld_length
+        self._data.resize(len(self) + new_dy_fld_length - old_length)
 
-    def _adjust_dynamic_width_if_exists(
-        self, prev_struct_width: int, new_struct_width: int
+    def _adjust_dynamic_length_if_exists(
+        self, prev_struct_length: int, new_struct_length: int
     ):
         """
-        When this structure's data is reset, if it contains a dynamic field, the width of that
-        dynamic field may need adjustment. This function adjusts the dynamic field width, given
-        the new width of this structure's data.
+        When this structure's data is reset, if it contains a dynamic field, the length of that
+        dynamic field may need adjustment. This function adjusts the dynamic field length, given
+        the new length of this structure's data.
 
-        This function __will not__ adjust the actual struct width for you! The user is expected
+        This function __will not__ adjust the actual struct length for you! The user is expected
         to do this themselves.
         """
         if self._dynamic_field is None:
             return
-        self._dynamic_field.width += new_struct_width - prev_struct_width
+        self._dynamic_field.length += new_struct_length - prev_struct_length
 
     def _add_field_name(self, name: str):
         if name in self._field_names:
@@ -562,20 +562,20 @@ class UnalignedBitStructure:
         def make_setter(field: DynamicByteFieldInstance):
             def setter(self: "UnalignedBitStructure", value: int):
                 self._data.write_bytes(
-                    field.start, field.start + field.width - 1, value
+                    field.start, field.start + field.length - 1, value
                 )
 
             return setter
 
         def make_getter(field: DynamicByteFieldInstance):
             def getter(self: "UnalignedBitStructure") -> int:
-                return self._data.read_bytes(field.start, field.start + field.width - 1)
+                return self._data.read_bytes(field.start, field.start + field.length - 1)
 
             return getter
 
         if field.default > 0:
             self._data.write_bytes(
-                field.start, field.start + field.width, field.default
+                field.start, field.start + field.length, field.default
             )
 
         setattr(
@@ -653,7 +653,7 @@ class UnalignedBitStructure:
             data = bytearray(data)
         self._data.reset(data)
         if data is not None:
-            self._adjust_dynamic_width_if_exists(old_size, len(data))
+            self._adjust_dynamic_length_if_exists(old_size, len(data))
 
     def get_pretty_string(self, indent: int = 0):
         indent_str = " " * indent

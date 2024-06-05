@@ -111,8 +111,8 @@ def tlptoh64(n):
 def extract_upper(from_what: int, how_much: int, how_long: int):
     """
     Extracts and returns the upper `how_much` bits from `from_what`.
-    `from_what` is assumed to be `how_long` bits wide.
-    If `from_what` could not possibly be `how_long` bits wide,
+    `from_what` is assumed to be `how_long` bits long.
+    If `from_what` could not possibly be `how_long` bits long,
     ValueError is raised.
     If `how_much > how_long`, then for obvious reasons ValueError
     is raised again.
@@ -120,7 +120,7 @@ def extract_upper(from_what: int, how_much: int, how_long: int):
     `extract_upper(0b10000010, 1, 2) -> ValueError`
     """
     if from_what >= (1 << how_long):
-        raise ValueError(f"{from_what} does not fit within a width of {how_long} bits.")
+        raise ValueError(f"{from_what} does not fit within a length of {how_long} bits.")
     if how_much > how_long:
         raise ValueError(
             f"It does not make sense that {how_much} (how_much) > {how_long} (how_long)"
@@ -134,8 +134,8 @@ def extract_upper(from_what: int, how_much: int, how_long: int):
 def extract_lower(from_what: int, how_much: int, how_long: int):
     """
     Extracts and returns the lower `how_much` bits from `from_what`.
-    `from_what` is assumed to be `how_long` bits wide.
-    If `from_what` could not possibly be `how_long` bits wide,
+    `from_what` is assumed to be `how_long` bits long.
+    If `from_what` could not possibly be `how_long` bits long,
     ValueError is raised.
     If `how_much > how_long`, then for obvious reasons ValueError
     is raised again.
@@ -143,7 +143,7 @@ def extract_lower(from_what: int, how_much: int, how_long: int):
     `extract_upper(0b10000010, 1, 2) -> ValueError`
     """
     if from_what >= (1 << how_long):
-        raise ValueError(f"{from_what} does not fit within a width of {how_long} bits.")
+        raise ValueError(f"{from_what} does not fit within a length of {how_long} bits.")
     if how_much > how_long:
         raise ValueError(
             f"It does not make sense that {how_much} (how_much) > {how_long} (how_long)"
