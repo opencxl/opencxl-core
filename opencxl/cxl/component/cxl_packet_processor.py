@@ -185,7 +185,6 @@ class CxlPacketProcessor(RunnableComponent):
         logger.debug(self._create_message("Starting outgoing CFG FIFO processor"))
         while True:
             packet = await self._outgoing.cfg_space.get()
-            print("GOT", packet.get_pretty_string(), bytes(packet).hex())
             if self._is_disconnection_notification(packet):
                 break
 
@@ -202,7 +201,6 @@ class CxlPacketProcessor(RunnableComponent):
                     )
                 )
                 self._push_tlp_table_entry(cxl_io_packet)
-            print(bytes(packet).hex())
             self._writer.write(bytes(packet))
             await self._writer.drain()
         logger.debug(self._create_message("Stopped outgoing CFG FIFO processor"))

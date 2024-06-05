@@ -36,21 +36,18 @@ def test_basic_dbf():
     assert DBS.field3 == 0x640f5a
     assert DBS.payload == 0x5fd2c8
     assert len(DBS) == len(pckt)
-    print(bytes(DBS).hex())
 
     pckt2 = bytes([1, 1, 1, 1, 1, 1, 2, 3])
     DBS.reset(pckt2)
     assert DBS.field3 == 0x10101
     assert DBS.payload == 0x302
     assert len(DBS) == len(pckt2)
-    print(bytes(DBS).hex())
 
     pckt3 = bytes([1, 1, 1, 1, 1, 1, 8, 16, 24, 32, 110, 251])
     DBS.reset(pckt3)
     assert DBS.field3 == 0x10101
     assert DBS.payload == 0xfb6e20181008
     assert len(DBS) == len(pckt3)
-    print(bytes(DBS).hex())
 
 def test_io_mem_wr():
     addr = 0x0

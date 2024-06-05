@@ -273,12 +273,9 @@ class CxlRootPortDevice(RunnableComponent):
             bar_address,
             is_type0=is_type0,
         )
-        logger.info(self._create_message("made packet"))
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        logger.info(self._create_message("put packet"))
         packet = await cfg_fifo.target_to_host.get()
-        logger.info(self._create_message("got (supposedly) cpl packet"))
         check_if_successful_completion(packet)
 
     async def get_bar0_size(
@@ -289,9 +286,6 @@ class CxlRootPortDevice(RunnableComponent):
         bus = extract_bus_from_bdf(bdf)
         is_type0 = bus == self._secondary_bus
         packet = CxlIoCfgRdPacket.create(bdf, BAR_OFFSETS.BAR0, BAR_REGISTER_SIZE, is_type0)
-        logger.info(
-            self._create_message("Created packet to get bar0 size")
-        )
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
         packet = await cfg_fifo.target_to_host.get()
