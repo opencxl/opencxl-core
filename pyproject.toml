@@ -22,6 +22,7 @@ pytest-xdist = "^3.5.0"
 websockets = "^12.0"
 jsonrpcserver = "^5.0.9"
 jsonrpcclient = "^4.0.3"
+black = "^24.4.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
@@ -63,3 +64,7 @@ disable = [
   "too-many-statements",
 ]
 jobs = 4
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
