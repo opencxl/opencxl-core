@@ -27,7 +27,6 @@ from opencxl.cxl.transport.transaction import (
     CXL_CACHE_D2HREQ_OPCODE,
     CXL_CACHE_D2HRSP_OPCODE,
 )
-from opencxl.cxl.component.cxl_cache_device_component import CxlCacheDeviceComponent
 from opencxl.pci.component.packet_processor import PacketProcessor
 
 
@@ -42,10 +41,6 @@ class CxlCacheManager(PacketProcessor):
         self._upstream_fifo: FifoPair
 
         super().__init__(upstream_fifo, downstream_fifo, label)
-        self._cache_device_component: Optional[CxlCacheDeviceComponent] = None
-
-    def set_cache_device_component(self, cache_device_component: CxlCacheDeviceComponent):
-        self._cache_device_component = cache_device_component
 
     async def send_d2h_req_test(self):
         # Test func 1: Sending D2H Req
