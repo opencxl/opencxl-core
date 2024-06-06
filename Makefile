@@ -15,6 +15,9 @@ lint:
 	poetry run pylint opencxl
 	poetry run pylint tests
 
+format:
+	poetry run black opencxl tests
+
 clean:
 	rm -rf *.bin logs *.log *.pcap
 	find . | grep -E "(/__pycache__$$|\.pyc$$|\.pyo$$)" | xargs rm -rf
