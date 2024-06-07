@@ -4,7 +4,7 @@
         "editor.formatOnSave": true,
     },
     "black-formatter.args": [
-        "-l 99"
+        "-l 100"
     ],
     "python.testing.pytestEnabled": true,
     "python.testing.pytestArgs": [
