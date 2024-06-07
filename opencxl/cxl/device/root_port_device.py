@@ -42,7 +42,7 @@ from opencxl.cxl.transport.transaction import (
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
     is_cxl_mem_data,
-    is_cxl_mem_completion
+    is_cxl_mem_completion,
 )
 
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
@@ -180,9 +180,7 @@ class CxlRootPortDevice(RunnableComponent):
     async def set_secondary_bus(self, bdf: int, secondary_bus: int):
         bdf_string = bdf_to_string(bdf)
         logger.info(
-            self._create_message(
-                f"Setting secondary bus of device {bdf_string} to {secondary_bus}"
-            )
+            self._create_message(f"Setting secondary bus of device {bdf_string} to {secondary_bus}")
         )
         bus = extract_bus_from_bdf(bdf)
         is_type0 = bus == self._secondary_bus
@@ -447,9 +445,7 @@ class CxlRootPortDevice(RunnableComponent):
             await self.set_bar0(bdf, memory_base)
             if mmio_enum_info is not None:
                 mmio_enum_info.bar_blocks.append(
-                    BarEnumerationInfo(
-                        memory_base=memory_base, memory_limit=memory_base + size - 1
-                    )
+                    BarEnumerationInfo(memory_base=memory_base, memory_limit=memory_base + size - 1)
                 )
         else:
             await self.set_bar0(bdf, 0)

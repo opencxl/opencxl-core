@@ -73,9 +73,7 @@ def test_cxl_mailbox_with_unsupported_command():
     assert len(mailbox.payloads) == mailbox.get_payload_size()
 
     mailbox.set_control(
-        MailboxControl(
-            doorbell=1, mb_doorbell_interrupt=0, background_command_complete_interrupt=0
-        )
+        MailboxControl(doorbell=1, mb_doorbell_interrupt=0, background_command_complete_interrupt=0)
     )
     control = mailbox.get_control()
     assert control["doorbell"] == 0
@@ -95,9 +93,7 @@ def test_cxl_mailbox_with_valid_command():
     commands = [SampleCommand(True)]
     mailbox = CxlMailbox(capabilities, commands)
     mailbox.set_control(
-        MailboxControl(
-            doorbell=1, mb_doorbell_interrupt=0, background_command_complete_interrupt=0
-        )
+        MailboxControl(doorbell=1, mb_doorbell_interrupt=0, background_command_complete_interrupt=0)
     )
     assert mailbox.get_control()["doorbell"] == 0
     assert mailbox.status["background_operation"] == 0
@@ -117,18 +113,14 @@ def test_cxl_mailbox_with_background_command():
     commands = [SampleCommand(False)]
     mailbox = CxlMailbox(capabilities, commands)
     mailbox.set_control(
-        MailboxControl(
-            doorbell=1, mb_doorbell_interrupt=0, background_command_complete_interrupt=0
-        )
+        MailboxControl(doorbell=1, mb_doorbell_interrupt=0, background_command_complete_interrupt=0)
     )
     assert mailbox.get_control()["doorbell"] == 0
     assert mailbox.status["background_operation"] == 1
     assert mailbox.status["return_code"] == MAILBOX_RETURN_CODE.BACKGROUND_COMMAND_STARTED
 
     mailbox.set_control(
-        MailboxControl(
-            doorbell=1, mb_doorbell_interrupt=0, background_command_complete_interrupt=0
-        )
+        MailboxControl(doorbell=1, mb_doorbell_interrupt=0, background_command_complete_interrupt=0)
     )
     assert mailbox.get_control()["doorbell"] == 0
     assert mailbox.status["background_operation"] == 1
@@ -147,17 +139,13 @@ def test_cxl_mailbox_enable_interrupt():
 
     mailbox = CxlMailbox(capabilities, {})
     mailbox.set_control(
-        MailboxControl(
-            doorbell=0, mb_doorbell_interrupt=1, background_command_complete_interrupt=0
-        )
+        MailboxControl(doorbell=0, mb_doorbell_interrupt=1, background_command_complete_interrupt=0)
     )
     assert mailbox.get_control()["mb_doorbell_interrupt"] == 1
 
     mailbox = CxlMailbox(capabilities, {})
     mailbox.set_control(
-        MailboxControl(
-            doorbell=0, mb_doorbell_interrupt=0, background_command_complete_interrupt=1
-        )
+        MailboxControl(doorbell=0, mb_doorbell_interrupt=0, background_command_complete_interrupt=1)
     )
     assert mailbox.get_control()["background_command_complete_interrupt"] == 1
 
@@ -172,16 +160,12 @@ def test_cxl_mailbox_enable_interrupt():
 
     mailbox = CxlMailbox(capabilities, {})
     mailbox.set_control(
-        MailboxControl(
-            doorbell=0, mb_doorbell_interrupt=1, background_command_complete_interrupt=0
-        )
+        MailboxControl(doorbell=0, mb_doorbell_interrupt=1, background_command_complete_interrupt=0)
     )
     assert mailbox.get_control()["mb_doorbell_interrupt"] == 0
 
     mailbox = CxlMailbox(capabilities, {})
     mailbox.set_control(
-        MailboxControl(
-            doorbell=0, mb_doorbell_interrupt=0, background_command_complete_interrupt=1
-        )
+        MailboxControl(doorbell=0, mb_doorbell_interrupt=0, background_command_complete_interrupt=1)
     )
     assert mailbox.get_control()["background_command_complete_interrupt"] == 0

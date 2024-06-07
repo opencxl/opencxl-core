@@ -13,6 +13,7 @@ from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
     BitField,
     ByteField,
+    DynamicByteField,
     StructureField,
 )
 from opencxl.util.pci import (
@@ -20,7 +21,14 @@ from opencxl.util.pci import (
     extract_device_from_bdf,
     extract_bus_from_bdf,
 )
-from opencxl.util.number import get_randbits, htotlp16, htotlp64, tlptoh16
+from opencxl.util.number import (
+    get_randbits,
+    htotlp16,
+    htotlp64,
+    tlptoh16,
+    extract_upper,
+    extract_lower,
+)
 from opencxl.cxl.transport.common import (
     BasePacket,
     SYSTEM_HEADER_END,
@@ -196,16 +204,28 @@ class CxlIoBasePacket(BasePacket):
     ]
 
     def is_cfg_type0(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.CFG_RD0, CXL_IO_FMT_TYPE.CFG_WR0)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.CFG_RD0,
+            CXL_IO_FMT_TYPE.CFG_WR0,
+        )
 
     def is_cfg_type1(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.CFG_RD1, CXL_IO_FMT_TYPE.CFG_WR1)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.CFG_RD1,
+            CXL_IO_FMT_TYPE.CFG_WR1,
+        )
 
     def is_cfg_read(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.CFG_RD0, CXL_IO_FMT_TYPE.CFG_RD1)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.CFG_RD0,
+            CXL_IO_FMT_TYPE.CFG_RD1,
+        )
 
     def is_cfg_write(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.CFG_WR0, CXL_IO_FMT_TYPE.CFG_WR1)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.CFG_WR0,
+            CXL_IO_FMT_TYPE.CFG_WR1,
+        )
 
     def is_cpl(self) -> bool:
         return self.cxl_io_header.fmt_type == CXL_IO_FMT_TYPE.CPL
@@ -230,10 +250,16 @@ class CxlIoBasePacket(BasePacket):
         )
 
     def is_mem_read(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.MRD_32B, CXL_IO_FMT_TYPE.MRD_64B)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.MRD_32B,
+            CXL_IO_FMT_TYPE.MRD_64B,
+        )
 
     def is_mem_write(self) -> bool:
-        return self.cxl_io_header.fmt_type in (CXL_IO_FMT_TYPE.MWR_32B, CXL_IO_FMT_TYPE.MWR_64B)
+        return self.cxl_io_header.fmt_type in (
+            CXL_IO_FMT_TYPE.MWR_32B,
+            CXL_IO_FMT_TYPE.MWR_64B,
+        )
 
     @staticmethod
     def build_transaction_id(req_id: int, tag: int) -> int:
@@ -315,18 +341,25 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
     data: int
     # TODO: Support dynamic data size. Fixed to 8 for now.
     _fields = CxlIoMemReqPacket._fields + [
-        ByteField("data", CXL_IO_MREQ_FIELD_START, CXL_IO_MREQ_FIELD_START + 0x07),
+        DynamicByteField("data", CXL_IO_MREQ_FIELD_START, 0x0),
     ]
 
     @staticmethod
     def create(
         addr: int, length: int, data: int, req_id: int = None, tag: int = None
     ) -> "CxlIoMemWrPacket":
+        """
+        `length` is measured in DWORDs.
+        """
         packet = CxlIoMemWrPacket()
         packet.fill(addr, length)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
-        packet.system_header.payload_length = CxlIoMemWrPacket.get_size()
+
+        packet.set_dynamic_field_length(length * 32)
         packet.data = data
+
+        packet.system_header.payload_length = len(packet)
+
         # override for unit-testing
         if req_id and tag:
             packet.mreq_header.req_id = htotlp16(req_id)
@@ -580,28 +613,41 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
             CXL_IO_CPL_HEADER_END,
             CxlIoCompletionHeader,
         ),
-        ByteField("data", CXL_IO_CPL_FIELD_START, CXL_IO_CPL_FIELD_START + 0x07),
+        DynamicByteField("data", CXL_IO_CPL_FIELD_START, 0x0),
     ]
 
     @staticmethod
     def create(
-        req_id: int, tag: int, data: int, status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC
+        req_id: int,
+        tag: int,
+        data: int,
+        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
+        pload_len=0x04,
     ) -> "CxlIoCompletionWithDataPacket":
+        # for config reads, always 1 DWORD (4 bytes)
+
         packet = CxlIoCompletionWithDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
-        packet.system_header.payload_length = len(packet)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
-        # assume 2 DWORDs (i.e. 8 bytes)
-        packet.cxl_io_header.length_upper = 0b00
-        packet.cxl_io_header.length_lower = 0b00000010
+
+        # convert to DWORDs
+        packet.cxl_io_header.length_upper = extract_upper(pload_len // 4, 2, 10)
+        packet.cxl_io_header.length_lower = extract_lower(pload_len // 4, 8, 10)
+
         # TODO: actual ID to be added
         packet.cpl_header.cpl_id = htotlp16(get_randbits(16))
         packet.cpl_header.status = status
         packet.cpl_header.req_id = htotlp16(req_id)
         packet.cpl_header.tag = tag
-        packet.cpl_header.byte_count_upper = 0
-        packet.cpl_header.byte_count_lower = 8  # TODO: Need to be computed
+
+        packet.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
+        packet.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
+
+        packet.set_dynamic_field_length(pload_len)
         packet.data = data
+
+        packet.system_header.payload_length = len(packet)
+
         return packet
 
     def get_transaction_id(self) -> int:

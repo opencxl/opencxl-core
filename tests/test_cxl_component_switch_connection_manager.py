@@ -529,9 +529,9 @@ async def test_switch_connection_manager_handle_mmio_completion():
 
         logger.info("[PyTest] Checking MMIO completion packets received from client")
         rcvd_packets = []
-        rcvd_packets.append(await client_connection.mmio_fifo.host_to_target.get()) # wr
-        rcvd_packets.append(await client_connection.mmio_fifo.host_to_target.get()) # rd
-        rcvd_packets.append(await server_connection.mmio_fifo.target_to_host.get()) # cpld
+        rcvd_packets.append(await client_connection.mmio_fifo.host_to_target.get())  # wr
+        rcvd_packets.append(await client_connection.mmio_fifo.host_to_target.get())  # rd
+        rcvd_packets.append(await server_connection.mmio_fifo.target_to_host.get())  # cpld
 
         assert bytes(rcvd_packets[0]) == bytes(req1)
         assert bytes(rcvd_packets[1]) == bytes(req2)

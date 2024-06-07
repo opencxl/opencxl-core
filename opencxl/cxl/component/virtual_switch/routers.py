@@ -143,7 +143,7 @@ class MmioRouter(CxlRouter):
             if target_port is None:
                 if mmio_packet.is_mem_read():
                     logger.debug(self._create_message(f"RD: 0x{address:x}[{size}] OOB"))
-                    await self._send_completion(req_id, tag, data=0)
+                    await self._send_completion(req_id, tag, data=0, data_len=size)
                 elif mmio_packet.is_mem_write():
                     logger.debug(self._create_message(f"WR: 0x{address:x}[{size}] OOB"))
                 continue
@@ -161,9 +161,12 @@ class MmioRouter(CxlRouter):
                 break
             await self._upstream_connection.target_to_host.put(packet)
 
-    async def _send_completion(self, req_id, tag, data: int = None):
+    async def _send_completion(self, req_id, tag, data: int = None, data_len: int = 0):
+        """
+        Note that data_len should be in bytes.
+        """
         if data is not None:
-            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data)
+            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_len=data_len)
         else:
             packet = CxlIoCompletionPacket.create(req_id, tag)
         await self._upstream_connection.target_to_host.put(packet)

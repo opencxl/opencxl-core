@@ -104,9 +104,7 @@ def test_virtual_switch_manager_init():
             initial_bounds=initial_bounds,
             physical_ports=physical_ports,
         )
-    with pytest.raises(
-        Exception, match="length of initial_bounds and vppb_count must be the same"
-    ):
+    with pytest.raises(Exception, match="length of initial_bounds and vppb_count must be the same"):
         CxlVirtualSwitch(
             id=vcs_id,
             upstream_port_index=1,
