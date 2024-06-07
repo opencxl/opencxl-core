@@ -142,6 +142,7 @@ class ConfigSpaceManager(RunnableComponent):
         await self._upstream_fifo.target_to_host.put(completion_packet)
 
     async def _process_host_to_target(self):
+        # pylint: disable=duplicate-code
         logger.debug(self._create_message("Started processing host to target fifo"))
         while True:
             packet = await self._upstream_fifo.host_to_target.get()
@@ -194,9 +195,7 @@ class ConfigSpaceManager(RunnableComponent):
         while True:
             packet = await self._downstream_fifo.target_to_host.get()
             if packet is None:
-                logger.debug(
-                    self._create_message("Stop processing downstream target to host fifo")
-                )
+                logger.debug(self._create_message("Stop processing downstream target to host fifo"))
                 break
             logger.debug(self._create_message("Received target to host packet"))
             await self._upstream_fifo.target_to_host.put(packet)

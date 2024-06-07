@@ -19,7 +19,10 @@ from opencxl.apps.cxl_host import CxlHostManager, CxlHost, CxlHostUtilClient
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
 from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
-from opencxl.cxl.component.virtual_switch_manager import VirtualSwitchManager, VirtualSwitchConfig
+from opencxl.cxl.component.virtual_switch_manager import (
+    VirtualSwitchManager,
+    VirtualSwitchConfig,
+)
 from opencxl.apps.single_logical_device import SingleLogicalDeviceClient
 
 BASE_TEST_PORT = 9300
@@ -69,14 +72,16 @@ class DummyHost:
     async def _dummy_mem_read(self, addr: int) -> jsonrpcserver.Result:
         if self._is_valid_addr(addr) is False:
             return jsonrpcserver.Error(
-                ERROR_INTERNAL_ERROR, f"Invalid Params: 0x{addr:x} is not a valid address"
+                ERROR_INTERNAL_ERROR,
+                f"Invalid Params: 0x{addr:x} is not a valid address",
             )
         return jsonrpcserver.Success({"result": addr})
 
     async def _dummy_mem_write(self, addr: int, data: int = None) -> jsonrpcserver.Result:
         if self._is_valid_addr(addr) is False:
             return jsonrpcserver.Error(
-                ERROR_INTERNAL_ERROR, f"Invalid Params: 0x{addr:x} is not a valid address"
+                ERROR_INTERNAL_ERROR,
+                f"Invalid Params: 0x{addr:x} is not a valid address",
             )
         return jsonrpcserver.Success({"result": data})
 
@@ -111,9 +116,7 @@ class DummyHost:
         await self._event.wait()
 
 
-async def init_clients(
-    host_port: int, util_port: int
-) -> Tuple[SimpleJsonClient, SimpleJsonClient]:
+async def init_clients(host_port: int, util_port: int) -> Tuple[SimpleJsonClient, SimpleJsonClient]:
     util_client = SimpleJsonClient(port=util_port)
     host_client = SimpleJsonClient(port=host_port)
     await host_client.connect()
@@ -223,9 +226,7 @@ async def test_cxl_host_manager_handle_err():
 
     # Invalid write address
     err_expected = "Invalid Params"
-    cmd = request_json(
-        "UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": invalid_addr, "data": data}
-    )
+    cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": invalid_addr, "data": data})
     await send_and_check_err(util_client, cmd, err_expected)
 
     await dummy_host.conn_close()
@@ -275,9 +276,8 @@ async def test_cxl_host_ete():
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=sw_conn_manager, port_configs=port_configs
     )
-    switch_configs = [
-        VirtualSwitchConfig(upstream_port_index=0, vppb_counts=1, initial_bounds=[1])
-    ]
+
+    switch_configs = [VirtualSwitchConfig(upstream_port_index=0, vppb_counts=1, initial_bounds=[1])]
     virtual_switch_manager = VirtualSwitchManager(
         switch_configs=switch_configs, physical_port_manager=physical_port_manager
     )
@@ -302,6 +302,7 @@ async def test_cxl_host_ete():
         asyncio.create_task(virtual_switch_manager.run()),
         asyncio.create_task(sld.run()),
     ]
+
     wait_tasks = [
         asyncio.create_task(sw_conn_manager.wait_for_ready()),
         asyncio.create_task(physical_port_manager.wait_for_ready()),

@@ -5,7 +5,10 @@
  See LICENSE for details.
 """
 
+import pytest
+
 from opencxl.util.unaligned_bit_structure import (
+    ShareableByteArray,
     UnalignedBitStructure,
     BitField,
     ByteField,
@@ -52,6 +55,65 @@ class StructureFieldStructure(UnalignedBitStructure):
         StructureField("bits", 0, 8, BitFieldStructure),
         StructureField("bytes", 9, 18, ByteFieldStructure),
     ]
+
+
+class LiterallyUnalignedBitStructure(UnalignedBitStructure):
+    field1: int
+    field2: int
+    field3: int
+    field4: int
+    _fields = [
+        ByteField("field1", 0, 0),  # 1 Byte
+        ByteField("field2", 1, 2),  # 2 Bytes
+        ByteField("field3", 2, 5),  # 4 Bytes (unaligned!!)
+        ByteField("field4", 6, 9),  # 4 Bytes
+    ]
+
+
+class LiterallyUnalignedBytes(UnalignedBitStructure):
+    field1: int
+    field2: int
+    field3: int
+    field4: int
+    _fields = [
+        BitField("field1", 0, 1),  # 2 bits
+        BitField("field2", 2, 5),  # 4 bits
+    ]
+
+
+def test_shareable_bytearray():
+    data_array = bytearray([0xDE, 0xAD, 0xBE, 0xEF, 0x10, 0x15, 0x20, 0x25, 0xBE, 0xDB, 0xED, 0xFF])
+    shared = ShareableByteArray(len(data_array), data_array)
+
+    shared_deadbeef = shared.create_shared(4, 0)
+    shared_random = shared.create_shared(8, 4)
+    shared_copy = shared.create_shared()
+
+    assert bytes(shared_deadbeef) == bytearray([0xDE, 0xAD, 0xBE, 0xEF])
+    assert bytes(shared_random) == bytearray([0x10, 0x15, 0x20, 0x25, 0xBE, 0xDB, 0xED, 0xFF])
+    assert bytes(shared_copy) == data_array
+
+    assert shared_deadbeef.get_hex_dump(line_length=4) == "de ad be ef"
+    assert shared_random.get_hex_dump(line_length=4) == "10 15 20 25 \nbe db ed ff"
+
+    shared.resize(10)
+
+    assert bytes(shared) == bytearray([0xDE, 0xAD, 0xBE, 0xEF, 0x10, 0x15, 0x20, 0x25, 0xBE, 0xDB])
+    assert bytes(shared_deadbeef) == bytearray([0xDE, 0xAD, 0xBE, 0xEF])
+    assert bytes(shared_copy) != bytes(shared)
+
+
+def test_literally_unaligned_bit_structure():
+    # pylint: disable=unused-variable
+    with pytest.raises(
+        Exception, match=r".*DataField.start isn't aligned to the previous field$"
+    ) as exc_info:
+        unaligned = LiterallyUnalignedBitStructure()
+
+    with pytest.raises(
+        Exception, match=r".*The last DataField.end should be aligned to byte boundary$"
+    ) as exc_info:
+        unaligned_pt2 = LiterallyUnalignedBytes()
 
 
 def test_individual_bit_fields():

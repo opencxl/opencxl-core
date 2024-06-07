@@ -132,9 +132,12 @@ class MmioManager(PacketProcessor):
             return entry.register, offset
         return None, None
 
-    async def _send_completion(self, req_id: int, tag: int, data: int = None):
+    async def _send_completion(self, req_id: int, tag: int, data: int = None, data_len: int = 0):
         if data is not None:
-            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data)
+            if isinstance(data, int) and data >= (1 << (data_len * 8)):
+                # if isinstance(data, MagicMock), then just assume it'll fit in the given size
+                raise Exception(f"'Data: {data} could not possibly fit within length: {data_len}")
+            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_len=data_len)
         else:
             packet = CxlIoCompletionPacket.create(req_id, tag)
         await self._upstream_fifo.target_to_host.put(packet)
@@ -160,7 +163,7 @@ class MmioManager(PacketProcessor):
             else:
                 if mem_req_packet.is_mem_read():
                     logger.debug(self._create_message(f"RD: 0x{address:x}[{size}] OOB"))
-                    await self._send_completion(req_id, tag, data=0)
+                    await self._send_completion(req_id, tag, data=0, data_len=size)
                 elif mem_req_packet.is_mem_write():
                     logger.debug(self._create_message(f"WR: 0x{address:x}[{size}] OOB"))
                 else:
@@ -176,7 +179,7 @@ class MmioManager(PacketProcessor):
         elif mem_req_packet.is_mem_read():
             logger.debug(self._create_message(f"RD: 0x{address:x}[{size}]"))
             data = register.read_bytes(start_offset, end_offset)
-            await self._send_completion(req_id, tag, data)
+            await self._send_completion(req_id, tag, data, size)
         else:
             raise Exception("Unsupported MMIO packet")
 
