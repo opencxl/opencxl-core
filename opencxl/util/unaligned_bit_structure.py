@@ -5,7 +5,18 @@
  See LICENSE for details.
 """
 
-from typing import List, Dict, Tuple, Any, Type, Union, Optional, Callable, cast, TypedDict
+from typing import (
+    List,
+    Dict,
+    Tuple,
+    Any,
+    Type,
+    Union,
+    Optional,
+    Callable,
+    cast,
+    TypedDict,
+)
 from dataclasses import dataclass, field, asdict
 from enum import Enum, auto
 from opencxl.util.logger import logger
@@ -55,6 +66,53 @@ class ByteField:
 
 
 @dataclass
+class DynamicByteFieldInstance:
+    name: str
+    start: int
+    length: int
+    type: ByteFieldType = field(default=int)
+    attribute: FIELD_ATTR = FIELD_ATTR.RW
+    default: int = 0
+    mask: Optional[int] = None
+
+    def is_read_only(self):
+        return self.attribute == FIELD_ATTR.RO or self.attribute == FIELD_ATTR.HW_INIT
+
+
+@dataclass
+class DynamicByteField:
+    """
+    Dynamic byte fields may have different sizes depending on which
+    packet they currently belong to. In order to prevent nasty side
+    effects, we have to create a "spawner" class that initializes
+    a new dynamic byte field every time a dynamically-sized packet
+    is created.
+    """
+
+    name: str
+    start: int
+    length: int
+    type: ByteFieldType = field(default=int)
+    attribute: FIELD_ATTR = FIELD_ATTR.RW
+    default: int = 0
+    mask: Optional[int] = None
+
+    def is_read_only(self):
+        return self.attribute == FIELD_ATTR.RO or self.attribute == FIELD_ATTR.HW_INIT
+
+    def spawn(self):
+        return DynamicByteFieldInstance(
+            self.name,
+            self.start,
+            self.length,
+            self.type,
+            self.attribute,
+            self.default,
+            self.mask,
+        )
+
+
+@dataclass
 class StructureField:
     name: str
     start: int
@@ -65,7 +123,7 @@ class StructureField:
     default: int = 0
 
 
-DataField = Union[BitField, ByteField, StructureField]
+DataField = Union[BitField, ByteField, DynamicByteField, StructureField]
 BITS_IN_BYTE = 8
 
 
@@ -133,10 +191,23 @@ class ShareableByteArray:
         if not data:
             self._data[start:end] = bytearray(self.size)
         else:
+            # appears to be out of bounds, but this works in Python
             self._data[start:end] = data
+            self.size = len(data)
+
+    def resize(self, new_size: int):
+        if new_size < 0:
+            raise Exception("Cannot resize ShareableByteArray to negative length!")
+        # extension
+        if new_size > self.size:
+            self._data.extend(bytearray([0] * (new_size - self.size)))
+        # truncation
+        else:
+            self._data = self._data[:new_size]
+        self.size = new_size
 
     def get_hex_dump(self, line_length: int = 16):
-        hex_string = " ".join(f"{byte:02x}" for byte in self._data)
+        hex_string = " ".join(f"{byte:02x}" for byte in self._data[self.offset : self.offset + self.size])
         return "\n".join(
             hex_string[i : i + line_length * 3] for i in range(0, len(hex_string), line_length * 3)
         )
@@ -238,6 +309,7 @@ class ShareableByteArray:
 class UnalignedBitStructure:
     _fields: List[DataField] = []
     _verbose: bool = False
+    _dynamic_field: Optional[DynamicByteField] = None
 
     def __init__(
         self,
@@ -277,13 +349,16 @@ class UnalignedBitStructure:
                 self._add_bit_field(field)
             elif type(field) == ByteField:
                 self._add_byte_field(field)
+            elif type(field) == DynamicByteField:
+                self._add_dynamic_byte_field(field.spawn())
             elif type(field) == StructureField:
                 self._add_structured_field(field)
 
-    def _check_if_fields_are_valid(self) -> bool:
+    def _check_if_fields_are_valid(self):
         fields = self._fields
         bit_fields = 0
         byte_fields = 0
+        dynamic_byte_fields = 0
         structure_fields = 0
 
         for field in fields:
@@ -291,6 +366,8 @@ class UnalignedBitStructure:
                 bit_fields += 1
             elif type(field) == ByteField:
                 byte_fields += 1
+            elif type(field) == DynamicByteField:
+                dynamic_byte_fields += 1
             elif type(field) == StructureField:
                 structure_fields += 1
             else:
@@ -303,17 +380,34 @@ class UnalignedBitStructure:
                 f"{self._class_name}: A BitField cannot mixed with a ByteField or a StructureField"
             )
 
+        elif dynamic_byte_fields > 1:
+            raise Exception(
+                "The current implementation does not allow for more than one dynamic byte field."
+            )
+
         last_offset = -1
-        for field in fields:
+        for f_idx, field in enumerate(fields):
             if field.start != last_offset + 1:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': DataField.start isn't aligned to the previous field"
                 )
-            if field.end < field.start:
+            if type(field) != DynamicByteField and field.end < field.start:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': DataField.end cannot be less than DataField.start"
                 )
-            last_offset = field.end
+            elif type(field) == DynamicByteField and field.length < 0:
+                raise Exception(
+                    f"'{self._class_name}.{field.name}': A byte field with negative length is nonsensical"
+                )
+            if type(field) == DynamicByteField and f_idx != len(fields) - 1:
+                raise Exception(
+                    f"'{self._class_name}.{field.name}: DynamicByteFields must be the last field in their respective packets"
+                )
+
+            if type(field) != DynamicByteField:
+                last_offset = field.end
+            else:
+                last_offset += field.length
 
         if bit_fields > 0 and (last_offset + 1) % 8 != 0:
             raise Exception(
@@ -336,14 +430,21 @@ class UnalignedBitStructure:
 
     @classmethod
     def get_size(cls, fields: Optional[List[DataField]] = None) -> int:
+        """
+        It is usually a bad idea to call this method on a dynamically-sized
+        packet class, since the returned size will __not__ include the size
+        of the dynamically-sized field (which is by default 0)
+        """
         if not fields:
             fields = cls._fields
         last_field = fields[-1]
         if type(last_field) == BitField:
             # NOTE: We may have to throw an error instead
             return (last_field.end + 1) // BITS_IN_BYTE
-        if type(last_field) == ByteField or type(last_field) == StructureField:
+        elif type(last_field) == ByteField or type(last_field) == StructureField:
             return last_field.end + 1
+        elif type(last_field) == DynamicByteField:
+            return last_field.start + last_field.length
         raise Exception(f"Unexpected field type {type(last_field).__name__}")
 
     @classmethod
@@ -353,6 +454,13 @@ class UnalignedBitStructure:
     @staticmethod
     def get_size_from_options(options: Optional[TypedDict]) -> int:
         return 0
+
+    def set_dynamic_field_length(self, new_len: int):
+        if self._dynamic_field is None:
+            return
+        old_length = self._dynamic_field.length
+        self._dynamic_field.length = new_len
+        self._data.resize(len(self) + new_len - old_length)
 
     def _add_field_name(self, name: str):
         if name in self._field_names:
@@ -415,6 +523,36 @@ class UnalignedBitStructure:
             self.__class__,
             field.name,
             property(make_getter(field.start, field.end), make_setter(field.start, field.end)),
+        )
+
+    def _add_dynamic_byte_field(self: "UnalignedBitStructure", field: DynamicByteFieldInstance):
+        self._add_field_name(field.name)
+        if self._dynamic_field is not None:
+            raise Exception(
+                f"'{self._class_name}' instance already contains a dynamic field: {self._dynamic_field.name}"
+            )
+        else:
+            self._dynamic_field = field
+
+        def make_setter(field: DynamicByteFieldInstance):
+            def setter(self: "UnalignedBitStructure", value: int):
+                self._data.write_bytes(field.start, field.start + field.length - 1, value)
+
+            return setter
+
+        def make_getter(field: DynamicByteFieldInstance):
+            def getter(self: "UnalignedBitStructure") -> int:
+                return self._data.read_bytes(field.start, field.start + field.length - 1)
+
+            return getter
+
+        if field.default > 0:
+            self._data.write_bytes(field.start, field.start + field.length, field.default)
+
+        setattr(
+            self.__class__,
+            field.name,
+            property(make_getter(field), make_setter(field)),
         )
 
     def _add_structured_field(self: "UnalignedBitStructure", field: StructureField):
@@ -481,9 +619,19 @@ class UnalignedBitStructure:
         return bytes(self._data)
 
     def reset(self, data: Optional[Union[bytearray, bytes]] = None):
+        if data is None:
+            self._data.reset(data)
+            return
+
         if type(data) == bytes:
             data = bytearray(data)
-        self._data.reset(data)
+
+        if self._dynamic_field is None:
+            self._data.reset(data)
+        else:
+            old_size: int = len(self._data)
+            self._data.reset(data)
+            self._dynamic_field.length += len(data) - old_size
 
     def get_pretty_string(self, indent: int = 0):
         indent_str = " " * indent
@@ -496,6 +644,8 @@ class UnalignedBitStructure:
             elif type(field) == StructureField:
                 string += f"{indent_str}{field.name}:\n"
                 string += getattr(self, field.name).get_pretty_string(indent + 2)
+            elif type(field) == DynamicByteFieldInstance:
+                string += f"{indent_str}{field.name}: <-- {hex(getattr(self, field.name))} -->\n"
         return string
 
     def get_hex_dump(self, line_length: int = 16):
@@ -607,6 +757,8 @@ class BitMaskedBitStructure(UnalignedBitStructure):
 
         selected_field = None
         for field in self._fields:
+            if type(field) == DynamicByteFieldInstance:
+                continue
             if field.start <= offset and offset <= field.end:
                 selected_field = field
                 break
