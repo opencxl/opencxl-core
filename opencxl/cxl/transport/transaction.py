@@ -622,7 +622,7 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         tag: int,
         data: int,
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
-        pload_len = 0x04
+        pload_len=0x04,
     ) -> "CxlIoCompletionWithDataPacket":
         # for config reads, always 1 DWORD (4 bytes)
 

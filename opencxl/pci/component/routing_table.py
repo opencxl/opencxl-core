@@ -112,11 +112,7 @@ class PciRoutingTable(LabeledComponent):
             return None
 
         for port_number, config_space_entry in enumerate(self._config_space_table):
-            if (
-                config_space_entry.secondary_bus
-                <= bus_number
-                <= config_space_entry.subordinate_bus
-            ):
+            if config_space_entry.secondary_bus <= bus_number <= config_space_entry.subordinate_bus:
                 return port_number
         return None
 

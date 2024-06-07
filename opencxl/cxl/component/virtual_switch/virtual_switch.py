@@ -171,9 +171,7 @@ class CxlVirtualSwitch(RunnableComponent):
         if port_device.get_device_type() != CXL_COMPONENT_TYPE.DSP:
             raise Exception(f"physical port {port_index} is not DSP")
         logger.info(
-            self._create_message(
-                f"Started Binding physical port {port_index} to vPPB {vppb_index}"
-            )
+            self._create_message(f"Started Binding physical port {port_index} to vPPB {vppb_index}")
         )
         dsp_device = cast(DownstreamPortDevice, port_device)
         dsp_device.set_routing_table(self._routing_table)
@@ -190,9 +188,7 @@ class CxlVirtualSwitch(RunnableComponent):
     async def unbind_vppb(self, vppb_index: int):
         if vppb_index >= len(self._dummy_dsp_devices):
             raise Exception("vppb_index is out of bound")
-        logger.info(
-            self._create_message(f"Started unbinding physical port from vPPB {vppb_index}")
-        )
+        logger.info(self._create_message(f"Started unbinding physical port from vPPB {vppb_index}"))
         dummy_device = self._dummy_dsp_devices[vppb_index]
         await self._call_event_handler(vppb_index, PPB_BINDING_STATUS.BIND_OR_UNBIND_IN_PROGRESS)
         await self._port_binder.unbind_vppb(dummy_device, vppb_index)

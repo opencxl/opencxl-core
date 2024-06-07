@@ -159,9 +159,7 @@ def test_cxl_mailbox_background_command_status_register():
     )
     assert register.read_bytes(0x18, 0x1F) == 0x0001000100010001
     assert register.read_bytes(0x18, 0x19) == register.background_command_status.command_opcode
-    assert (
-        register.read_bytes(0x1A, 0x1B) == register.background_command_status.percentage_complete
-    )
+    assert register.read_bytes(0x1A, 0x1B) == register.background_command_status.percentage_complete
     assert register.read_bytes(0x1C, 0x1D) == register.background_command_status.return_code
     assert (
         register.read_bytes(0x1E, 0x1F)

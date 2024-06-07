@@ -17,7 +17,7 @@ from opencxl.cxl.transport.transaction import (
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
     CxlMemMemDataPacket,
-    CxlMemCmpPacket
+    CxlMemCmpPacket,
 )
 from opencxl.cxl.component.cxl_memory_device_component import CxlMemoryDeviceComponent
 from opencxl.pci.component.packet_processor import PacketProcessor

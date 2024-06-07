@@ -107,8 +107,7 @@ class DoeTableAccessProtocol(DoeMailboxProtocolBase):
         logger.debug("[DOE] Processing DOE Table Access")
         if mailbox_context.write_mailbox_len != self.req_dwords:
             logger.warning(
-                f"[DOE] Table Access: Invalid request size, "
-                f"{mailbox_context.write_mailbox_len}"
+                f"[DOE] Table Access: Invalid request size, " f"{mailbox_context.write_mailbox_len}"
             )
             return False
 
