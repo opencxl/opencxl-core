@@ -455,7 +455,7 @@ class UnalignedBitStructure:
     def get_size_from_options(options: Optional[TypedDict]) -> int:
         return 0
 
-    def directly_set_dynamic_length(self, new_len: int):
+    def set_dynamic_field_length(self, new_len: int):
         if self._dynamic_field is None:
             return
         old_length = self._dynamic_field.length
