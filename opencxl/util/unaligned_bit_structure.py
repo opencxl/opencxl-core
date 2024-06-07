@@ -207,7 +207,9 @@ class ShareableByteArray:
         self.size = new_size
 
     def get_hex_dump(self, line_length: int = 16):
-        hex_string = " ".join(f"{byte:02x}" for byte in self._data[self.offset : self.offset + self.size])
+        hex_string = " ".join(
+            f"{byte:02x}" for byte in self._data[self.offset : self.offset + self.size]
+        )
         return "\n".join(
             hex_string[i : i + line_length * 3] for i in range(0, len(hex_string), line_length * 3)
         )

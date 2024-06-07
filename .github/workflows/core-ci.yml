@@ -17,8 +17,8 @@ jobs:
         run: poetry env use python3.11 && poetry install
       - name: Run pytest
         run: make test
-  pylint:
-    name: pylint
+  code-quality:
+    name: code-quality
     runs-on: ubuntu-22.04
     container:
       image: ghcr.io/opencxl/core-ci:0.1
@@ -29,3 +29,5 @@ jobs:
         run: poetry env use python3.11 && poetry install
       - name: Run pylint
         run: make lint
+      - name: Run black
+        run: poetry run black --check opencxl tests

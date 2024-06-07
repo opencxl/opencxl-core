@@ -151,9 +151,7 @@ class CciExecutor(RunnableComponent):
         return_code = self._background_command_slot.response.return_code
         vendor_specific_status = self._background_command_slot.response.vendor_specific_status
         self._condition.release()
-        return CciBackgroundStatus(
-            opcode, percentage_complete, return_code, vendor_specific_status
-        )
+        return CciBackgroundStatus(opcode, percentage_complete, return_code, vendor_specific_status)
 
     async def _process_background_command(self):
         while self._running:

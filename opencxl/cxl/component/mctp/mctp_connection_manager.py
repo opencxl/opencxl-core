@@ -72,9 +72,7 @@ class MctpConnectionManager(RunnableComponent):
                         self._create_message("Connection already exists for Switch Port")
                     )
                 else:
-                    logger.info(
-                        self._create_message(f"Binding incoming connection to Switch Port")
-                    )
+                    logger.info(self._create_message(f"Binding incoming connection to Switch Port"))
                     self._switch_port.connected = True
                     await self._start_packet_processor(reader, writer)
             except Exception as e:
