@@ -355,7 +355,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         packet.fill(addr, length)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
 
-        packet.directly_set_dynamic_length(length * 32)
+        packet.set_dynamic_field_length(length * 32)
         packet.data = data
 
         packet.system_header.payload_length = len(packet)
@@ -643,7 +643,7 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         packet.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
         packet.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
 
-        packet.directly_set_dynamic_length(pload_len)
+        packet.set_dynamic_field_length(pload_len)
         packet.data = data
 
         packet.system_header.payload_length = len(packet)
