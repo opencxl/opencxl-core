@@ -170,7 +170,6 @@ class ConfigSpaceManager(RunnableComponent):
                     await self._send_unsupported_request(req_id, tag)
             else:
                 raise Exception("Unexpected packet received from ConfigSpaceManager")
-        # pylint: enable=duplicate-code
 
     def _convert_request_type_when_needed(self, packet: CxlIoBasePacket):
         offset = REG_ADDR.SECONDARY_BUS_NUMBER.START

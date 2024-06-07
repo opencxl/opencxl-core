@@ -191,6 +191,7 @@ class ShareableByteArray:
         if not data:
             self._data[start:end] = bytearray(self.size)
         else:
+            # appears to be out of bounds, but this works in Python
             self._data[start:end] = data
             self.size = len(data)
 
@@ -206,7 +207,7 @@ class ShareableByteArray:
         self.size = new_size
 
     def get_hex_dump(self, line_length: int = 16):
-        hex_string = " ".join(f"{byte:02x}" for byte in self._data)
+        hex_string = " ".join(f"{byte:02x}" for byte in self._data[self.offset : self.offset + self.size])
         return "\n".join(
             hex_string[i : i + line_length * 3] for i in range(0, len(hex_string), line_length * 3)
         )
@@ -454,25 +455,12 @@ class UnalignedBitStructure:
     def get_size_from_options(options: Optional[TypedDict]) -> int:
         return 0
 
-    def directly_set_dynamic_length(self, new_dy_fld_length: int):
+    def directly_set_dynamic_length(self, new_len: int):
         if self._dynamic_field is None:
             return
         old_length = self._dynamic_field.length
-        self._dynamic_field.length = new_dy_fld_length
-        self._data.resize(len(self) + new_dy_fld_length - old_length)
-
-    def _adjust_dynamic_length_if_exists(self, prev_struct_length: int, new_struct_length: int):
-        """
-        When this structure's data is reset, if it contains a dynamic field, the length of that
-        dynamic field may need adjustment. This function adjusts the dynamic field length, given
-        the new length of this structure's data.
-
-        This function __will not__ adjust the actual struct length for you! The user is expected
-        to do this themselves.
-        """
-        if self._dynamic_field is None:
-            return
-        self._dynamic_field.length += new_struct_length - prev_struct_length
+        self._dynamic_field.length = new_len
+        self._data.resize(len(self) + new_len - old_length)
 
     def _add_field_name(self, name: str):
         if name in self._field_names:
@@ -631,12 +619,19 @@ class UnalignedBitStructure:
         return bytes(self._data)
 
     def reset(self, data: Optional[Union[bytearray, bytes]] = None):
-        old_size: int = len(self._data)
+        if data is None:
+            self._data.reset(data)
+            return
+
         if type(data) == bytes:
             data = bytearray(data)
-        self._data.reset(data)
-        if data is not None:
-            self._adjust_dynamic_length_if_exists(old_size, len(data))
+
+        if self._dynamic_field is None:
+            self._data.reset(data)
+        else:
+            old_size: int = len(self._data)
+            self._data.reset(data)
+            self._dynamic_field.length += len(data) - old_size
 
     def get_pretty_string(self, indent: int = 0):
         indent_str = " " * indent

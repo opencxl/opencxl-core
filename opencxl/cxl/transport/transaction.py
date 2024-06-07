@@ -622,9 +622,10 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         tag: int,
         data: int,
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
-        pload_len: int = 0x04,
+        pload_len = 0x04
     ) -> "CxlIoCompletionWithDataPacket":
         # for config reads, always 1 DWORD (4 bytes)
+
         packet = CxlIoCompletionWithDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
