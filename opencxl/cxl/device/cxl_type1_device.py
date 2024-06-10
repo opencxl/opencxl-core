@@ -30,7 +30,7 @@ from opencxl.pci.component.config_space_manager import (
 )
 
 
-class CXLType1Device(RunnableComponent):
+class CxlType1Device(RunnableComponent):
     def __init__(
         self,
         transport_connection: CxlConnection,
