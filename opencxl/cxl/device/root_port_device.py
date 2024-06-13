@@ -31,7 +31,6 @@ from opencxl.util.pci import (
 )
 from opencxl.cxl.transport.transaction import (
     BasePacket,
-    CxlIoBasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
     CxlIoCompletionPacket,

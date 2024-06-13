@@ -24,7 +24,6 @@ from opencxl.util.pci import (
 from opencxl.util.number import (
     get_randbits,
     htotlp16,
-    htotlp64,
     tlptoh16,
     extract_upper,
     extract_lower,
@@ -507,7 +506,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         )
         packet.system_header.payload_length = CxlIoCfgRdPacket.get_size()
 
-        if req_id != None and tag != None:
+        if req_id is not None and tag is not None:
             packet.cfg_req_header.req_id = htotlp16(req_id)
             packet.cfg_req_header.tag = tag
         return packet
@@ -539,7 +538,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         packet.value = value << (8 * offset)
         packet.system_header.payload_length = CxlIoCfgWrPacket.get_size()
 
-        if req_id != None and tag != None:
+        if req_id is not None and tag is not None:
             packet.cfg_req_header.req_id = htotlp16(req_id)
             packet.cfg_req_header.tag = tag
         return packet

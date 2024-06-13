@@ -11,7 +11,7 @@ from typing import Optional, List, Tuple, cast
 
 from opencxl.util.logger import logger
 from opencxl.util.unaligned_bit_structure import BitMaskedBitStructure
-from opencxl.util.number import round_up_to_power_of_2, tlptoh16, tlptoh64
+from opencxl.util.number import round_up_to_power_of_2, tlptoh16
 from opencxl.pci.component.fifo_pair import FifoPair
 from opencxl.pci.component.packet_processor import PacketProcessor
 

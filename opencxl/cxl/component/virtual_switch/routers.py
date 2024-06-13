@@ -12,7 +12,7 @@ from typing import List, cast
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.util.pci import bdf_to_string
-from opencxl.util.number import tlptoh16, tlptoh64
+from opencxl.util.number import tlptoh16
 from opencxl.cxl.component.cxl_connection import CxlConnection, FifoPair
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.transport.transaction import (
