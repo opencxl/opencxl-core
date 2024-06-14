@@ -12,10 +12,8 @@ from typing import List, Dict, Optional, cast
 from opencxl.cxl.device.port_device import CxlPortDevice
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
 from opencxl.cxl.device.downstream_port_device import DownstreamPortDevice
-from opencxl.cxl.device.single_logical_device import SingleLogicalDeviceConfig
-from opencxl.cxl.component.switch_connection_manager import (
-    SwitchConnectionManager,
-)
+from opencxl.cxl.device.config.logical_device import SingleLogicalDeviceConfig
+from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import (
     PORT_TYPE,
     PortConfig,
