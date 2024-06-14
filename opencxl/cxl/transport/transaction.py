@@ -24,7 +24,6 @@ from opencxl.util.pci import (
 from opencxl.util.number import (
     get_randbits,
     htotlp16,
-    htotlp64,
     tlptoh16,
     extract_upper,
     extract_lower,
@@ -276,8 +275,8 @@ class CxlIoMReqHeader(UnalignedBitStructure):
     first_dw_be: int
     last_dw_be: int
     addr_upper: int
-    ph: int
     addr_lower: int
+    ph: int
     _fields = [
         BitField("req_id", 0, 15),
         BitField("tag", 16, 23),
@@ -312,22 +311,37 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
         self.cxl_io_header.length_upper = length & 0x300
         self.cxl_io_header.length_lower = length & 0xFF
-        # TODO: actual ID to be added
-        self.mreq_header.req_id = htotlp16(get_randbits(16))
+        self.mreq_header.req_id = 0
         self.mreq_header.tag = get_randbits(8)
-        addr = htotlp64(addr)
-        self.mreq_header.addr_upper = addr >> 8
+
+        addr_upper_bytes = (addr >> 8).to_bytes(7, byteorder="big")
+        self.mreq_header.addr_upper = int.from_bytes(addr_upper_bytes, byteorder="little")
         self.mreq_header.addr_lower = (addr & 0xFF) >> 2
 
     def get_transaction_id(self) -> int:
         return self.mreq_header.get_transaction_id()
 
+    def get_address(self) -> int:
+        addr = 0
+        addr_upper_bytes = self.mreq_header.addr_upper.to_bytes(7, byteorder="little")
+        addr |= int.from_bytes(addr_upper_bytes, byteorder="big") << 8
+        addr |= self.mreq_header.addr_lower << 2
+        return addr
+
+    def get_data_size(self) -> int:
+        size = (self.cxl_io_header.length_upper << 8) | (self.cxl_io_header.length_lower & 0xFF)
+        return size * 4
+
 
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
     @staticmethod
     def create(addr: int, length: int, req_id: int = None, tag: int = None) -> "CxlIoMemRdPacket":
+        """
+        `length` field from the TLP header is measured in DWORDs.
+        """
+        length_dword = (length + 3) // 4
         packet = CxlIoMemRdPacket()
-        packet.fill(addr, length)
+        packet.fill(addr, length_dword)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
         packet.system_header.payload_length = CxlIoMemRdPacket.get_size()
         # override for unit-testing
@@ -349,13 +363,13 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         addr: int, length: int, data: int, req_id: int = None, tag: int = None
     ) -> "CxlIoMemWrPacket":
         """
-        `length` is measured in DWORDs.
+        `length` field from the TLP header is measured in DWORDs.
         """
+        length_dword = (length + 3) // 4
         packet = CxlIoMemWrPacket()
-        packet.fill(addr, length)
+        packet.fill(addr, length_dword)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
-
-        packet.set_dynamic_field_length(length * 32)
+        packet.set_dynamic_field_length(length)
         packet.data = data
 
         packet.system_header.payload_length = len(packet)
@@ -417,9 +431,8 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
         self.cxl_io_header.at = 0b00
         self.cxl_io_header.length_upper = 0b00
         self.cxl_io_header.length_lower = 0b00000001
-
-        # TODO: actual ID to be added
-        self.cfg_req_header.req_id = htotlp16(get_randbits(16))
+        # NOTE: Request ID for CfgRd and CfgWr is always 0
+        self.cfg_req_header.req_id = 0
         self.cfg_req_header.tag = get_randbits(8)
 
         # compute byte-enable bits
@@ -440,7 +453,11 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
         self.cfg_req_header.reg_num = (cfg_addr >> 2) & 0x3F
         return self
 
-    def get_cfg_addr_info(self):
+    def get_cfg_addr_read_info(self) -> int:
+        reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
+        return reg_num << 2, 4
+
+    def get_cfg_addr_write_info(self):
         reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
         be = self.cfg_req_header.first_dw_be
         b, pos = 1, 0
@@ -489,8 +506,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         )
         packet.system_header.payload_length = CxlIoCfgRdPacket.get_size()
 
-        # override for unit-testing
-        if req_id and tag:
+        if req_id is not None and tag is not None:
             packet.cfg_req_header.req_id = htotlp16(req_id)
             packet.cfg_req_header.tag = tag
         return packet
@@ -512,20 +528,27 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         req_id: int = None,
         tag: int = None,
     ) -> "CxlIoCfgWrPacket":
+        offset = cfg_addr % 4
         packet = CxlIoCfgWrPacket()
         packet.fill(id, cfg_addr, size)
         packet.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
         )
         packet = cast(CxlIoCfgWrPacket, packet)
-        packet.value = value
+        packet.value = value << (8 * offset)
         packet.system_header.payload_length = CxlIoCfgWrPacket.get_size()
 
-        # override for testing purposes
-        if req_id and tag:
+        if req_id is not None and tag is not None:
             packet.cfg_req_header.req_id = htotlp16(req_id)
             packet.cfg_req_header.tag = tag
         return packet
+
+    def get_value(self) -> int:
+        cfg_addr, size = self.get_cfg_addr_write_info()
+        offset = cfg_addr % 4
+        bit_offset = (offset % 4) * 8
+        bit_mask = (1 << size * 8) - 1
+        return (self.value >> bit_offset) & bit_mask
 
 
 class CXL_IO_CPL_STATUS(IntEnum):

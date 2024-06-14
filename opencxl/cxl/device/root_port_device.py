@@ -25,14 +25,15 @@ from opencxl.util.pci import (
     create_bdf,
     extract_bus_from_bdf,
     extract_device_from_bdf,
+    extract_function_from_bdf,
     bdf_to_string,
     generate_bdfs_for_bus,
 )
 from opencxl.cxl.transport.transaction import (
     BasePacket,
-    CxlIoBasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
+    CxlIoCompletionPacket,
     CxlIoCompletionWithDataPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
@@ -172,127 +173,101 @@ class CxlRootPortDevice(RunnableComponent):
         self._continue = True
         self._test_mode = test_mode
         self._run_fut = None
+        self._next_tag = 0
 
         # set default HPA base address using port index
         self._cxl_hpa_base = 0x100000000000 | (int(label[-1]) << 40)
         self._used_hpa_size = 0
 
-    async def set_secondary_bus(self, bdf: int, secondary_bus: int):
-        bdf_string = bdf_to_string(bdf)
-        logger.info(
-            self._create_message(f"Setting secondary bus of device {bdf_string} to {secondary_bus}")
-        )
+    """
+    Base functions for CFG read/write and MMIO read/write
+    """
+
+    async def write_config(self, bdf: int, offset: int, size: int, value: int):
         bus = extract_bus_from_bdf(bdf)
+        bdf_string = bdf_to_string(bdf)
         is_type0 = bus == self._secondary_bus
+        if is_type0:
+            # NOTE: For non-ARI component, only allow device 0
+            device_num = extract_device_from_bdf(bdf)
+            if device_num != 0:
+                return
+
         packet = CxlIoCfgWrPacket.create(
-            bdf,
-            REG_ADDR.SECONDARY_BUS_NUMBER.START,
-            REG_ADDR.SECONDARY_BUS_NUMBER.LEN,
-            secondary_bus,
-            is_type0=is_type0,
+            bdf, offset, size, value, is_type0, req_id=0, tag=self._next_tag
         )
+        self._next_tag = (self._next_tag + 1) % 256
+
         cfg_fifo = self._downstream_connection.cfg_fifo
         await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        check_if_successful_completion(packet)
 
-    async def set_subordinate_bus(self, bdf: int, subordinate_bus: int):
-        bdf_string = bdf_to_string(bdf)
-        logger.info(
+        # TODO: Wait for an incoming packet that matchs tag
+        packet = await cfg_fifo.target_to_host.get()
+
+        tpl_type_str = "CFG WR0" if is_type0 else "CFG WR1"
+
+        if not is_cxl_io_completion_status_sc(packet):
+            cpl_packet = cast(CxlIoCompletionPacket, packet)
+            logger.debug(
+                self._create_message(
+                    f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : "
+                    + f"Unsuccessful, Status: 0x{cpl_packet.cpl_header.status:x}"
+                )
+            )
+            return
+
+        logger.debug(
             self._create_message(
-                f"Setting subordinate bus of device {bdf_string} to {subordinate_bus}"
+                f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : 0x{value:x}"
             )
         )
-        bus = extract_bus_from_bdf(bdf)
-        is_type0 = bus == self._secondary_bus
-        packet = CxlIoCfgWrPacket.create(
-            bdf,
-            REG_ADDR.SUBORDINATE_BUS_NUMBER.START,
-            REG_ADDR.SUBORDINATE_BUS_NUMBER.LEN,
-            subordinate_bus,
-            is_type0=is_type0,
-        )
-        cfg_fifo = self._downstream_connection.cfg_fifo
-        await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        check_if_successful_completion(packet)
 
-    async def set_memory_base(self, bdf: int, address_base: int):
+    async def read_config(self, bdf: int, offset: int, size: int) -> int:
+        if offset + size > ((offset // 4) + 1) * 4:
+            raise Exception("offset + size out of DWORD boundary")
+
+        bit_mask = (1 << size * 8) - 1
+
+        bus = extract_bus_from_bdf(bdf)
         bdf_string = bdf_to_string(bdf)
-        logger.info(
-            self._create_message(
-                f"Setting memory base of device {bdf_string} to {address_base:08x}"
+        is_type0 = bus == self._secondary_bus
+        if is_type0:
+            # NOTE: For non-ARI component, only allow device 0
+            device_num = extract_device_from_bdf(bdf)
+            if device_num != 0:
+                return 0xFFFFFFFF & bit_mask
+
+        packet = CxlIoCfgRdPacket.create(bdf, offset, size, is_type0, req_id=0, tag=self._next_tag)
+        self._next_tag = (self._next_tag + 1) % 256
+        cfg_fifo = self._downstream_connection.cfg_fifo
+        await cfg_fifo.host_to_target.put(packet)
+
+        # TODO: Wait for an incoming packet that matchs tag
+        packet = await cfg_fifo.target_to_host.get()
+
+        bit_offset = (offset % 4) * 8
+
+        tpl_type_str = "CFG RD0" if is_type0 else "CFG RD1"
+
+        if not is_cxl_io_completion_status_sc(packet):
+            cpl_packet = cast(CxlIoCompletionPacket, packet)
+            logger.debug(
+                self._create_message(
+                    f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : "
+                    + f"Unsuccessful, Status: 0x{cpl_packet.cpl_header.status:x}"
+                )
             )
-        )
-        bus = extract_bus_from_bdf(bdf)
-        is_type0 = bus == self._secondary_bus
-        address_base_regval = memory_base_addr_to_regval(address_base)
-        packet = CxlIoCfgWrPacket.create(
-            bdf,
-            REG_ADDR.MEMORY_BASE.START,
-            REG_ADDR.MEMORY_BASE.LEN,
-            address_base_regval,
-            is_type0=is_type0,
-        )
-        cfg_fifo = self._downstream_connection.cfg_fifo
-        await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        check_if_successful_completion(packet)
-
-    async def set_memory_limit(self, bdf: int, address_limit: int):
-        logger.info(
-            self._create_message(
-                f"Setting memory limit of device {bdf_to_string(bdf)} to {address_limit:08x}"
-            )
-        )
-        bus = extract_bus_from_bdf(bdf)
-        is_type0 = bus == self._secondary_bus
-        address_limit_regval = memory_limit_addr_to_regval(address_limit)
-        packet = CxlIoCfgWrPacket.create(
-            bdf,
-            REG_ADDR.MEMORY_LIMIT.START,
-            REG_ADDR.MEMORY_LIMIT.LEN,
-            address_limit_regval,
-            is_type0=is_type0,
-        )
-        cfg_fifo = self._downstream_connection.cfg_fifo
-        await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        check_if_successful_completion(packet)
-
-    async def set_bar0(self, bdf: int, bar_address: int):
-        # TODO: Support 64-bit BAR
-        bus = extract_bus_from_bdf(bdf)
-        is_type0 = bus == self._secondary_bus
-        packet = CxlIoCfgWrPacket.create(
-            bdf,
-            BAR_OFFSETS.BAR0,
-            BAR_REGISTER_SIZE,
-            bar_address,
-            is_type0=is_type0,
-        )
-        cfg_fifo = self._downstream_connection.cfg_fifo
-        await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        check_if_successful_completion(packet)
-
-    async def get_bar0_size(
-        self,
-        bdf: int,
-    ) -> int:
-        # TODO: Support 64-bit BAR
-        bus = extract_bus_from_bdf(bdf)
-        is_type0 = bus == self._secondary_bus
-        packet = CxlIoCfgRdPacket.create(bdf, BAR_OFFSETS.BAR0, BAR_REGISTER_SIZE, is_type0)
-        cfg_fifo = self._downstream_connection.cfg_fifo
-        await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        check_if_successful_completion(packet)
+            return 0xFFFFFFFF & bit_mask
 
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        if cpld_packet.data == 0:
-            return cpld_packet.data
-        return 0xFFFFFFFF - cpld_packet.data + 1
+        data = (cpld_packet.data >> bit_offset) & bit_mask
+
+        logger.debug(
+            self._create_message(
+                f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : 0x{data:x}"
+            )
+        )
+        return data
 
     async def write_mmio(self, address: int, data: int, size: int = 4, verbose: bool = True):
         message = self._create_message(f"MMIO: Writing 0x{data:08x} to 0x{address:08x}")
@@ -317,82 +292,6 @@ class CxlRootPortDevice(RunnableComponent):
         assert is_cxl_io_completion_status_sc(packet)
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
         return cpld_packet.data
-
-    def _get_cxl_io_completion_data(self, packet: BasePacket) -> Optional[int]:
-        if not packet.is_cxl_io():
-            raise Exception(f"Received unexpected packet. type: {packet.get_type()}")
-
-        cxl_io_packet = cast(CxlIoBasePacket, packet)
-        if cxl_io_packet.is_cpl():
-            return None
-        if cxl_io_packet.is_cpld():
-            cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-            return cpld_packet.data
-
-        raise Exception("Received unexpected CXL.io packet")
-
-    async def read_config(self, bdf: int, cfg_addr: int, size: int) -> Optional[int]:
-        bus = extract_bus_from_bdf(bdf)
-        is_type0 = bus == self._secondary_bus
-        packet = CxlIoCfgRdPacket.create(bdf, cfg_addr, size, is_type0)
-        cfg_fifo = self._downstream_connection.cfg_fifo
-        await cfg_fifo.host_to_target.put(packet)
-        packet = await cfg_fifo.target_to_host.get()
-        base_packet = cast(BasePacket, packet)
-        return self._get_cxl_io_completion_data(base_packet)
-
-    async def read_vid_did(self, bdf: int) -> Optional[int]:
-        vid = await self.read_config(bdf, REG_ADDR.VENDOR_ID.START, REG_ADDR.VENDOR_ID.LEN)
-        did = await self.read_config(bdf, REG_ADDR.DEVICE_ID.START, REG_ADDR.DEVICE_ID.LEN)
-        if did is None or vid is None:
-            return None
-        return (did << 16) | vid
-
-    async def read_class_code(self, bdf: int) -> int:
-        data = await self.read_config(bdf, REG_ADDR.CLASS_CODE.START, REG_ADDR.CLASS_CODE.LEN)
-        if data is None:
-            raise Exception("Failed to read class code")
-        return data
-
-    async def read_bar(self, bdf, bar_id) -> int:
-        offset = 0x10 + bar_id * 4
-        size = 4
-        data = await self.read_config(bdf, offset, size=size)
-        if data is None:
-            raise Exception(f"Failed to read bar {bar_id}")
-        return data
-
-    async def read_secondary_bus(self, bdf: int) -> int:
-        data = await self.read_config(
-            bdf,
-            REG_ADDR.SECONDARY_BUS_NUMBER.START,
-            REG_ADDR.SECONDARY_BUS_NUMBER.LEN,
-        )
-        if data is None:
-            raise Exception("Failed to read secondary bus")
-        return data
-
-    async def read_subordinate_bus(self, bdf: int) -> int:
-        data = await self.read_config(
-            bdf,
-            REG_ADDR.SUBORDINATE_BUS_NUMBER.START,
-            REG_ADDR.SUBORDINATE_BUS_NUMBER.LEN,
-        )
-        if data is None:
-            raise Exception("Failed to read subordinate bus")
-        return data
-
-    async def read_memory_base(self, bdf: int) -> int:
-        data = await self.read_config(bdf, REG_ADDR.MEMORY_BASE.START, REG_ADDR.MEMORY_BASE.LEN)
-        if data is None:
-            raise Exception("Failed to read memory base")
-        return data
-
-    async def read_memory_limit(self, bdf: int) -> int:
-        data = await self.read_config(bdf, REG_ADDR.MEMORY_LIMIT.START, REG_ADDR.MEMORY_LIMIT.LEN)
-        if data is None:
-            raise Exception("Failed to read memory limit")
-        return data
 
     async def cxl_mem_read(self, address: int) -> int:
         logger.info(self._create_message(f"CXL.mem Read: HPA addr:0x{address:08x}"))
@@ -423,6 +322,136 @@ class CxlRootPortDevice(RunnableComponent):
             logger.error(self._create_message("CXL.mem Write: Timed-out"))
             return None
 
+    """
+    Helper functions for PCI Config Space access
+    """
+
+    async def set_secondary_bus(self, bdf: int, secondary_bus: int):
+        bdf_string = bdf_to_string(bdf)
+        logger.info(
+            self._create_message(f"Setting secondary bus of device {bdf_string} to {secondary_bus}")
+        )
+        await self.write_config(
+            bdf,
+            REG_ADDR.SECONDARY_BUS_NUMBER.START,
+            REG_ADDR.SECONDARY_BUS_NUMBER.LEN,
+            secondary_bus,
+        )
+
+    async def set_subordinate_bus(self, bdf: int, subordinate_bus: int):
+        bdf_string = bdf_to_string(bdf)
+        logger.info(
+            self._create_message(
+                f"Setting subordinate bus of device {bdf_string} to {subordinate_bus}"
+            )
+        )
+
+        await self.write_config(
+            bdf,
+            REG_ADDR.SUBORDINATE_BUS_NUMBER.START,
+            REG_ADDR.SUBORDINATE_BUS_NUMBER.LEN,
+            subordinate_bus,
+        )
+
+    async def set_memory_base(self, bdf: int, address_base: int):
+        bdf_string = bdf_to_string(bdf)
+        logger.info(
+            self._create_message(
+                f"Setting memory base of device {bdf_string} to {address_base:08x}"
+            )
+        )
+        address_base_regval = memory_base_addr_to_regval(address_base)
+        await self.write_config(
+            bdf,
+            REG_ADDR.MEMORY_BASE.START,
+            REG_ADDR.MEMORY_BASE.LEN,
+            address_base_regval,
+        )
+
+    async def set_memory_limit(self, bdf: int, address_limit: int):
+        logger.info(
+            self._create_message(
+                f"Setting memory limit of device {bdf_to_string(bdf)} to {address_limit:08x}"
+            )
+        )
+        address_limit_regval = memory_limit_addr_to_regval(address_limit)
+        await self.write_config(
+            bdf,
+            REG_ADDR.MEMORY_LIMIT.START,
+            REG_ADDR.MEMORY_LIMIT.LEN,
+            address_limit_regval,
+        )
+
+    async def set_bar0(self, bdf: int, bar_address: int):
+        # TODO: Support 64-bit BAR
+        await self.write_config(bdf, BAR_OFFSETS.BAR0, BAR_REGISTER_SIZE, bar_address)
+
+    async def get_bar0_size(
+        self,
+        bdf: int,
+    ) -> int:
+        # TODO: Support 64-bit BAR
+        data = await self.read_config(bdf, BAR_OFFSETS.BAR0, BAR_REGISTER_SIZE)
+        if data == 0:
+            return data
+        return 0xFFFFFFFF - data + 1
+
+    async def read_vid_did(self, bdf: int) -> Optional[int]:
+        vid = await self.read_config(bdf, REG_ADDR.VENDOR_ID.START, REG_ADDR.VENDOR_ID.LEN)
+        did = await self.read_config(bdf, REG_ADDR.DEVICE_ID.START, REG_ADDR.DEVICE_ID.LEN)
+        logger.debug(self._create_message(f"VID: 0x{vid:x}"))
+        logger.debug(self._create_message(f"DID: 0x{did:x}"))
+        if did == 0xFFFF and vid == 0xFFFF:
+            logger.debug(self._create_message(f"Device not found at {bdf_to_string(bdf)}"))
+            return None
+        return (did << 16) | vid
+
+    async def read_class_code(self, bdf: int) -> int:
+        data = await self.read_config(bdf, REG_ADDR.CLASS_CODE.START, REG_ADDR.CLASS_CODE.LEN)
+        if data == 0xFFFF:
+            raise Exception("Failed to read class code")
+        return data
+
+    async def read_bar(self, bdf, bar_id) -> int:
+        offset = 0x10 + bar_id * 4
+        size = 4
+        data = await self.read_config(bdf, offset, size=size)
+        if data is None:
+            raise Exception(f"Failed to read bar {bar_id}")
+        return data
+
+    async def read_secondary_bus(self, bdf: int) -> int:
+        data = await self.read_config(
+            bdf,
+            REG_ADDR.SECONDARY_BUS_NUMBER.START,
+            REG_ADDR.SECONDARY_BUS_NUMBER.LEN,
+        )
+        if data is None:
+            raise Exception("Failed to read secondary bus")
+        return data
+
+    async def read_subordinate_bus(self, bdf: int) -> int:
+        data = await self.read_config(
+            bdf,
+            REG_ADDR.SUBORDINATE_BUS_NUMBER.START,
+            REG_ADDR.SUBORDINATE_BUS_NUMBER.LEN,
+        )
+        if data == 0xFFFF:
+            raise Exception("Failed to read secondary bus")
+        return data
+
+    async def read_memory_base(self, bdf: int) -> int:
+        data = await self.read_config(bdf, REG_ADDR.MEMORY_BASE.START, REG_ADDR.MEMORY_BASE.LEN)
+        if data == 0xFFFF:
+            raise Exception("Failed to read subordinate bus")
+        return data
+
+    async def read_memory_limit(self, bdf: int) -> int:
+        data = await self.read_config(bdf, REG_ADDR.MEMORY_LIMIT.START, REG_ADDR.MEMORY_LIMIT.LEN)
+        if data == 0xFFFF:
+            raise Exception("Failed to read memory limit")
+        return data
+
     async def check_bar_size_and_set(
         self,
         bdf: int,
@@ -450,6 +479,10 @@ class CxlRootPortDevice(RunnableComponent):
         else:
             await self.set_bar0(bdf, 0)
         return size
+
+    """
+    Device Enumeration functions
+    """
 
     async def scan_dvsec_register_locator(
         self, bdf: int, cap_offset: int, length: int, capabilities: PciCapabilities
@@ -603,10 +636,21 @@ class CxlRootPortDevice(RunnableComponent):
         bdf_list = generate_bdfs_for_bus(bus)
         devices: List[DeviceEnumerationInfo] = []
 
+        multi_function_devices = set()
         for bdf in bdf_list:
+            device_number = extract_device_from_bdf(bdf)
+            function_number = extract_function_from_bdf(bdf)
+
+            if function_number != 0 and device_number not in multi_function_devices:
+                continue
+
             vid_did = await self.read_vid_did(bdf)
             if vid_did is None:
                 continue
+
+            is_multifunction = (await self.read_config(bdf, 0x0E, 1) & 0x80) >> 7
+            if is_multifunction:
+                multi_function_devices.add(device_number)
 
             bar0 = await self.read_bar(bdf, 0)
 
