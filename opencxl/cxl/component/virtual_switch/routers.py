@@ -12,7 +12,7 @@ from typing import List, cast
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.util.pci import bdf_to_string
-from opencxl.util.number import tlptoh16, tlptoh64
+from opencxl.util.number import tlptoh16
 from opencxl.cxl.component.cxl_connection import CxlConnection, FifoPair
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.transport.transaction import (
@@ -131,12 +131,8 @@ class MmioRouter(CxlRouter):
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
 
             mmio_packet = cast(CxlIoMemReqPacket, packet)
-            addr_upper = mmio_packet.mreq_header.addr_upper << 8
-            addr_lower = mmio_packet.mreq_header.addr_lower << 2
-            address = tlptoh64(addr_upper | addr_lower)
-            size = (mmio_packet.cxl_io_header.length_upper << 8) | (
-                mmio_packet.cxl_io_header.length_lower & 0xFF
-            )
+            address = mmio_packet.get_address()
+            size = mmio_packet.get_data_size()
             req_id = tlptoh16(mmio_packet.mreq_header.req_id)
             tag = mmio_packet.mreq_header.tag
             target_port = self._routing_table.get_mmio_target_port(address)

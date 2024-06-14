@@ -98,7 +98,7 @@ class ConfigSpaceManager(RunnableComponent):
             await self._send_unsupported_request(req_id, tag)
             return
 
-        cfg_addr, size = cfg_rd_packet.get_cfg_addr_info()
+        cfg_addr, size = cfg_rd_packet.get_cfg_addr_read_info()
 
         # TODO: Fix OOB
 
@@ -126,8 +126,8 @@ class ConfigSpaceManager(RunnableComponent):
             await self._send_unsupported_request(req_id, tag)
             return
 
-        cfg_addr, size = cfg_wr_packet.get_cfg_addr_info()
-        value = cfg_wr_packet.value
+        cfg_addr, size = cfg_wr_packet.get_cfg_addr_write_info()
+        value = cfg_wr_packet.get_value()
 
         # TODO: Fix OOB
 

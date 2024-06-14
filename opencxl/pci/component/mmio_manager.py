@@ -11,7 +11,7 @@ from typing import Optional, List, Tuple, cast
 
 from opencxl.util.logger import logger
 from opencxl.util.unaligned_bit_structure import BitMaskedBitStructure
-from opencxl.util.number import round_up_to_power_of_2, tlptoh16, tlptoh64
+from opencxl.util.number import round_up_to_power_of_2, tlptoh16
 from opencxl.pci.component.fifo_pair import FifoPair
 from opencxl.pci.component.packet_processor import PacketProcessor
 
@@ -147,12 +147,8 @@ class MmioManager(PacketProcessor):
         await self._downstream_fifo.host_to_target.put(packet)
 
     async def _process_mmio_packet(self, mem_req_packet: CxlIoMemReqPacket):
-        addr_upper = mem_req_packet.mreq_header.addr_upper << 8
-        addr_lower = mem_req_packet.mreq_header.addr_lower << 2
-        address = tlptoh64(addr_upper | addr_lower)
-        size = (mem_req_packet.cxl_io_header.length_upper << 8) | (
-            mem_req_packet.cxl_io_header.length_lower & 0xFF
-        )
+        address = mem_req_packet.get_address()
+        size = mem_req_packet.get_data_size()
         req_id = tlptoh16(mem_req_packet.mreq_header.req_id)
         tag = mem_req_packet.mreq_header.tag
 
