@@ -1,6 +1,7 @@
 """
 CXL Cache ID Route Table Capability Structure definitions.
 """
+
 from enum import Enum
 from opencxl.util.unaligned_bit_structure import (
     BitMaskedBitStructure,
