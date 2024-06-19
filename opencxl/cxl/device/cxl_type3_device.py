@@ -6,7 +6,7 @@
 """
 
 from asyncio import create_task, gather
-from dataclasses import dataclass
+from enum import Enum, auto
 from typing import Optional
 
 from opencxl.util.logger import logger
@@ -45,27 +45,22 @@ from opencxl.pci.component.config_space_manager import (
 )
 
 
-@dataclass
-class SingleLogicalDeviceConfig:
-    serial_number: str
-    port_index: int
-    memory_size: int  # in bytes
-    memory_file: str
-    vendor_id: int = EEUM_VID
-    device_id: int = SW_SLD_DID
-    subsystem_vendor_id: int = 0
-    subsystem_id: int = 0
+class CXL_T3_DEV_TYPE(Enum):
+    SLD = auto()
+    MLD = auto()
 
 
-class SingleLogicalDevice(RunnableComponent):
+class CxlType3Device(RunnableComponent):
     def __init__(
         self,
         transport_connection: CxlConnection,
         memory_size: int,
         memory_file: str,
+        dev_type: CXL_T3_DEV_TYPE,
         decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_4,
         label: Optional[str] = None,
     ):
+        # pylint: disable=unused-argument
         super().__init__(label)
         self._memory_size = memory_size
         self._memory_file = memory_file

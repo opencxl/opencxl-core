@@ -6,24 +6,12 @@
 """
 
 import click
+import asyncio
 from opencxl.util.logger import logger
-from asyncio import gather, run
 from typing import List
 import humanfriendly
 from opencxl.cxl.environment import parse_cxl_environment
-from opencxl.apps.single_logical_device import SingleLogicalDeviceClient
-
-
-async def run_clients(clients: List[SingleLogicalDeviceClient]):
-    try:
-        await gather(*(client.run() for client in clients))
-    except Exception as e:
-        logger.error(
-            "An error occurred while running the Single Logical Device clients.",
-            exc_info=e,
-        )
-    finally:
-        await gather(*(client.stop() for client in clients))
+from opencxl.apps.single_logical_device import SingleLogicalDevice
 
 
 @click.group(name="sld")
@@ -32,20 +20,32 @@ def sld_group():
     pass
 
 
+async def run_devices(slds: List[SingleLogicalDevice]):
+    try:
+        await asyncio.gather(*(sld.run() for sld in slds))
+    except Exception as e:
+        logger.error(
+            "An error occurred while running the Single Logical Device clients.",
+            exc_info=e,
+        )
+    finally:
+        await asyncio.gather(*(sld.stop() for sld in slds))
+
+
 def start_group(config_file):
     logger.info(f"Starting CXL Single Logical Device Group - Config: {config_file}")
     cxl_env = parse_cxl_environment(config_file)
-    clients = []
+    slds = []
     for device_config in cxl_env.single_logical_device_configs:
-        client = SingleLogicalDeviceClient(
+        sld = SingleLogicalDevice(
             port_index=device_config.port_index,
             memory_size=device_config.memory_size,
             memory_file=device_config.memory_file,
             host=cxl_env.switch_config.host,
             port=cxl_env.switch_config.port,
         )
-        clients.append(client)
-    run(run_clients(clients))
+        slds.append(sld)
+    asyncio.run(run_devices(slds))
 
 
 @sld_group.command(name="start")
@@ -57,5 +57,5 @@ def start(port, memfile, memsize):
     if memfile is None:
         memfile = f"mem{port}.bin"
     memsize = humanfriendly.parse_size(memsize, binary=True)
-    sld_client = SingleLogicalDeviceClient(port, memsize, memfile)
-    run(sld_client.run())
+    sld = SingleLogicalDevice(port, memsize, memfile)
+    asyncio.run(sld.run())
