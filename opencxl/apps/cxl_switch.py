@@ -47,8 +47,8 @@ from opencxl.cxl.cci.vendor_specfic import (
     NotifyDeviceUpdateRequestPayload,
     GetConnectedDevicesCommand,
 )
-from opencxl.cxl.device.single_logical_device import SingleLogicalDeviceConfig
 from opencxl.util.component import RunnableComponent
+from opencxl.cxl.device.config.logical_device import SingleLogicalDeviceConfig
 
 
 @dataclass
