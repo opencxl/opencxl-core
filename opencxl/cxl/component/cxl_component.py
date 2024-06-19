@@ -21,8 +21,8 @@ from opencxl.util.component import LabeledComponent
 class CXL_COMPONENT_TYPE(Enum):
     P = auto()
     D1 = auto()
-    D2 = auto()
-    LD = auto()
+    D2 = auto()  # SLD
+    LD = auto()  # LDs within MLD
     FMLD = auto()
     UP1 = auto()
     DP1 = auto()
@@ -30,6 +30,8 @@ class CXL_COMPONENT_TYPE(Enum):
     RC = auto()
     USP = auto()
     DSP = auto()
+    T1 = auto()  # reserved for type 1
+    T2 = auto()  # reserved for type 2
 
 
 class PORT_TYPE(Enum):

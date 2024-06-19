@@ -76,7 +76,7 @@ class CombinedMmioRegister(BitMaskedBitStructure):
         return offset + component_register_size
 
     def _add_cxl_device_register(self, offset: int) -> int:
-        if self._cxl_component.get_component_type() != CXL_COMPONENT_TYPE.LD:
+        if self._cxl_component.get_component_type() != CXL_COMPONENT_TYPE.D2:
             return offset
 
         cxl_device_component = cast(CxlDeviceComponent, self._cxl_component)
@@ -116,7 +116,7 @@ class CombinedMmioRegister(BitMaskedBitStructure):
             CxlComponentRegisterOptions(cxl_component=cxl_component)
         )
 
-        if cxl_component.get_component_type() == CXL_COMPONENT_TYPE.LD:
+        if cxl_component.get_component_type() == CXL_COMPONENT_TYPE.D2:
             cxl_device_component = cast(CxlDeviceComponent, cxl_component)
             size += CxlDeviceRegister.get_size_from_options(
                 CxlDeviceRegisterOptions(cxl_device_component=cxl_device_component)
