@@ -5,13 +5,16 @@
  See LICENSE for details.
 """
 
-from abc import abstractmethod
 from asyncio import create_task, gather
-from typing import Optional
+from typing import Optional, Union, Callable
 
 from opencxl.util.logger import logger
 from opencxl.pci.component.fifo_pair import FifoPair
 from opencxl.util.component import RunnableComponent
+
+
+# PacketProcessor can be used a relay between two FifoPairs when it is used as is.
+# PacketProcessor can be inherited by another class when customized processing logics are needed.
 
 
 class PacketProcessor(RunnableComponent):
@@ -19,27 +22,36 @@ class PacketProcessor(RunnableComponent):
         self,
         upstream_fifo: FifoPair,
         downstream_fifo: Optional[FifoPair] = None,
-        label: Optional[str] = None,
+        label: Optional[Union[str, Callable]] = None,
     ):
-        super().__init__()
-        self._label = label
+        super().__init__(label)
         self._upstream_fifo = upstream_fifo
         self._downstream_fifo = downstream_fifo
 
-    @abstractmethod
     async def _process_host_to_target(self):
-        pass
+        if self._downstream_fifo is None:
+            logger.debug(self._create_message("Skipped processing host to target packets"))
+            return
+        logger.debug(self._create_message("Started processing host to target packets"))
+        while True:
+            packet = await self._upstream_fifo.host_to_target.get()
+            if packet is None:
+                logger.debug(self._create_message("Stopped host to target packets"))
+                break
+            logger.debug(self._create_message("Received host to target Packet"))
+            await self._downstream_fifo.host_to_target.put(packet)
 
     async def _process_target_to_host(self):
         if self._downstream_fifo is None:
-            logger.debug(self._create_message("Skipped processing downstream outgoing fifo"))
+            logger.debug(self._create_message("Skipped processing target to host packets"))
             return
-        logger.debug(self._create_message("Started processing outgoing fifo"))
+        logger.debug(self._create_message("Started processing target to host packets"))
         while True:
             packet = await self._downstream_fifo.target_to_host.get()
             if packet is None:
-                logger.debug(self._create_message("Stopped processing outgoing fifo"))
+                logger.debug(self._create_message("Stopped target to host packets"))
                 break
+            logger.debug(self._create_message("Received target to host Packet"))
             await self._upstream_fifo.target_to_host.put(packet)
 
     async def _run(self):
