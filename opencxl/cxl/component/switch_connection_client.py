@@ -6,7 +6,7 @@
 """
 
 import asyncio
-from typing import cast, Tuple
+from typing import cast, Tuple, Optional
 from enum import Enum, auto
 
 from opencxl.util.logger import logger
@@ -37,9 +37,10 @@ class SwitchConnectionClient(RunnableComponent):
         host: str = "0.0.0.0",
         port: int = 8000,
         retry: bool = True,
+        parent_name: Optional[str] = None,
     ):
-        self._label = f"Port{port_index}"
-        super().__init__(self._label)
+        label_prefix = parent_name + ":" if parent_name else ""
+        super().__init__(lambda class_name: f"{label_prefix}{class_name}:Port{port_index}")
         self._host = host
         self._port = port
         self._port_index = port_index
@@ -63,7 +64,7 @@ class SwitchConnectionClient(RunnableComponent):
         await writer.drain()
 
         logger.debug(self._create_message("Waiting for Connection Accept"))
-        packet_reader = PacketReader(reader, self._label)
+        packet_reader = PacketReader(reader, parent_name=self.get_message_label())
         response = await packet_reader.get_packet()
 
         if not response.is_sideband():
@@ -88,6 +89,9 @@ class SwitchConnectionClient(RunnableComponent):
 
     def get_cxl_connection(self):
         return self._cxl_connection
+
+    def get_port_index(self):
+        return self._port_index
 
     async def _run(self):
         if self._retry:
