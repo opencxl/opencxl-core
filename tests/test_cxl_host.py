@@ -23,8 +23,8 @@ from opencxl.cxl.component.virtual_switch_manager import (
     VirtualSwitchManager,
     VirtualSwitchConfig,
 )
-from opencxl.apps.cxl_type2_device_client import CxlType2DeviceClient
-from opencxl.apps.single_logical_device import SingleLogicalDeviceClient
+from opencxl.apps.accelerator import MyType2Accelerator
+from opencxl.apps.single_logical_device import SingleLogicalDevice
 
 BASE_TEST_PORT = 9300
 
@@ -282,7 +282,7 @@ async def test_cxl_host_type3_ete():
     virtual_switch_manager = VirtualSwitchManager(
         switch_configs=switch_configs, physical_port_manager=physical_port_manager
     )
-    sld = SingleLogicalDeviceClient(
+    sld = SingleLogicalDevice(
         port_index=1,
         memory_size=0x1000000,
         memory_file=f"mem{switch_port}.bin",
@@ -361,7 +361,7 @@ async def test_cxl_host_type2_ete():
         switch_configs=switch_configs, physical_port_manager=physical_port_manager
     )
 
-    type2 = CxlType2DeviceClient(
+    accel_t2 = MyType2Accelerator(
         port_index=1,
         memory_size=0x1000000,
         memory_file=f"mem{switch_port + 1}.bin",
@@ -380,7 +380,7 @@ async def test_cxl_host_type2_ete():
         asyncio.create_task(sw_conn_manager.run()),
         asyncio.create_task(physical_port_manager.run()),
         asyncio.create_task(virtual_switch_manager.run()),
-        asyncio.create_task(type2.run()),
+        asyncio.create_task(accel_t2.run()),
     ]
 
     wait_tasks = [
@@ -389,7 +389,7 @@ async def test_cxl_host_type2_ete():
         asyncio.create_task(virtual_switch_manager.wait_for_ready()),
         asyncio.create_task(host_manager.wait_for_ready()),
         asyncio.create_task(host.wait_for_ready()),
-        asyncio.create_task(type2.wait_for_ready()),
+        asyncio.create_task(accel_t2.wait_for_ready()),
     ]
     await asyncio.gather(*wait_tasks)
 
@@ -413,7 +413,7 @@ async def test_cxl_host_type2_ete():
         asyncio.create_task(virtual_switch_manager.stop()),
         asyncio.create_task(host_manager.stop()),
         asyncio.create_task(host.stop()),
-        asyncio.create_task(type2.stop()),
+        asyncio.create_task(accel_t2.stop()),
     ]
     await asyncio.gather(*stop_tasks)
     await asyncio.gather(*start_tasks)

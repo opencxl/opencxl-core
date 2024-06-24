@@ -16,7 +16,7 @@ from opencxl.apps.cxl_switch import (
     PortConfig,
 )
 from opencxl.cxl.component.cxl_component import PORT_TYPE
-from opencxl.cxl.device.single_logical_device import SingleLogicalDeviceConfig
+from opencxl.cxl.device.config.logical_device import SingleLogicalDeviceConfig
 
 
 @dataclass

@@ -27,6 +27,8 @@ class CXL_DEVICE_TYPE(Enum):
     USP = auto()
     DSP = auto()
     LD = auto()
+    ACCEL_T1 = auto()
+    ACCEL_T2 = auto()
 
 
 class DvsecConfigSpaceOptions(TypedDict):
@@ -69,7 +71,7 @@ class DvsecConfigSpace(BitMaskedBitStructure):
     def _add_cxl_devices_dvsec(
         self, start: int, memory_device_component: Optional[DvsecConfigSpaceOptions] = None
     ) -> int:
-        if self._device_type != CXL_DEVICE_TYPE.LD:
+        if self._device_type not in (CXL_DEVICE_TYPE.LD, CXL_DEVICE_TYPE.ACCEL_T2):
             return start
 
         if not memory_device_component:
@@ -164,7 +166,7 @@ class DvsecConfigSpace(BitMaskedBitStructure):
         size = 0
         device_type = options["device_type"]
 
-        if device_type == CXL_DEVICE_TYPE.LD:
+        if device_type in (CXL_DEVICE_TYPE.LD, CXL_DEVICE_TYPE.ACCEL_T2):
             size += DvsecCxlDevices.get_size()
         elif device_type in (CXL_DEVICE_TYPE.USP, CXL_DEVICE_TYPE.DSP):
             size += CxlExtensionDvsecForPorts.get_size()
