@@ -7,7 +7,7 @@
 
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import cast
+from typing import cast, Optional
 
 from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
@@ -192,6 +192,7 @@ CXL_IO_BASE_FIELD_START = CXL_IO_BASE_HEADER_END + 1
 
 
 class CxlIoBasePacket(BasePacket):
+    tag: int = 0
     cxl_io_header: CxlIoHeader
     _fields = BasePacket._fields + [
         StructureField(
@@ -307,12 +308,12 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         ),
     ]
 
-    def fill(self, addr: int, length: int) -> "CxlIoMemRdPacket":
+    def fill(self, addr: int, length: int, req_id: int, tag: int) -> "CxlIoMemRdPacket":
         self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
         self.cxl_io_header.length_upper = length & 0x300
         self.cxl_io_header.length_lower = length & 0xFF
-        self.mreq_header.req_id = 0
-        self.mreq_header.tag = get_randbits(8)
+        self.mreq_header.req_id = req_id
+        self.mreq_header.tag = tag
 
         addr_upper_bytes = (addr >> 8).to_bytes(7, byteorder="big")
         self.mreq_header.addr_upper = int.from_bytes(addr_upper_bytes, byteorder="little")
@@ -334,20 +335,26 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
 
 
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
-    @staticmethod
-    def create(addr: int, length: int, req_id: int = None, tag: int = None) -> "CxlIoMemRdPacket":
+    @classmethod
+    def create(
+        cls, addr: int, length: int, req_id: Optional[int] = None, tag: Optional[int] = None
+    ) -> "CxlIoMemRdPacket":
+        if req_id is not None:
+            req_id = htotlp16(req_id)
+        else:
+            req_id = 0
+        if tag is None:
+            tag = cls.tag
+            cls.tag += 1
+
         """
         `length` field from the TLP header is measured in DWORDs.
         """
         length_dword = (length + 3) // 4
         packet = CxlIoMemRdPacket()
-        packet.fill(addr, length_dword)
+        packet.fill(addr, length_dword, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
         packet.system_header.payload_length = CxlIoMemRdPacket.get_size()
-        # override for unit-testing
-        if req_id and tag:
-            packet.mreq_header.req_id = htotlp16(req_id)
-            packet.mreq_header.tag = tag
         return packet
 
 
@@ -358,26 +365,32 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         DynamicByteField("data", CXL_IO_MREQ_FIELD_START, 0x0),
     ]
 
-    @staticmethod
+    @classmethod
     def create(
-        addr: int, length: int, data: int, req_id: int = None, tag: int = None
+        cls,
+        addr: int,
+        length: int,
+        data: int,
+        req_id: Optional[int] = None,
+        tag: Optional[int] = None,
     ) -> "CxlIoMemWrPacket":
+        if req_id is not None:
+            req_id = htotlp16(req_id)
+        else:
+            req_id = 0
+        if tag is None:
+            tag = cls.tag
+            cls.tag += 1
         """
         `length` field from the TLP header is measured in DWORDs.
         """
         length_dword = (length + 3) // 4
         packet = CxlIoMemWrPacket()
-        packet.fill(addr, length_dword)
+        packet.fill(addr, length_dword, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
         packet.set_dynamic_field_length(length)
         packet.data = data
-
         packet.system_header.payload_length = len(packet)
-
-        # override for unit-testing
-        if req_id and tag:
-            packet.mreq_header.req_id = htotlp16(req_id)
-            packet.mreq_header.tag = tag
         return packet
 
 
@@ -423,7 +436,7 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
         ),
     ]
 
-    def fill(self, id: int, cfg_addr: int, size: int) -> "CxlIoCfgReqPacket":
+    def fill(self, id: int, cfg_addr: int, size: int, req_id: int, tag: int) -> "CxlIoCfgReqPacket":
         self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
 
         self.cxl_io_header.tc = 0b000
@@ -432,8 +445,9 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
         self.cxl_io_header.length_upper = 0b00
         self.cxl_io_header.length_lower = 0b00000001
         # NOTE: Request ID for CfgRd and CfgWr is always 0
-        self.cfg_req_header.req_id = 0
-        self.cfg_req_header.tag = get_randbits(8)
+        self.cfg_req_header.req_id = req_id
+        self.cfg_req_header.tag = tag
+        print(f"tag = {tag}")
 
         # compute byte-enable bits
         if cfg_addr > 0xFFF:
@@ -490,25 +504,30 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
 class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
     _fields = CxlIoCfgReqPacket._fields
 
-    @staticmethod
+    @classmethod
     def create(
+        cls,
         id: int,
         cfg_addr: int,
         size: int,
         is_type0: bool = True,
-        req_id: int = None,
-        tag: int = None,
+        req_id: Optional[int] = None,
+        tag: Optional[int] = None,
     ) -> "CxlIoCfgRdPacket":
+        if req_id is not None:
+            req_id = htotlp16(req_id)
+        else:
+            req_id = 0
+        if tag is None:
+            tag = cls.tag
+            cls.tag += 1
+
         packet = CxlIoCfgRdPacket()
-        packet.fill(id, cfg_addr, size)
+        packet.fill(id, cfg_addr, size, req_id, tag)
         packet.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
         )
         packet.system_header.payload_length = CxlIoCfgRdPacket.get_size()
-
-        if req_id is not None and tag is not None:
-            packet.cfg_req_header.req_id = htotlp16(req_id)
-            packet.cfg_req_header.tag = tag
         return packet
 
 
@@ -518,29 +537,34 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         ByteField("value", CXL_IO_CFG_REQ_FIELD_START, CXL_IO_CFG_REQ_FIELD_START + 0x03),
     ]
 
-    @staticmethod
+    @classmethod
     def create(
+        cls,
         id: int,
         cfg_addr: int,
         size: int,
         value: int,
         is_type0: bool = True,
-        req_id: int = None,
-        tag: int = None,
+        req_id: Optional[int] = None,
+        tag: Optional[int] = None,
     ) -> "CxlIoCfgWrPacket":
+        if req_id is not None:
+            req_id = htotlp16(req_id)
+        else:
+            req_id = 0
+        if tag is None:
+            tag = cls.tag
+            cls.tag += 1
+
         offset = cfg_addr % 4
         packet = CxlIoCfgWrPacket()
-        packet.fill(id, cfg_addr, size)
+        packet.fill(id, cfg_addr, size, req_id, tag)
         packet.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
         )
         packet = cast(CxlIoCfgWrPacket, packet)
         packet.value = value << (8 * offset)
         packet.system_header.payload_length = CxlIoCfgWrPacket.get_size()
-
-        if req_id is not None and tag is not None:
-            packet.cfg_req_header.req_id = htotlp16(req_id)
-            packet.cfg_req_header.tag = tag
         return packet
 
     def get_value(self) -> int:
