@@ -447,7 +447,6 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
         # NOTE: Request ID for CfgRd and CfgWr is always 0
         self.cfg_req_header.req_id = req_id
         self.cfg_req_header.tag = tag
-        print(f"tag = {tag}")
 
         # compute byte-enable bits
         if cfg_addr > 0xFFF:
