@@ -261,6 +261,12 @@ class CxlIoBasePacket(BasePacket):
             CXL_IO_FMT_TYPE.MWR_64B,
         )
 
+    def get_tag(self) -> int:
+        old_tag = self.tag
+        self.tag += 1
+        self.tag %= 256
+        return old_tag
+
     @staticmethod
     def build_transaction_id(req_id: int, tag: int) -> int:
         tid = (req_id << 8) | tag
@@ -344,8 +350,8 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
         else:
             req_id = 0
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
+            tag = cls.get_tag()
+        tag %= 256
 
         """
         `length` field from the TLP header is measured in DWORDs.
@@ -379,8 +385,9 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         else:
             req_id = 0
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
+            tag = cls.get_tag()
+        tag %= 256
+
         """
         `length` field from the TLP header is measured in DWORDs.
         """
@@ -518,8 +525,8 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         else:
             req_id = 0
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
+            tag = cls.get_tag()
+        tag %= 256
 
         packet = CxlIoCfgRdPacket()
         packet.fill(id, cfg_addr, size, req_id, tag)
@@ -552,8 +559,8 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         else:
             req_id = 0
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
+            tag = cls.get_tag()
+        tag %= 256
 
         offset = cfg_addr % 4
         packet = CxlIoCfgWrPacket()
