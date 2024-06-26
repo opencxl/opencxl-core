@@ -261,10 +261,11 @@ class CxlIoBasePacket(BasePacket):
             CXL_IO_FMT_TYPE.MWR_64B,
         )
 
-    def get_tag(self) -> int:
-        old_tag = self.tag
-        self.tag += 1
-        self.tag %= 256
+    @classmethod
+    def get_tag() -> int:
+        old_tag = CxlIoBasePacket.tag
+        CxlIoBasePacket.tag += 1
+        CxlIoBasePacket.tag %= 256
         return old_tag
 
     @staticmethod
