@@ -38,7 +38,7 @@ class MyType1Accelerator(RunnableComponent):
     async def _run_app(self, *args):
         # example app: prints the arguments
         for idx, arg in enumerate(args):
-            logger.info(self._create_message(f"Type 1 Accelerator: {idx},{arg}"))
+            logger.info(self._create_message(f"Type 1 Accelerator: arg{idx}, {arg}"))
 
     async def _run(self):
         tasks = [
@@ -83,7 +83,7 @@ class MyType2Accelerator(RunnableComponent):
     async def _run_app(self, *args):
         # example app: prints the arguments
         for idx, arg in enumerate(args):
-            logger.info(self._create_message(f"Type 2 Accelerator: {idx},{arg}"))
+            logger.info(self._create_message(f"Type 2 Accelerator: arg{idx}, {arg}"))
 
     async def _run(self):
         tasks = [
