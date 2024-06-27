@@ -60,17 +60,18 @@ class CxlType1Device(RunnableComponent):
     def _init_device(
         self,
         mmio_manager: MmioManager,
+        config_space_manager: ConfigSpaceManager,
     ):
-        # pylint: disable=unused-variable
+        # pylint: disable=unused-argument
         # Create PCiComponent, which will be used in the future
-        pci_identity = PciComponentIdentity(
-            vendor_id=EEUM_VID,
-            device_id=SW_SLD_DID,
-            base_class_code=PCI_CLASS.MEMORY_CONTROLLER,
-            sub_class_coce=MEMORY_CONTROLLER_SUBCLASS.CXL_MEMORY_DEVICE,
-            programming_interface=0x10,
-        )
-        pci_component = PciComponent(pci_identity, mmio_manager)
+        # pci_identity = PciComponentIdentity(
+        #     vendor_id=EEUM_VID,
+        #     device_id=SW_SLD_DID,
+        #     base_class_code=PCI_CLASS.MEMORY_CONTROLLER,
+        #     sub_class_coce=MEMORY_CONTROLLER_SUBCLASS.CXL_MEMORY_DEVICE,
+        #     programming_interface=0x10,
+        # )
+        # pci_component = PciComponent(pci_identity, mmio_manager)
 
         # TODO: Create CxlCacheDeviceComponent
         # self._cxl_cache_device_component = CxlCacheDeviceComponent(
@@ -79,13 +80,12 @@ class CxlType1Device(RunnableComponent):
         # )
 
         # Create CombinedMmioRegister
-        options = CombinedMmioRegiterOptions(cxl_component=self._cxl_cache_device_component)
-        mmio_register = CombinedMmioRegister(options=options, parent_name="mmio")
+        # options = CombinedMmioRegiterOptions(cxl_component=self._cxl_cache_device_component)
+        # mmio_register = CombinedMmioRegister(options=options, parent_name="mmio")
 
         # Update MmioManager with new bar entires
-        mmio_manager.set_bar_entries([BarEntry(register=mmio_register)])
-
-        # TODO: Future CFG is needed
+        # mmio_manager.set_bar_entries([BarEntry(register=mmio_register)])
+        pass
 
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
