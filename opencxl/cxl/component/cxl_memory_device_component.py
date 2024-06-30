@@ -286,12 +286,12 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
     def get_identity(self) -> MemoryDeviceIdentity:
         return self._identity
 
-    async def write_mem(self, hpa: int, data: int, size: int = 64):
+    async def write_mem(self, hpa: int, data: int):
         dpa = self._hdm_decoder_manager.get_dpa(hpa)
         if dpa is None:
             logger.warning(self._create_message("HPA 0x{hpa} is not decodable"))
             return
-        await self._memory_accessor.write(dpa, data, size)
+        await self._memory_accessor.write(dpa, data)
 
     async def read_mem(self, hpa: int, size: int = 64) -> int:
         dpa = self._hdm_decoder_manager.get_dpa(hpa)

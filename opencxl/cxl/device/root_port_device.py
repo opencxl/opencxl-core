@@ -294,7 +294,7 @@ class CxlRootPortDevice(RunnableComponent):
         return cpld_packet.data
 
     async def cxl_mem_read(self, address: int) -> int:
-        logger.info(self._create_message(f"CXL.mem Read: HPA addr:0x{address:08x}"))
+        logger.debug(self._create_message(f"CXL.mem Read: HPA addr:0x{address:08x}"))
         packet = CxlMemMemRdPacket.create(address)
         await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
         try:
@@ -308,7 +308,7 @@ class CxlRootPortDevice(RunnableComponent):
             return None
 
     async def cxl_mem_write(self, address: int, data: int) -> int:
-        logger.info(
+        logger.debug(
             self._create_message(f"CXL.mem Write: HPA addr:0x{address:08x} data:0x{data:08x}")
         )
         packet = CxlMemMemWrPacket.create(address, data)

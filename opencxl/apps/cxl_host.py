@@ -5,6 +5,10 @@
  See LICENSE for details.
 """
 
+import time
+import sys
+
+
 import asyncio
 import jsonrpcclient
 from jsonrpcclient import parse_json, request_json
@@ -80,7 +84,7 @@ class CxlHost(RunnableComponent):
         return Result(res)
 
     async def _cxl_mem_write(self, addr: int, data: int) -> Result:
-        logger.info(self._create_message(f"CXL.mem Write: addr=0x{addr:x} data=0x{data:x}"))
+        # logger.info(self._create_message(f"CXL.mem Write: addr=0x{addr:x} data=0x{data:x}"))
         if self._is_valid_addr(addr) is False:
             logger.error(
                 self._create_message(f"CXL.mem Write: Error - 0x{addr:x} is not a valid address")
@@ -99,6 +103,19 @@ class CxlHost(RunnableComponent):
         await self._root_port_device.init(hpa_base)
         return Result(hpa_base)
 
+    async def run_app(self):
+        start = time.time()
+        with open("data_batch_1", "rb") as f:
+            addr = 0
+            while data := f.read(0x40):
+                data = int.from_bytes(data, byteorder=sys.byteorder)
+                await self._cxl_mem_write(addr, data)
+                addr += 0x40
+                if addr == 0x100000:
+                    break
+        end = time.time()
+        print(f"DATA COPY ELAPSED {end - start}s")
+
     async def _run(self):
         tasks = [
             asyncio.create_task(self._switch_conn_client.run()),
@@ -109,6 +126,8 @@ class CxlHost(RunnableComponent):
         await self._switch_conn_client.wait_for_ready()
         await self._root_port_device.wait_for_ready()
         await self._change_status_to_running()
+        if not self._test_mode:
+            asyncio.create_task(self.run_app())
         await asyncio.gather(*tasks)
 
     async def _stop(self):
