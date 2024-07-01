@@ -9,6 +9,22 @@ from asyncio import CancelledError, StreamReader, create_task
 from enum import Enum, auto
 import traceback
 from typing import Optional, Tuple
+import ctypes
+from ctypes import *
+
+
+# @dataclass(init=False, repr=True, eq=True, order=True)
+class SystemHeader(Structure):
+    payload_type: int
+    payload_length: int
+    _pack_ = 1
+    _fields_ = [
+        # Bit offset [00:03]
+        ("payload_type", c_ubyte, 4),
+        # Bit offset [4:15]
+        ("payload_length", c_ushort, 12),
+    ]
+
 
 from opencxl.cxl.transport.transaction import (
     BasePacket,
@@ -28,6 +44,7 @@ from opencxl.cxl.transport.transaction import (
     CxlMemS2MBISnpPacket,
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
+    PAYLOAD_TYPE,
 )
 from opencxl.util.logger import logger
 from opencxl.util.component import LabeledComponent
@@ -91,13 +108,12 @@ class PacketReader(LabeledComponent):
 
     async def _get_payload(self) -> Tuple[BasePacket, bytes]:
         logger.debug(self._create_message("Waiting Packet"))
-        header_load = await self._read_payload(BasePacket.get_size())
-        base_packet = BasePacket()
-        base_packet.reset(header_load)
-        remaining_length = base_packet.system_header.payload_length - len(base_packet)
+        header_payload = await self._read_payload(sizeof(SystemHeader))
+        base_packet = BasePacket.from_buffer_copy(header_payload)
+        remaining_length = base_packet.system_header.payload_length - sizeof(SystemHeader)
         if remaining_length < 0:
             raise Exception("remaining length is less than 0")
-        payload = bytes(base_packet) + await self._read_payload(remaining_length)
+        payload = header_payload + await self._read_payload(remaining_length)
         logger.debug(self._create_message("Received Packet"))
         return base_packet, payload
 
@@ -108,58 +124,51 @@ class PacketReader(LabeledComponent):
         return payload
 
     def _get_cxl_io_packet(self, payload: bytes) -> CxlIoBasePacket:
-        cxl_io_base_packet = CxlIoBasePacket()
-        header_size = len(cxl_io_base_packet.cxl_io_header) + BasePacket.get_size()
-        cxl_io_base_packet.reset(payload[:header_size])
+        cxl_io_base_packet = CxlIoBasePacket.from_buffer_copy(payload)
         if cxl_io_base_packet.is_cfg_read():
-            cxl_io_packet = CxlIoCfgRdPacket()
+            cxl_io_packet = CxlIoCfgRdPacket
         elif cxl_io_base_packet.is_cfg_write():
-            cxl_io_packet = CxlIoCfgWrPacket()
+            cxl_io_packet = CxlIoCfgWrPacket
         elif cxl_io_base_packet.is_mem_read():
-            cxl_io_packet = CxlIoMemRdPacket()
+            cxl_io_packet = CxlIoMemRdPacket
         elif cxl_io_base_packet.is_mem_write():
-            cxl_io_packet = CxlIoMemWrPacket()
+            cxl_io_packet = CxlIoMemWrPacket
         elif cxl_io_base_packet.is_cpl():
-            cxl_io_packet = CxlIoCompletionPacket()
+            cxl_io_packet = CxlIoCompletionPacket
         elif cxl_io_base_packet.is_cpld():
-            cxl_io_packet = CxlIoCompletionWithDataPacket()
+            cxl_io_packet = CxlIoCompletionWithDataPacket
 
         if cxl_io_packet is None:
             protocol = cxl_io_base_packet.cxl_io_header.fmt_type
             raise Exception(f"Unsupported CXL.IO protocol {protocol}")
-        cxl_io_packet.reset(payload)
+        cxl_io_packet = cxl_io_packet.from_buffer_copy(payload)
         return cxl_io_packet
 
-    def _get_cxl_mem_packet(self, payload: bytes) -> CxlMemBasePacket:
-        cxl_mem_base_packet = CxlMemBasePacket()
-        header_size = len(cxl_mem_base_packet.cxl_mem_header) + BasePacket.get_size()
-        cxl_mem_base_packet.reset(payload[:header_size])
+    def _get_cxl_mem_packet(self, payload: bytes):
+        cxl_mem_base_packet = CxlMemBasePacket.from_buffer_copy(payload)
         if cxl_mem_base_packet.is_m2sreq():
-            cxl_mem_packet = CxlMemM2SReqPacket()
+            cxl_mem_packet = CxlMemM2SReqPacket
         elif cxl_mem_base_packet.is_m2srwd():
-            cxl_mem_packet = CxlMemM2SRwDPacket()
+            cxl_mem_packet = CxlMemM2SRwDPacket
         elif cxl_mem_base_packet.is_m2sbirsp():
-            cxl_mem_packet = CxlMemM2SBIRspPacket()
+            cxl_mem_packet = CxlMemM2SBIRspPacket
         elif cxl_mem_base_packet.is_s2mbisnp():
-            cxl_mem_packet = CxlMemS2MBISnpPacket()
+            cxl_mem_packet = CxlMemS2MBISnpPacket
         elif cxl_mem_base_packet.is_s2mndr():
-            cxl_mem_packet = CxlMemS2MNDRPacket()
+            cxl_mem_packet = CxlMemS2MNDRPacket
         elif cxl_mem_base_packet.is_s2mdrs():
-            cxl_mem_packet = CxlMemS2MDRSPacket()
+            cxl_mem_packet = CxlMemS2MDRSPacket
         else:
             msg_class = cxl_mem_base_packet.cxl_mem_header.msg_class
             raise Exception(f"Unsupported CXL.MEM message class: {msg_class}")
 
-        cxl_mem_packet.reset(payload)
+        cxl_mem_packet = cxl_mem_packet.from_buffer_copy(payload)
         return cxl_mem_packet
 
     def _get_sideband_packet(self, payload: bytes) -> BaseSidebandPacket:
-        base_sideband_packet = BaseSidebandPacket()
-        header_size = len(base_sideband_packet.sideband_header) + BasePacket.get_size()
-        base_sideband_packet.reset(payload[:header_size])
+        base_sideband_packet = BaseSidebandPacket.from_buffer_copy(payload)
         if base_sideband_packet.is_connection_request():
-            sideband_packet = SidebandConnectionRequestPacket()
-            sideband_packet.reset(payload)
+            sideband_packet = SidebandConnectionRequestPacket.from_buffer_copy(payload)
         elif (
             base_sideband_packet.is_connection_accept()
             or base_sideband_packet.is_connection_reject()

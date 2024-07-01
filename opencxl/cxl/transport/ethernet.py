@@ -11,21 +11,21 @@ from opencxl.util.unaligned_bit_structure import (
     StructureField,
 )
 from opencxl.cxl.transport.common import (
-    SystemHeaderPacket,
+    SystemHeader,
     CxlHeaderPacket,
 )
 
 
 class CxlEthernetPacket(UnalignedBitStructure):
     # NOTE: static attributes are for intellisense
-    system_header: SystemHeaderPacket
+    system_header: SystemHeader
     cxl_header: CxlHeaderPacket
     cxl_data: int
     data_parity: int
 
     _fields = [
         # Byte offset [03:00] - System Header
-        StructureField("system_header", 0, 3, SystemHeaderPacket),
+        StructureField("system_header", 0, 3, SystemHeader),
         # Byte offset [23:04] - CXL Header
         StructureField("cxl_header", 4, 23, CxlHeaderPacket),
         # Byte offset [87:24] - CXL Data
