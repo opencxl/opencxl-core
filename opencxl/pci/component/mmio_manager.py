@@ -169,7 +169,7 @@ class MmioManager(PacketProcessor):
         start_offset = offset
         end_offset = offset + size - 1
         if mem_req_packet.is_mem_write():
-            data = cast(CxlIoMemWrPacket, mem_req_packet).data
+            data = cast(CxlIoMemWrPacket, mem_req_packet).get_data()
             logger.debug(self._create_message(f"WR: 0x{address:x}[{size}]=0x{data:08x}"))
             register.write_bytes(start_offset, end_offset, data)
         elif mem_req_packet.is_mem_read():

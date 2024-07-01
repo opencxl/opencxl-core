@@ -36,7 +36,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 testpaths = "tests/"
-timeout = 2000
+timeout = 200
 filterwarnings = [
   "ignore::DeprecationWarning"
 ]

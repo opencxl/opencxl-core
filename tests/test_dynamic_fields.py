@@ -102,4 +102,4 @@ def test_io_mem_wr():
     addr = 0x0
     data = 0xDEADBEEF
     packet = CxlIoMemWrPacket.create(addr, 4, data=data)
-    assert packet.data == data
+    assert packet.get_data() == data

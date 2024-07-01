@@ -141,7 +141,7 @@ class IoBridge(RunnableComponent):
             return 0xFFFFFFFF & bit_mask
 
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        data = (cpld_packet.data >> bit_offset) & bit_mask
+        data = (cpld_packet.get_data() >> bit_offset) & bit_mask
 
         logger.debug(
             self._create_message(
@@ -165,7 +165,7 @@ class IoBridge(RunnableComponent):
         packet = await self._get_mmio_response(packet.mreq_header.tag)
         assert is_cxl_io_completion_status_sc(packet)
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        return cpld_packet.data
+        return cpld_packet.get_data()
 
     # pylint: enable=duplicate-code
 

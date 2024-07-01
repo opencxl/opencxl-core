@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import cast, Optional
 from ctypes import *
+import ctypes
 
 from opencxl.util.pci import (
     extract_function_from_bdf,
@@ -242,6 +243,7 @@ class CxlIoHeader(Structure):
 
 
 class CxlIoBasePacket(BasePacket):
+    cxl_io_header: CxlIoHeader
     _fields_ = [
         ("cxl_io_header", CxlIoHeader),
     ]
@@ -390,13 +392,40 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
 
 
 class CxlIoMemWrPacket(CxlIoMemReqPacket):
-    @classmethod
-    def factory(self, size):
-        class VariableStructure(CxlIoMemReqPacket):
-            _pack_ = 1
-            _fields_ = [("data", c_uint64) if size == 8 else ("data", c_uint32)]
+    _pack_ = 1
+    _fields_ = [
+        ("data", POINTER(c_uint8)),
+    ]
 
-        return VariableStructure
+    def __init__(self, data_size, count=1):
+        self._size = sizeof(CxlIoMemReqPacket)
+        self._data_size = data_size
+        size = data_size * count
+        self._buf = (c_uint8 * size)()
+        self._size += size
+        self.data = cast(self._buf, POINTER(c_uint8))
+
+    def __sizeof__(self):
+        return self._size
+
+    def __bytes__(self):
+        return (
+            bytes(self.system_header)
+            + bytes(self.cxl_io_header)
+            + bytes(self.mreq_header)
+            + bytes(self.get_data().to_bytes(self._data_size, "little"))
+        )
+
+    def get_data(self):
+        if self._data_size == 4:
+            data = cast(self._buf, POINTER(c_uint32))
+        elif self._data_size == 8:
+            data = cast(self._buf, POINTER(c_uint64))
+        return data.contents.value
+
+    def set_data(self, data):
+        data = data.to_bytes(self._data_size, "little")
+        memmove(cast(self._buf, c_void_p).value, cast(data, c_void_p).value, self._data_size)
 
     @classmethod
     def create(
@@ -415,19 +444,19 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             tag = get_randbits(8)
 
         length_dword = (length + 3) // 4
-        CxlIoMemWrPacketDynamic = CxlIoMemWrPacket.factory(length)
-        packet = CxlIoMemWrPacketDynamic()
+        packet = CxlIoMemWrPacket(length)
         packet.fill(addr, length_dword, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
-        packet.data = data
+        packet.set_data(data)
         packet.system_header.payload_length = sizeof(packet)
         # print(sizeof(packet), sizeof(packet.system_header), sizeof(packet.cxl_io_header), sizeof(packet.mreq_header))
         return packet
 
 
 p = CxlIoMemWrPacket.create(addr=1111, length=4, data=222)
+print(f"4: {ctypes.sizeof(p)} {list(bytes(p))}")
 p = CxlIoMemWrPacket.create(addr=1111, length=8, data=222)
-print(p.data)
+print(f"8: {ctypes.sizeof(p)} {list(bytes(p))}")
 
 
 class CxlIoCfgReqHeader(Structure):
@@ -600,7 +629,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
 req_id = 0x10
 tag = 0xA5
 p = CxlIoCfgWrPacket.create(0, 0x10, 4, 0xDEADBEEF, req_id=req_id, tag=tag)
-print(p)
+print(f"4: {sizeof(p)} {bytes(p)}")
 
 
 class CXL_IO_CPL_STATUS(IntEnum):
@@ -667,14 +696,43 @@ class CxlIoCompletionPacket(CxlIoBasePacket):
         return self.cpl_header.get_transaction_id()
 
 
-class CxlIoCompletionWithDataPacket(CxlIoCompletionPacket):
-    @classmethod
-    def factory(self, size):
-        class VariableStructure(CxlIoCompletionPacket):
-            _pack_ = 1
-            _fields_ = [("data", c_uint64) if size == 8 else ("data", c_uint32)]
+class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
+    cpl_header: CxlIoCompletionHeader
+    _pack_ = 1
+    _fields_ = [
+        ("cpl_header", CxlIoCompletionHeader),
+        ("data", POINTER(c_uint8)),
+    ]
 
-        return VariableStructure
+    def __init__(self, data_size, count=1):
+        self._size = sizeof(CxlIoBasePacket) + sizeof(CxlIoCompletionHeader)
+        self._data_size = data_size
+        size = data_size * count
+        self._buf = (c_uint8 * size)()
+        self._size += size
+        self.data = cast(self._buf, POINTER(c_uint8))
+
+    def __sizeof__(self):
+        return self._size
+
+    def __bytes__(self):
+        return (
+            bytes(self.system_header)
+            + bytes(self.cxl_io_header)
+            + bytes(self.cpl_header)
+            + bytes(self.get_data().to_bytes(self._data_size, "little"))
+        )
+
+    def get_data(self):
+        if self._data_size == 4:
+            data = cast(self._buf, POINTER(c_uint32))
+        elif self._data_size == 8:
+            data = cast(self._buf, POINTER(c_uint64))
+        return data.contents.value
+
+    def set_data(self, data):
+        data = data.to_bytes(self._data_size, "little")
+        memmove(cast(self._buf, c_void_p).value, cast(data, c_void_p).value, self._data_size)
 
     @staticmethod
     def create(
@@ -686,9 +744,7 @@ class CxlIoCompletionWithDataPacket(CxlIoCompletionPacket):
     ) -> "CxlIoCompletionWithDataPacket":
         # for config reads, always 1 DWORD (4 bytes)
 
-        CxlIoCplDataPacketDynamic = CxlIoCompletionWithDataPacket.factory(pload_len)
-        packet = CxlIoCplDataPacketDynamic()
-
+        packet = CxlIoCompletionWithDataPacket(pload_len)
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
 
@@ -704,14 +760,21 @@ class CxlIoCompletionWithDataPacket(CxlIoCompletionPacket):
 
         packet.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
         packet.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
-
-        packet.data = data
+        packet.set_data(data)
         packet.system_header.payload_length = sizeof(packet)
 
         return packet
 
     def get_transaction_id(self) -> int:
         return self.cpl_header.get_transaction_id()
+
+
+p = CxlIoCompletionWithDataPacket.create(req_id, tag, 0xDEADBEEF, pload_len=4)
+print(f"4: {sizeof(p)} {list(bytes(p))} {p._size}")
+print(p.get_data())
+
+p = CxlIoCompletionWithDataPacket.create(req_id, tag, 0xDEADBEEF, pload_len=8)
+print(f"8: {sizeof(p)} {list(bytes(p))} {p._size}")
 
 
 def is_cxl_io_completion_status_sc(packet: BasePacket) -> bool:
@@ -849,7 +912,7 @@ class CxlCacheD2HRspHeader(Structure):
     _fields_ = [
         ("valid", c_uint8, 1),
         ("cache_opcode", c_uint8, 5),
-        ("uqid", c_uint8, 12),
+        ("uqid", c_uint16, 12),
         ("rsvd", c_uint8, 6),
     ]
 
@@ -963,7 +1026,7 @@ class CxlCacheH2DDataHeader(Structure):
         ("poison", c_uint8, 1),
         ("go_err", c_uint8, 1),
         ("cache_id", c_uint8, 4),
-        ("rsvd", c_uint8, 9),
+        ("rsvd", c_uint16, 9),
     ]
 
 
