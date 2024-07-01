@@ -14,7 +14,7 @@ from opencxl.util.unaligned_bit_structure import (
 
 
 # TODO: can probably optimize conversion to a single function/hashmap/list
-class CacheIdRtCommitTimeout(Enum):
+class CacheIdRTCommitTimeout(Enum):
     _1_uS = 0b0000
     _10_uS = 0b0001
     _100_uS = 0b0010
