@@ -126,7 +126,7 @@ class CxlType2Device(RunnableComponent):
                 register_locator=DvsecRegisterLocatorOptions(
                     registers=mmio_register.get_dvsec_register_offsets()
                 ),
-                device_type=CXL_DEVICE_TYPE.LD,
+                device_type=CXL_DEVICE_TYPE.ACCEL_T2,
                 memory_device_component=self._cxl_memory_device_component,
             ),
             doe=CxlDoeExtendedCapabilityOptions(

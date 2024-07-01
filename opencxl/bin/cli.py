@@ -15,6 +15,7 @@ from opencxl.util.logger import logger
 from opencxl.bin import fabric_manager
 from opencxl.bin import cxl_switch
 from opencxl.bin import single_logical_device as sld
+from opencxl.bin import accelerator as accel
 from opencxl.bin import cxl_host
 from opencxl.bin import mem
 
@@ -25,7 +26,16 @@ def cli():
 
 
 def validate_component(ctx, param, components):
-    valid_components = ["fm", "switch", "host", "host-group", "sld", "sld-group"]
+    valid_components = [
+        "fm",
+        "switch",
+        "host",
+        "host-group",
+        "sld",
+        "sld-group",
+        "t1accel-group",
+        "t2accel-group",
+    ]
     if "all" in components:
         return ("fm", "switch", "host-group", "sld-group")
     for c in components:
@@ -115,10 +125,24 @@ def start(
         threads.append(t_switch)
         t_switch.start()
 
+    if "t1accel-group" in comp:
+        t_at1group = threading.Thread(
+            target=start_accel_group, args=(ctx, config_file, accel.ACCEL_TYPE.T1)
+        )
+        threads.append(t_at1group)
+        t_at1group.start()
+
+    if "t2accel-group" in comp:
+        t_at2group = threading.Thread(
+            target=start_accel_group, args=(ctx, config_file, accel.ACCEL_TYPE.T2)
+        )
+        threads.append(t_at2group)
+        t_at2group.start()
+
     if "sld" in comp:
         t_sld = threading.Thread(target=start_sld, args=(ctx,))
         threads.append(t_sld)
-        t_host.start()
+        t_sld.start()
     if "sld-group" in comp:
         t_sgroup = threading.Thread(target=start_sld_group, args=(ctx, config_file))
         threads.append(t_sgroup)
@@ -197,6 +221,10 @@ def start_host_group(ctx, config_file, hm_mode):
 
 def start_sld(ctx, config_file):
     ctx.invoke(sld.start, config_file=config_file)
+
+
+def start_accel_group(ctx, config_file, dev_type):
+    ctx.invoke(accel.start_group, config_file=config_file, dev_type=dev_type)
 
 
 def start_sld_group(ctx, config_file):

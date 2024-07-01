@@ -262,7 +262,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         return entries
 
     def get_component_type(self) -> CXL_COMPONENT_TYPE:
-        return CXL_COMPONENT_TYPE.LD
+        return CXL_COMPONENT_TYPE.D2
 
     def get_capability_type(self) -> CXL_DEVICE_CAPABILITY_TYPE:
         return CXL_DEVICE_CAPABILITY_TYPE.MEMORY_DEVICE

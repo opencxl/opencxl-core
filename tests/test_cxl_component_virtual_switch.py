@@ -19,7 +19,7 @@ from opencxl.cxl.device.root_port_device import (
     MmioEnumerationInfo,
     EnumerationInfo,
 )
-from opencxl.cxl.device.single_logical_device import SingleLogicalDevice
+from opencxl.cxl.device.cxl_type3_device import CxlType3Device, CXL_T3_DEV_TYPE
 from opencxl.cxl.component.virtual_switch_manager import (
     CxlVirtualSwitch,
 )
@@ -444,10 +444,11 @@ async def test_virtual_switch_manager_test_bind_and_unbind():
         connection = CxlConnection()
         dsp = DownstreamPortDevice(transport_connection=connection, port_index=port_index)
         dsp_devices.append(dsp)
-        sld = SingleLogicalDevice(
+        sld = CxlType3Device(
             transport_connection=connection,
             memory_size=memory_size,
             memory_file=f"mem{port_index}.bin",
+            dev_type=CXL_T3_DEV_TYPE.SLD,
         )
         cxl_devices.append(sld)
 
@@ -546,10 +547,11 @@ async def test_virtual_switch_manager_test_cxl_mem():
         connection = CxlConnection()
         dsp = DownstreamPortDevice(transport_connection=connection, port_index=port_index)
         dsp_devices.append(dsp)
-        sld = SingleLogicalDevice(
+        sld = CxlType3Device(
             transport_connection=connection,
             memory_size=memory_size,
             memory_file=f"mem{port_index}.bin",
+            dev_type=CXL_T3_DEV_TYPE.SLD,
         )
         cxl_devices.append(sld)
 
