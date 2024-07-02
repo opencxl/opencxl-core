@@ -85,7 +85,8 @@ class FileAccessor:
             file.write(b"\x00" * 1024)
             file.flush()
 
-    async def write(self, offset: int, data: int):
+    async def write(self, offset: int, data: int, size: int):
+        # pylint: disable=unused-argument
         # TODO: Check for OOB and use asyncio
         with open(self.filename, "r+b") as file:
             file.seek(offset)
@@ -286,12 +287,12 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
     def get_identity(self) -> MemoryDeviceIdentity:
         return self._identity
 
-    async def write_mem(self, hpa: int, data: int):
+    async def write_mem(self, hpa: int, data: int, size: int = 64):
         dpa = self._hdm_decoder_manager.get_dpa(hpa)
         if dpa is None:
             logger.warning(self._create_message("HPA 0x{hpa} is not decodable"))
             return
-        await self._memory_accessor.write(dpa, data)
+        await self._memory_accessor.write(dpa, data, size)
 
     async def read_mem(self, hpa: int, size: int = 64) -> int:
         dpa = self._hdm_decoder_manager.get_dpa(hpa)

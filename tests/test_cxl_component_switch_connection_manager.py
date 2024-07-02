@@ -33,7 +33,6 @@ from opencxl.cxl.transport.transaction import (
     CxlMemMemWrPacket,
     CxlMemMemDataPacket,
     CxlMemCmpPacket,
-    CXL_IO_CPL_STATUS,
 )
 
 

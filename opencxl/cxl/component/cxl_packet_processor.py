@@ -20,7 +20,7 @@ from opencxl.cxl.transport.transaction import (
     BaseSidebandPacket,
     CxlIoBasePacket,
     CxlMemBasePacket,
-    # CxlCacheBasePacket,
+    CxlCacheBasePacket,
     SIDEBAND_TYPES,
     PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
@@ -197,17 +197,17 @@ class CxlPacketProcessor(RunnableComponent):
                     )
                     cxl_mem_packet = cast(CxlMemBasePacket, packet)
                     await self._incoming.cxl_mem.put(cxl_mem_packet)
-                # elif packet.is_cxl_cache():
-                #     if self._incoming.cxl_cache is None:
-                #         logger.error(
-                #             self._create_message("Got CXL.cache packet on no CXL.cache FIFO")
-                #         )
-                #         continue
-                #     logger.debug(
-                #         self._create_message(f"Received {self._incoming_dir} CXL.cache packet")
-                #     )
-                #     cxl_cache_packet = cast(CxlCacheBasePacket, packet)
-                #     await self._incoming.cxl_cache.put(cxl_cache_packet)
+                elif packet.is_cxl_cache():
+                    if self._incoming.cxl_cache is None:
+                        logger.error(
+                            self._create_message("Got CXL.cache packet on no CXL.cache FIFO")
+                        )
+                        continue
+                    logger.debug(
+                        self._create_message(f"Received {self._incoming_dir} CXL.cache packet")
+                    )
+                    cxl_cache_packet = cast(CxlCacheBasePacket, packet)
+                    await self._incoming.cxl_cache.put(cxl_cache_packet)
                 else:
                     message = f"Received unexpected {self._incoming_dir} packet"
                     logger.debug(self._create_message(message))

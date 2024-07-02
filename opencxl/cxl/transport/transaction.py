@@ -69,10 +69,11 @@ class BaseSidebandPacket(BasePacket):
 
 class SidebandConnectionRequestPacket(BasePacket):
     sideband_header: SidebandHeader
+    port: c_uint8
     _pack_ = 1
     _fields_ = [
         ("sideband_header", SidebandHeader),
-        ("port", c_uint8, 8),
+        ("port", c_uint8),
     ]
 
     @staticmethod
@@ -306,7 +307,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         cls,
         addr: int,
         length: int,
-        wr_data: int,
+        data: int,
         req_id: Optional[int] = None,
         tag: Optional[int] = None,
     ) -> "CxlIoMemWrPacket":
@@ -319,13 +320,14 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             tag = get_randbits(8)
 
         if length == 4:
-            packet = CxlIoMemWr32Packet.generate(addr, wr_data, req_id, tag)
+            packet = CxlIoMemWr32Packet.generate(addr, data, req_id, tag)
         else:
-            packet = CxlIoMemWr64Packet.generate(addr, wr_data, req_id, tag)
+            packet = CxlIoMemWr64Packet.generate(addr, data, req_id, tag)
         return packet
 
 
 class CxlIoMemWr32Packet(CxlIoMemWrPacket):
+    data: c_uint32
     _pack_ = 1
     _fields_ = [
         ("data", c_uint32),
@@ -334,7 +336,7 @@ class CxlIoMemWr32Packet(CxlIoMemWrPacket):
     @staticmethod
     def generate(
         addr: int,
-        wr_data: int,
+        data: int,
         req_id: Optional[int] = None,
         tag: Optional[int] = None,
     ) -> "CxlIoMemWr32Packet":
@@ -342,12 +344,13 @@ class CxlIoMemWr32Packet(CxlIoMemWrPacket):
         packet = CxlIoMemWr32Packet()
         packet.fill(addr, length_dword, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_32B
-        packet.data = wr_data
+        packet.data = data
         packet.system_header.payload_length = sizeof(packet)
         return packet
 
 
 class CxlIoMemWr64Packet(CxlIoMemReqPacket):
+    data: c_uint64
     _pack_ = 1
     _fields_ = [
         ("data", c_uint64),
@@ -356,7 +359,7 @@ class CxlIoMemWr64Packet(CxlIoMemReqPacket):
     @staticmethod
     def generate(
         addr: int,
-        wr_data: int,
+        data: int,
         req_id: Optional[int] = None,
         tag: Optional[int] = None,
     ) -> "CxlIoMemWr64Packet":
@@ -364,7 +367,7 @@ class CxlIoMemWr64Packet(CxlIoMemReqPacket):
         packet = CxlIoMemWr64Packet()
         packet.fill(addr, length_dword, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
-        packet.data = wr_data
+        packet.data = data
         packet.system_header.payload_length = sizeof(packet)
         return packet
 
@@ -639,7 +642,7 @@ class CxlIoCplDataPacket(CxlIoBasePacket):
             packet = CxlIoCplData64Packet.generate(req_id, tag, data, status)
         return packet
 
-    def fill(self, req_id: int, tag: int, data: int, pload_len: int, status: CXL_IO_CPL_STATUS):
+    def fill(self, req_id: int, tag: int, pload_len: int, status: CXL_IO_CPL_STATUS):
         self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
         self.system_header.payload_length = sizeof(CxlIoCplDataPacket) + pload_len
         self.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
@@ -656,13 +659,13 @@ class CxlIoCplDataPacket(CxlIoBasePacket):
 
         self.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
         self.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
-        self.data = data
 
     def get_transaction_id(self) -> int:
         return self.cpl_header.get_transaction_id()
 
 
 class CxlIoCplData32Packet(CxlIoCplDataPacket):
+    data: c_uint32
     _pack_ = 1
     _fields_ = [
         ("data", c_uint32),
@@ -676,11 +679,13 @@ class CxlIoCplData32Packet(CxlIoCplDataPacket):
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
     ) -> "CxlIoCplData32Packet":
         packet = CxlIoCplData32Packet()
-        packet.fill(req_id, tag, data, 4, status)
+        packet.fill(req_id, tag, 4, status)
+        packet.data = data
         return packet
 
 
 class CxlIoCplData64Packet(CxlIoCplDataPacket):
+    data: c_uint64
     _pack_ = 1
     _fields_ = [
         ("data", c_uint64),
@@ -694,7 +699,8 @@ class CxlIoCplData64Packet(CxlIoCplDataPacket):
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
     ) -> "CxlIoCplData64Packet":
         packet = CxlIoCplData64Packet()
-        packet.fill(req_id, tag, data, 8, status)
+        packet.fill(req_id, tag, 8, status)
+        packet.data = data
         return packet
 
 
@@ -1299,10 +1305,9 @@ class CxlMemM2SRwDPacket(CxlMemBasePacket):
         return self.m2srwd_header.addr << 6
 
 
-bb = b"\x12\x05\x00\x02\x02\x00\x00\x00\x00\x00\xa4\x00\x00\x00\x00\x00\x00\xef\xbe\xad\xde\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-p = CxlMemM2SRwDPacket.from_buffer_copy(bb)
-print(f"m2srwd: {sizeof(p)} {list(bytes(p))}")
-print(p.data)
+# p = CxlMemM2SRwDPacket.from_buffer_copy(bb)
+# print(f"m2srwd: {sizeof(p)} {list(bytes(p))}")
+# print(p.data)
 
 
 # CXL.mem M2S Back-Invalidate Response (BIRsp)
