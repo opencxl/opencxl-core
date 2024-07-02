@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from ctypes import sizeof, Structure, c_uint8, c_uint16, c_uint32, c_uint64
+from ctypes import sizeof, Structure, c_uint8, c_uint16, c_uint32, c_uint64, memmove
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Optional
@@ -1289,7 +1289,7 @@ class CxlMemM2SRwDPacket(CxlMemBasePacket):
     _pack_ = 1
     _fields_ = [
         ("m2srwd_header", CxlMemM2SRwDHeader),
-        ("data", c_uint64),
+        ("data", c_uint8 * 0x40),
     ]
 
     def is_mem_wr(self) -> bool:
@@ -1297,6 +1297,12 @@ class CxlMemM2SRwDPacket(CxlMemBasePacket):
 
     def get_address(self) -> int:
         return self.m2srwd_header.addr << 6
+
+
+bb = b"\x12\x05\x00\x02\x02\x00\x00\x00\x00\x00\xa4\x00\x00\x00\x00\x00\x00\xef\xbe\xad\xde\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+p = CxlMemM2SRwDPacket.from_buffer_copy(bb)
+print(f"m2srwd: {sizeof(p)} {list(bytes(p))}")
+print(p.data)
 
 
 # CXL.mem M2S Back-Invalidate Response (BIRsp)
@@ -1452,7 +1458,7 @@ class CxlMemS2MDRSPacket(CxlMemBasePacket):
     _pack_ = 1
     _fields_ = [
         ("s2mdrs_header", CxlMemS2MDRSHeader),
-        ("data", c_uint64),
+        ("data", c_uint8 * 0x40),
     ]
 
 
@@ -1485,12 +1491,15 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         packet.m2srwd_header.addr = addr >> 6
-        packet.data = data
+        data = data.to_bytes(0x40, "little")
+        memmove(packet.data, data, 0x40)
         return packet
 
 
-# p = CxlMemMemWrPacket.create(64, 0xDEADBEEF)
-# print(sizeof(p))
+p = CxlMemMemWrPacket.create(64, 0xDEADBEEF)
+print(f"{sizeof(p)}, {p.data}")
+data = int.from_bytes(p.data, "little")
+print(f"{data:x}")
 
 
 class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
@@ -1501,7 +1510,8 @@ class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
         packet.system_header.payload_length = sizeof(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_DRS
         packet.s2mdrs_header.opcode = CXL_MEM_S2MDRS_OPCODE.MEM_DATA
-        packet.data = data
+        data = data.to_bytes(0x40, "little")
+        memmove(packet.data, data, 0x40)
         return packet
 
 

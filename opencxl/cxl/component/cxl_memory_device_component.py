@@ -85,11 +85,11 @@ class FileAccessor:
             file.write(b"\x00" * 1024)
             file.flush()
 
-    async def write(self, offset: int, data: int, size: int):
+    async def write(self, offset: int, data: int):
         # TODO: Check for OOB and use asyncio
         with open(self.filename, "r+b") as file:
             file.seek(offset)
-            file.write(data.to_bytes(size, byteorder="little"))
+            file.write(data)
 
     async def read(self, offset: int, size: int) -> int:
         # TODO: Check for OOB and use asyncio

@@ -158,6 +158,10 @@ class PacketReader(LabeledComponent):
             msg_class = cxl_mem_base_packet.cxl_mem_header.msg_class
             raise Exception(f"Unsupported CXL.MEM message class: {msg_class}")
 
+        if sizeof(cxl_mem_packet) < len(payload):
+            print(f"{cxl_mem_packet}, {payload},{list(payload)}")
+            print(f"{sizeof(cxl_mem_packet)},{len(payload)}")
+
         cxl_mem_packet = cxl_mem_packet.from_buffer_copy(payload)
         return cxl_mem_packet
 
