@@ -306,7 +306,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         cls,
         addr: int,
         length: int,
-        data: int,
+        wr_data: int,
         req_id: Optional[int] = None,
         tag: Optional[int] = None,
     ) -> "CxlIoMemWrPacket":
@@ -319,9 +319,9 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             tag = get_randbits(8)
 
         if length == 4:
-            packet = CxlIoMemWr32Packet.generate(addr, data, req_id, tag)
+            packet = CxlIoMemWr32Packet.generate(addr, wr_data, req_id, tag)
         else:
-            packet = CxlIoMemWr64Packet.generate(addr, data, req_id, tag)
+            packet = CxlIoMemWr64Packet.generate(addr, wr_data, req_id, tag)
         return packet
 
 
@@ -334,7 +334,7 @@ class CxlIoMemWr32Packet(CxlIoMemWrPacket):
     @staticmethod
     def generate(
         addr: int,
-        data: int,
+        wr_data: int,
         req_id: Optional[int] = None,
         tag: Optional[int] = None,
     ) -> "CxlIoMemWr32Packet":
@@ -342,7 +342,7 @@ class CxlIoMemWr32Packet(CxlIoMemWrPacket):
         packet = CxlIoMemWr32Packet()
         packet.fill(addr, length_dword, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_32B
-        packet.data = data
+        packet.data = wr_data
         packet.system_header.payload_length = sizeof(packet)
         return packet
 
@@ -356,7 +356,7 @@ class CxlIoMemWr64Packet(CxlIoMemReqPacket):
     @staticmethod
     def generate(
         addr: int,
-        data: int,
+        wr_data: int,
         req_id: Optional[int] = None,
         tag: Optional[int] = None,
     ) -> "CxlIoMemWr64Packet":
@@ -364,7 +364,7 @@ class CxlIoMemWr64Packet(CxlIoMemReqPacket):
         packet = CxlIoMemWr64Packet()
         packet.fill(addr, length_dword, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
-        packet.data = data
+        packet.data = wr_data
         packet.system_header.payload_length = sizeof(packet)
         return packet
 
@@ -1496,10 +1496,10 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         return packet
 
 
-p = CxlMemMemWrPacket.create(64, 0xDEADBEEF)
-print(f"{sizeof(p)}, {p.data}")
-data = int.from_bytes(p.data, "little")
-print(f"{data:x}")
+# p = CxlMemMemWrPacket.create(64, 0xDEADBEEF)
+# print(f"{sizeof(p)}, {p.data}")
+# data = int.from_bytes(p.data, "little")
+# print(f"{data:x}")
 
 
 class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
