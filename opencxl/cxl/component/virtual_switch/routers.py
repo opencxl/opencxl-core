@@ -19,6 +19,7 @@ from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BindSlot
 from opencxl.cxl.transport.transaction import (
     BasePacket,
+    CxlCacheD2HReqPacket,
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
@@ -31,6 +32,9 @@ from opencxl.cxl.transport.transaction import (
     CxlMemM2SRwDPacket,
     CxlMemM2SBIRspPacket,
     CxlMemS2MBISnpPacket,
+    CxlCacheBasePacket,
+    CxlCacheH2DRspPacket,
+    CxlCacheH2DReqPacket,
 )
 
 
@@ -362,3 +366,65 @@ class CxlMemRouter(CxlRouter):
                         continue
             else:
                 await self._upstream_connection_fifo.target_to_host.put(packet)
+
+class CxlCacheRouter(CxlRouter):
+    def __init__(
+        self,
+        vcs_id: int,
+        routing_table: RoutingTable,
+        usp_connection: CxlConnection,
+        vppb_connections: List[CxlConnection],
+    ):
+        super().__init__(vcs_id, routing_table)
+        self._upstream_connection = usp_connection.cxl_cache_fifo
+        self._downstream_connections = [
+            vppb_connection.cxl_cache_fifo for vppb_connection in vppb_connections
+        ]
+
+    async def _process_host_to_target_packets(self):
+        while True:
+            packet = await self._upstream_connection_fifo.host_to_target.get()
+            if packet is None:
+                break
+
+            cxl_cache_base_packet = cast(CxlCacheBasePacket, packet)
+            if cxl_cache_base_packet.is_h2dreq():
+                cxl_cache_packet = cast(CxlCacheH2DReqPacket, packet)
+                cache_id = (
+                    cxl_cache_packet.h2dreq_header.cache_id
+                )  # HACK: should call a method for abstraction
+            elif cxl_cache_base_packet.is_h2drsp():
+                cxl_cache_packet = cast(CxlCacheH2DRspPacket, packet)
+                cache_id = (
+                    cxl_cache_packet.h2drsp_header.cache_id
+                )  # HACK: should call a method for abstraction
+            else:
+                raise Exception("Received unexpected packet")
+
+            target_port = self._routing_table.get_cxl_cache_target_port(cache_id)
+            if target_port is None:
+                logger.warning(self._create_message("Received unroutable CXL.cache packet"))
+                continue
+            if target_port >= len(self._downstream_connections):
+                raise Exception("target_port is out of bound")
+
+            downstream_connection = self._downstream_connections[target_port].vppb_connection.cxl_cache_fifo
+            await downstream_connection.host_to_target.put(packet)
+
+    async def _process_target_to_host_packets(self, downstream_connection_bind_slot: BindSlot):
+        downstream_connection_fifo = downstream_connection_bind_slot.vppb_connection.cxl_cache_fifo
+        downstream_port_index = downstream_connection_bind_slot.dsp.get_port_index()
+
+        while True:
+            packet = await downstream_connection_fifo.target_to_host.get()
+            if packet is None:
+                break
+            cxl_cache_base_packet = cast(CxlCacheBasePacket, packet)
+
+            # See CXL 3.0 specification: Section 9.15.2
+            if cxl_cache_base_packet.is_d2hreq():
+                cxl_cache_packet = cast(CxlCacheD2HReqPacket, packet)
+                cxl_cache_packet.set_cache_id(
+                    self._routing_table.get_cxl_cache_cache_id(downstream_port_index)
+                )
+            await self._upstream_connection_fifo.target_to_host.put(packet)
