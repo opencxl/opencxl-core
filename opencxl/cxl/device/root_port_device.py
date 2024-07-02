@@ -93,6 +93,7 @@ class PciCapabilities:
 @dataclass
 class ComponentRegisters:
     hdm_decoder: int = 0
+    cache_id_route_table: int = 0
 
 
 @dataclass
@@ -627,6 +628,15 @@ class CxlRootPortDevice(RunnableComponent):
                 logger.info(
                     self._create_message(
                         f"HDM Decoder Capability Offset: 0x{hdm_decoder_offset:08x}"
+                    )
+                )
+            elif cxl_capability_id == 0x000D:
+                logger.info(self._create_message("Found Cache ID Route Table Capability Header"))
+                route_table_offset = cxl_cachemem_offset + offset
+                info.component_registers.cache_id_route_table = route_table_offset
+                logger.info(
+                    self._create_message(
+                        f"Cache ID Route Table Capability Offset: 0x{route_table_offset:08x}"
                     )
                 )
 
