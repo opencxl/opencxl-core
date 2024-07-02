@@ -14,7 +14,7 @@ from opencxl.util.logger import logger
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BIND_STATUS
-from opencxl.cxl.component.virtual_switch.routers import CxlMemRouter, CxlIoRouter
+from opencxl.cxl.component.virtual_switch.routers import CxlMemRouter, CxlIoRouter, CxlCacheRouter
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.device.port_device import CxlPortDevice
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
@@ -107,6 +107,9 @@ class CxlVirtualSwitch(RunnableComponent):
             self._id, self._routing_table, self._usp_connection, self._vppb_connections
         )
         self._cxl_mem_router = CxlMemRouter(
+            self._id, self._routing_table, self._usp_connection, self._vppb_connections
+        )
+        self._cxl_cache_router = CxlCacheRouter(
             self._id, self._routing_table, self._usp_connection, self._vppb_connections
         )
 
