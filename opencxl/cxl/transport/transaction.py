@@ -5,11 +5,10 @@
  See LICENSE for details.
 """
 
+from ctypes import sizeof, Structure, c_uint8, c_uint16, c_uint32, c_uint64
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import cast, Optional
-from ctypes import *
-import ctypes
+from typing import Optional
 
 from opencxl.util.pci import (
     extract_function_from_bdf,
@@ -23,74 +22,9 @@ from opencxl.util.number import (
     extract_upper,
     extract_lower,
 )
-from opencxl.cxl.transport.common import (
-    BasePacket,
-    PAYLOAD_TYPE,
-)
-
-"""
- Copyright (c) 2024, Eeum, Inc.
-
- This software is licensed under the terms of the Revised BSD License.
- See LICENSE for details.
-"""
-
-from enum import IntEnum
-from ctypes import *
-from dataclasses import dataclass
-from typing import Optional
-from opencxl.util.number import (
-    get_randbits,
-    htotlp16,
-    tlptoh16,
-    extract_upper,
-    extract_lower,
-)
+from opencxl.cxl.transport.common import PAYLOAD_TYPE, BasePacket
 
 
-#
-# Packet Definitions for PAYLOAD_TYPE.CXL
-#
-class PAYLOAD_TYPE(IntEnum):
-    CXL = 0  # packet based on CPI
-    CXL_IO = 1  # Custom packet for CXL.io
-    CXL_MEM = 2  # Custom packet for CXL.mem
-    CXL_CACHE = 3  # Custom packet for CXL.cache
-    SIDEBAND = 15
-
-
-class SystemHeader(Structure):
-    _pack_ = 1
-    _fields_ = [
-        ("payload_type", c_uint8, 4),
-        ("payload_length", c_uint16, 12),
-    ]
-
-
-class BasePacket(Structure):
-    system_header: SystemHeader
-    _pack_ = 1
-    _fields_ = [
-        ("system_header", SystemHeader),
-    ]
-
-    def is_cxl_io(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.CXL_IO
-
-    def is_cxl_mem(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.CXL_MEM
-
-    def is_cxl_cache(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.CXL_CACHE
-
-    def is_sideband(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.SIDEBAND
-
-    def get_type(self) -> str:
-        return self.__class__.__name__
-
-
-#
 # Packet Definitions for PAYLOAD_TYPE.SIDEBAND
 #
 class SIDEBAND_TYPES(IntEnum):
@@ -106,6 +40,7 @@ class SidebandHeader(Structure):
 
 
 class BaseSidebandPacket(BasePacket):
+    sideband_header: SidebandHeader
     _pack_ = 1
     _fields_ = [
         ("sideband_header", SidebandHeader),
@@ -132,10 +67,10 @@ class BaseSidebandPacket(BasePacket):
         return self.get_type() == SIDEBAND_TYPES.CONNECTION_REJECT
 
 
-class SidebandConnectionRequestPacket(Structure):
+class SidebandConnectionRequestPacket(BasePacket):
+    sideband_header: SidebandHeader
     _pack_ = 1
     _fields_ = [
-        ("system_header", SystemHeader),
         ("sideband_header", SidebandHeader),
         ("port", c_uint8, 8),
     ]
@@ -148,32 +83,6 @@ class SidebandConnectionRequestPacket(Structure):
         packet.sideband_header.type = SIDEBAND_TYPES.CONNECTION_REQUEST
         packet.port = port_index
         return packet
-
-
-# header_payload = b'\x11\x11'
-# payload = b'\x02\xFF\xFF\xFF\x11\x11\x11'
-# total_payload = header_payload + payload
-# base_packet = BasePacket().from_bytes(header_payload)
-# print(base_packet)
-# print(base_packet.system_header.payload_length)
-# # print(base_packet.sideband_header.type)
-
-# base_sideband_packet = BaseSidebandPacket.create(259)
-# print(base_sideband_packet.system_header.payload_length)
-# print(base_sideband_packet.system_header.payload_type)
-# print(base_sideband_packet.sideband_header.type)
-# print(base_sideband_packet.is_connection_request())
-
-# p = SidebandConnectionRequestPacket.create(12)
-# print(list(bytes(p)))
-# print(p.system_header.payload_length)
-# print(p.system_header.payload_type)
-# print(p.sideband_header.type)
-# print(p.port)
-# resize(p, sizeof(SidebandConnectionRequestPacket) + 1)
-# p._fields_.append(("part", c_uint8, 8))
-# print(sizeof(p), sizeof(SidebandConnectionRequestPacket))
-# pass
 
 
 #
@@ -465,10 +374,10 @@ class CxlIoMemWr64Packet(CxlIoMemReqPacket):
         return packet
 
 
-p = CxlIoMemWrPacket.create(addr=1111, length=4, data=0x11223344)
-print(f"4: {sizeof(p)} {list(bytes(p))}")
-p = CxlIoMemWrPacket.create(addr=1111, length=8, data=0x1122334455667788)
-print(f"8: {sizeof(p)} {list(bytes(p))}")
+# p = CxlIoMemWrPacket.create(addr=1111, length=4, data=0x11223344)
+# print(f"4: {sizeof(p)} {list(bytes(p))}")
+# p = CxlIoMemWrPacket.create(addr=1111, length=8, data=0x1122334455667788)
+# print(f"8: {sizeof(p)} {list(bytes(p))}")
 
 # print(f"4: {ctypes.sizeof(p)} {list(bytes(p))}")
 # p = CxlIoMemWrPacket.create(addr=1111, length=8, data=222)
@@ -786,20 +695,20 @@ class CxlIoCplData64Packet(CxlIoCplDataPacket):
         return packet
 
 
-p = CxlIoCplDataPacket.create(req_id, tag, 0x11223344, pload_len=4)
-print(f"4: {sizeof(p)} {list(bytes(p))}")
-p = CxlIoCplDataPacket.create(req_id, tag, 0x1122334455667788, pload_len=4)
-print(f"4: {sizeof(p)} {list(bytes(p))}")
-p = CxlIoCplDataPacket.create(req_id, tag, 0x1122334455667788, pload_len=8)
-print(f"8: {sizeof(p)} {list(bytes(p))}")
-p = CxlIoCplDataPacket.create(req_id, tag, 0xDEADBEEF, pload_len=8)
-print(f"8: {sizeof(p)} {list(bytes(p))}")
-b = b"!\x01D\x00\x00\x01\x00\x10\xa5\x0f\x00\x00\x00\x10\xef\xbe\xad\xde\x00\x00\x00\x00"
-p = CxlIoCplData64Packet.from_buffer_copy(b)
-print(f"8: {sizeof(p)} {list(bytes(p))}")
-b = b"!\x01D\x00\x00\x01\x00\x10\xa5\x0f\x00\x00\x00\x10\xef\xbe\xad\xde"
-p = CxlIoCplData32Packet.from_buffer_copy(b)
-print(f"8: {sizeof(p)} {list(bytes(p))}")
+# p = CxlIoCplDataPacket.create(req_id, tag, 0x11223344, pload_len=4)
+# print(f"4: {sizeof(p)} {list(bytes(p))}")
+# p = CxlIoCplDataPacket.create(req_id, tag, 0x1122334455667788, pload_len=4)
+# print(f"4: {sizeof(p)} {list(bytes(p))}")
+# p = CxlIoCplDataPacket.create(req_id, tag, 0x1122334455667788, pload_len=8)
+# print(f"8: {sizeof(p)} {list(bytes(p))}")
+# p = CxlIoCplDataPacket.create(req_id, tag, 0xDEADBEEF, pload_len=8)
+# print(f"8: {sizeof(p)} {list(bytes(p))}")
+# b = b"!\x01D\x00\x00\x01\x00\x10\xa5\x0f\x00\x00\x00\x10\xef\xbe\xad\xde\x00\x00\x00\x00"
+# p = CxlIoCplData64Packet.from_buffer_copy(b)
+# print(f"8: {sizeof(p)} {list(bytes(p))}")
+# b = b"!\x01D\x00\x00\x01\x00\x10\xa5\x0f\x00\x00\x00\x10\xef\xbe\xad\xde"
+# p = CxlIoCplData32Packet.from_buffer_copy(b)
+# print(f"8: {sizeof(p)} {list(bytes(p))}")
 
 
 def is_cxl_io_completion_status_sc(packet: BasePacket) -> bool:
@@ -1216,8 +1125,6 @@ class CxlCacheCacheH2DDataPacket(CxlCacheH2DDataPacket):
 #
 # Packet Definitions for PAYLOAD_TYPE.CXL_MEM
 #
-
-
 class CXL_MEM_MSG_CLASS(IntEnum):
     M2S_REQ = 1
     M2S_RWD = 2
@@ -1579,8 +1486,8 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         return packet
 
 
-p = CxlMemMemWrPacket.create(64, 0xDEADBEEF)
-print(sizeof(p))
+# p = CxlMemMemWrPacket.create(64, 0xDEADBEEF)
+# print(sizeof(p))
 
 
 class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
@@ -1595,8 +1502,8 @@ class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
         return packet
 
 
-p = CxlMemMemDataPacket.create(0xDEADBEEF)
-print(sizeof(p))
+# p = CxlMemMemDataPacket.create(0xDEADBEEF)
+# print(sizeof(p))
 
 
 class CxlMemCmpPacket(CxlMemS2MNDRPacket):

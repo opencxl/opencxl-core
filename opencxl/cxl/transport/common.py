@@ -6,7 +6,7 @@
 """
 
 from enum import IntEnum
-from ctypes import *
+from ctypes import Structure, c_uint8, c_uint16
 from dataclasses import dataclass
 
 
@@ -27,12 +27,13 @@ class SystemHeader(Structure):
     payload_length: int
     _pack_ = 1
     _fields_ = [
-        ("payload_type", c_ubyte, 4),
-        ("payload_length", c_ushort, 12),
+        ("payload_type", c_uint8, 4),
+        ("payload_length", c_uint16, 12),
     ]
 
 
 class BasePacket(Structure):
+    system_header: SystemHeader
     _pack_ = 1
     _fields_ = [
         ("system_header", SystemHeader),
@@ -96,29 +97,3 @@ class CXL_PROTOCOL_ID(IntEnum):
     UPSTREAM_PORT_CXL_MEM = 0b1001
     DOWNSTREAM_PORT_CXL_CACHE = 0b1010
     DOWNSTREAM_PORT_CXL_MEM = 0b1011
-
-
-# class CxlHeaderPacket(UnalignedBitStructure):
-#     cxl_protocol_id: CXL_PROTOCOL_ID
-#     cpi_header: int
-
-#     _fields = [
-#         # Byte offset [01:00]
-#         ByteField("cxl_protocol_id", 0, 1),
-#         # Byte offset [17:02]
-#         ByteField("cpi_header", 2, 17),
-#         # Byte offset [19:18]
-#         ByteField("reserved", 18, 19),
-#     ]
-
-#     @staticmethod
-#     def get_cxl_port(cxl_protocol_id: CXL_PROTOCOL_ID) -> CXL_PORT:
-#         protocol_id = int(cxl_protocol_id)
-#         port_value = (protocol_id >> 1) & 0x1
-#         return CXL_PORT(port_value)
-
-#     @staticmethod
-#     def get_cxl_protocol(cxl_protocol_id: CXL_PROTOCOL_ID) -> CXL_PROTOCOL:
-#         protocol_id = int(cxl_protocol_id)
-#         port_value = protocol_id & 0x1
-#         return CXL_PROTOCOL(port_value)

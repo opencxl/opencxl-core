@@ -9,25 +9,11 @@ from asyncio import CancelledError, StreamReader, create_task
 from enum import Enum, auto
 import traceback
 from typing import Optional, Tuple
-import ctypes
-from ctypes import *
-
-
-# @dataclass(init=False, repr=True, eq=True, order=True)
-class SystemHeader(Structure):
-    payload_type: int
-    payload_length: int
-    _pack_ = 1
-    _fields_ = [
-        # Bit offset [00:03]
-        ("payload_type", c_ubyte, 4),
-        # Bit offset [4:15]
-        ("payload_length", c_ushort, 12),
-    ]
-
+from ctypes import sizeof
 
 from opencxl.cxl.transport.transaction import (
     BasePacket,
+    SystemHeader,
     BaseSidebandPacket,
     SidebandConnectionRequestPacket,
     CxlIoBasePacket,
@@ -47,7 +33,6 @@ from opencxl.cxl.transport.transaction import (
     CxlMemS2MBISnpPacket,
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
-    PAYLOAD_TYPE,
 )
 from opencxl.util.logger import logger
 from opencxl.util.component import LabeledComponent
