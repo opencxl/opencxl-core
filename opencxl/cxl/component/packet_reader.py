@@ -10,10 +10,8 @@ from enum import Enum, auto
 import traceback
 from typing import Optional, Tuple
 from ctypes import sizeof
-
+from opencxl.cxl.transport.common import BasePacket, SystemHeader
 from opencxl.cxl.transport.transaction import (
-    BasePacket,
-    SystemHeader,
     BaseSidebandPacket,
     SidebandConnectionRequestPacket,
     CxlIoBasePacket,

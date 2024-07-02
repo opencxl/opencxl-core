@@ -265,9 +265,6 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         self.mreq_header.addr_upper = int.from_bytes(addr_upper_bytes, byteorder="little")
         self.mreq_header.addr_lower = (addr & 0xFF) >> 2
 
-    def get_transaction_id(self) -> int:
-        return self.mreq_header.get_transaction_id()
-
     def get_address(self) -> int:
         addr = 0
         addr_upper_bytes = self.mreq_header.addr_upper.to_bytes(7, byteorder="little")
@@ -322,9 +319,9 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             tag = get_randbits(8)
 
         if length == 4:
-            packet = CxlIoMemWr32Packet.create(addr, data, req_id, tag)
+            packet = CxlIoMemWr32Packet.generate(addr, data, req_id, tag)
         else:
-            packet = CxlIoMemWr64Packet.create(addr, data, req_id, tag)
+            packet = CxlIoMemWr64Packet.generate(addr, data, req_id, tag)
         return packet
 
 
@@ -335,14 +332,13 @@ class CxlIoMemWr32Packet(CxlIoMemWrPacket):
     ]
 
     @staticmethod
-    def create(
+    def generate(
         addr: int,
         data: int,
         req_id: Optional[int] = None,
         tag: Optional[int] = None,
-        length: int = 4,
     ) -> "CxlIoMemWr32Packet":
-        length_dword = (length + 3) // 4
+        length_dword = 1  # (4 + 3) // 4
         packet = CxlIoMemWr32Packet()
         packet.fill(addr, length_dword, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_32B
@@ -358,14 +354,13 @@ class CxlIoMemWr64Packet(CxlIoMemReqPacket):
     ]
 
     @staticmethod
-    def create(
+    def generate(
         addr: int,
         data: int,
         req_id: Optional[int] = None,
         tag: Optional[int] = None,
-        length: int = 8,
     ) -> "CxlIoMemWr64Packet":
-        length_dword = (length + 3) // 4
+        length_dword = 2  # (8 + 3) // 4
         packet = CxlIoMemWr64Packet()
         packet.fill(addr, length_dword, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
@@ -551,10 +546,10 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         return (self.value >> bit_offset) & bit_mask
 
 
-req_id = 0x10
-tag = 0xA5
-p = CxlIoCfgWrPacket.create(0, 0x10, 4, 0xDEADBEEF, req_id=req_id, tag=tag)
-print(f"4: {sizeof(p)} {bytes(p)}")
+# req_id = 0x10
+# tag = 0xA5
+# p = CxlIoCfgWrPacket.create(0, 0x10, 4, 0xDEADBEEF, req_id=req_id, tag=tag)
+# print(f"4: {sizeof(p)} {bytes(p)}")
 
 
 class CXL_IO_CPL_STATUS(IntEnum):
@@ -600,7 +595,9 @@ class CxlIoCplPacket(CxlIoBasePacket):
 
     @staticmethod
     def create(
-        req_id: int, tag: int, status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC
+        req_id: int,
+        tag: int,
+        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
     ) -> "CxlIoCplPacket":
         packet = CxlIoCplPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
@@ -621,7 +618,13 @@ class CxlIoCplPacket(CxlIoBasePacket):
         return self.cpl_header.get_transaction_id()
 
 
-class CxlIoCplDataPacket(CxlIoCplPacket):
+class CxlIoCplDataPacket(CxlIoBasePacket):
+    cpl_header: CxlIoCplHeader
+    _pack_ = 1
+    _fields_ = [
+        ("cpl_header", CxlIoCplHeader),
+    ]
+
     @staticmethod
     def create(
         req_id: int,
@@ -631,9 +634,9 @@ class CxlIoCplDataPacket(CxlIoCplPacket):
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
     ):
         if pload_len == 4:
-            packet = CxlIoCplData32Packet.create(req_id, tag, data, status)
+            packet = CxlIoCplData32Packet.generate(req_id, tag, data, status)
         else:
-            packet = CxlIoCplData64Packet.create(req_id, tag, data, status)
+            packet = CxlIoCplData64Packet.generate(req_id, tag, data, status)
         return packet
 
     def fill(self, req_id: int, tag: int, data: int, pload_len: int, status: CXL_IO_CPL_STATUS):
@@ -666,14 +669,14 @@ class CxlIoCplData32Packet(CxlIoCplDataPacket):
     ]
 
     @staticmethod
-    def create(
+    def generate(
         req_id: int,
         tag: int,
         data: int,
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
     ) -> "CxlIoCplData32Packet":
         packet = CxlIoCplData32Packet()
-        packet.fill(req_id, tag, data, pload_len=4, status=status)
+        packet.fill(req_id, tag, data, 4, status)
         return packet
 
 
@@ -684,14 +687,14 @@ class CxlIoCplData64Packet(CxlIoCplDataPacket):
     ]
 
     @staticmethod
-    def create(
+    def generate(
         req_id: int,
         tag: int,
         data: int,
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
     ) -> "CxlIoCplData64Packet":
         packet = CxlIoCplData64Packet()
-        packet.fill(req_id, tag, data, pload_len=8, status=status)
+        packet.fill(req_id, tag, data, 8, status)
         return packet
 
 

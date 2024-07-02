@@ -7,7 +7,6 @@
 
 from enum import IntEnum
 from ctypes import Structure, c_uint8, c_uint16
-from dataclasses import dataclass
 
 
 #
@@ -21,7 +20,6 @@ class PAYLOAD_TYPE(IntEnum):
     SIDEBAND = 15
 
 
-@dataclass
 class SystemHeader(Structure):
     payload_type: int
     payload_length: int
