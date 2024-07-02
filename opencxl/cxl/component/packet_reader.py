@@ -143,26 +143,22 @@ class PacketReader(LabeledComponent):
     def _get_cxl_mem_packet(self, payload: bytes):
         cxl_mem_base_packet = CxlMemBasePacket.from_buffer_copy(payload)
         if cxl_mem_base_packet.is_m2sreq():
-            cxl_mem_packet = CxlMemM2SReqPacket
+            packet_type = CxlMemM2SReqPacket
         elif cxl_mem_base_packet.is_m2srwd():
-            cxl_mem_packet = CxlMemM2SRwDPacket
+            packet_type = CxlMemM2SRwDPacket
         elif cxl_mem_base_packet.is_m2sbirsp():
-            cxl_mem_packet = CxlMemM2SBIRspPacket
+            packet_type = CxlMemM2SBIRspPacket
         elif cxl_mem_base_packet.is_s2mbisnp():
-            cxl_mem_packet = CxlMemS2MBISnpPacket
+            packet_type = CxlMemS2MBISnpPacket
         elif cxl_mem_base_packet.is_s2mndr():
-            cxl_mem_packet = CxlMemS2MNDRPacket
+            packet_type = CxlMemS2MNDRPacket
         elif cxl_mem_base_packet.is_s2mdrs():
-            cxl_mem_packet = CxlMemS2MDRSPacket
+            packet_type = CxlMemS2MDRSPacket
         else:
             msg_class = cxl_mem_base_packet.cxl_mem_header.msg_class
             raise Exception(f"Unsupported CXL.MEM message class: {msg_class}")
 
-        if sizeof(cxl_mem_packet) < len(payload):
-            print(f"{cxl_mem_packet}, {payload},{list(payload)}")
-            print(f"{sizeof(cxl_mem_packet)},{len(payload)}")
-
-        cxl_mem_packet = cxl_mem_packet.from_buffer_copy(payload)
+        cxl_mem_packet = packet_type.from_buffer_copy(payload)
         return cxl_mem_packet
 
     def _get_sideband_packet(self, payload: bytes) -> BaseSidebandPacket:
