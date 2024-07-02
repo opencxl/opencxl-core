@@ -17,6 +17,10 @@ from opencxl.cxl.component.hdm_decoder import (
     HdmDecoderCapabilities,
     HDM_DECODER_COUNT,
 )
+from opencxl.cxl.component.cache_route_table_manager import (
+    CacheRouteTableCapabilities,
+    SwitchCacheRouteTable,
+)
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 
 
@@ -42,6 +46,12 @@ class CxlUpstreamPortComponent(CxlComponent):
             mem_data_nxm_capable=0,
         )
         self._hdm_decoder_manager = SwitchHdmDecoderManager(hdm_decoder_capabilities, label)
+        cache_route_table_capabilities = CacheRouteTableCapabilities(
+            cache_id_target_count=16,
+            hdmd_type2_device_max_count=8,
+            explicit_cache_id_rt_cmt_required=0,
+        )
+        self._cache_route_table = SwitchCacheRouteTable(cache_route_table_capabilities, label)
         self._routing_table = None
 
     def get_component_type(self) -> CXL_COMPONENT_TYPE:
@@ -53,6 +63,7 @@ class CxlUpstreamPortComponent(CxlComponent):
     def set_routing_table(self, routing_table: RoutingTable):
         self._routing_table = routing_table
         self._routing_table.set_hdm_decoder(self._hdm_decoder_manager)
+        self._routing_table.set_cache_route_table(self._cache_route_table)
 
 
 class CxlDownstreamPortComponent(CxlComponent):
