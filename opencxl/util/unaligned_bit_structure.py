@@ -6,6 +6,7 @@
 """
 
 from typing import (
+    Generic,
     List,
     Dict,
     Tuple,
@@ -16,6 +17,7 @@ from typing import (
     Callable,
     cast,
     TypedDict,
+    TypeVar,
 )
 from dataclasses import dataclass, field, asdict
 from enum import Enum, auto
@@ -123,7 +125,49 @@ class StructureField:
     default: int = 0
 
 
-DataField = Union[BitField, ByteField, DynamicByteField, StructureField]
+@dataclass
+class RepeatedDynamicField(DynamicByteField):
+    """
+    Dynamic field representing a variable number of copies of a
+    statically-sized field, all adjacent to each other in memory.
+    Suitable for "tabular" structures, such as certain component
+    registers (capability structures, etc).
+    `_underlying_struct` should be an instance of a BitField,
+    ByteField, or StructureField. The instance's start and end
+    refers to the start and end of the very first copy of the field.
+    The field will then tile to fill up the rest of the
+    RepeatedDynamicField's size.
+    """
+
+    _underlying_struct: BitField | ByteField | StructureField = field(kw_only=True)
+
+    def __post_init__(self):
+        if self.length % (self._underlying_struct.end - self._underlying_struct.start + 1) != 0:
+            print(
+                f"{self._underlying_struct.end} - {self._underlying_struct.start} + 1 = {self._underlying_struct.end - self._underlying_struct.start + 1}"
+            )
+            print(f"{self.length}")
+            raise ValueError("Length of underlying struct must divide RepeatedDynamicField.length")
+
+    def spawn(self):
+        return RepeatedDynamicFieldInstance(
+            self.name,
+            self.start,
+            self.length,
+            self.type,
+            self.attribute,
+            self.default,
+            self.mask,
+            _underlying_struct=self._underlying_struct,
+        )
+
+
+@dataclass
+class RepeatedDynamicFieldInstance(DynamicByteFieldInstance):
+    _underlying_struct: BitField | ByteField | StructureField = field(kw_only=True)
+
+
+DataField = Union[BitField, ByteField, DynamicByteField, RepeatedDynamicField, StructureField]
 BITS_IN_BYTE = 8
 
 
@@ -158,18 +202,32 @@ class ShareableByteArray:
         self.offset = offset if offset else 0
         self.data_type = data_type
 
-    def __getitem__(self, index: int) -> int:
+    def __getitem__(self, index: int | slice) -> int | bytearray:
         # TODO: handle OOB
-        offset = self.offset + index
-        data = self._data[offset]
+        if isinstance(index, int):
+            offset = self.offset + index
+            data = self._data[offset]
+        elif isinstance(index, slice):
+            offset = self.offset + index.start
+            data = self._data[offset : index.stop : index.step]
+        else:
+            raise ValueError(f"`index` should be `int` or `slice`, not `{index.__class__}`")
         # logger.debug(f"[Buffer] RD[{self.type}], offset = {offset:03x}, data = {data:x}")
         return data
 
-    def __setitem__(self, index: int, value: int):
-        # TODO: hanlde OOB
+    def __setitem__(self, index: int | slice, value: int | bytearray):
+        # TODO: handle OOB
         # print(f"len={len(self._data)}, offset={self.offset}, index={index}")
-        offset = self.offset + index
-        self._data[offset] = value
+        if isinstance(index, int) and isinstance(value, int):
+            offset = self.offset + index
+            self._data[offset] = value
+        elif isinstance(index, slice) and isinstance(value, bytearray):
+            offset = self.offset + index.start
+            self._data[offset : index.stop : index.step] = value
+        else:
+            # Raising an error won't work with MagicMock
+            offset = self.offset + index
+            self._data[offset] = value
         # logger.debug(f"[Buffer] WR[{self.type}], offset = {offset:03x}, data = {value:x}")
 
     def __str__(self) -> str:
@@ -308,6 +366,69 @@ class ShareableByteArray:
         return ShareableByteArray(size, self, offset, self.data_type)
 
 
+RepeatableField = BitField | ByteField | StructureField
+
+
+# OPTIMIZE
+class TableWrapper:
+    """
+    "Wraps" an underlying shareable byte array allowing for the user to index
+    into the byte array as if it were a table of substructures.
+    """
+
+    _backing_array: ShareableByteArray
+    _backing_struct_arr: Optional[list["UnalignedBitStructure"]]
+    _table_offset: int  # the location of the table start within the ShareableByteArray
+    _table_stride: int  # the length of each table entry structure
+    _base_field: RepeatableField
+
+    def __init__(self, backing_array: ShareableByteArray, offset: int, base_field: RepeatableField):
+        self._table_offset = offset
+        if isinstance(base_field, BitField):
+            raise NotImplementedError(
+                "A repeatable field consisting of BitFields is not yet supported."
+            )
+        self._table_stride = base_field.end - base_field.start + 1
+        self.slice_by_idx = lambda key: slice(
+            self._table_offset + key * self._table_stride,
+            self._table_offset + (key + 1) * self._table_stride,
+        )
+        self._backing_array = backing_array
+        # If StructureField, re-setup array of unaligned bit structures
+        if isinstance(base_field, StructureField):
+            data_at_idx = lambda idx: ShareableByteArray(
+                size=self._table_stride,
+                data_bytes=cast(bytearray, backing_array[self.slice_by_idx(idx)]),
+            )
+            self._backing_struct_arr = [
+                base_field.structure(data=data_at_idx(idx))
+                for idx in range((len(backing_array) - offset) // self._table_stride)
+            ]
+        self._base_field = base_field
+
+    def __len__(self) -> int:
+        if self._backing_struct_arr:
+            return len(self._backing_struct_arr)
+        return len(self._backing_array)
+
+    def __getitem__(self, key: int) -> "int | bytearray | UnalignedBitStructure":
+        if isinstance(self._base_field, ByteField):
+            return self._backing_array[self.slice_by_idx(key)]
+        elif isinstance(self._base_field, StructureField):
+            return cast(list["UnalignedBitStructure"], self._backing_struct_arr)[key]
+        raise NotImplementedError
+
+    def __setitem__(self, key: int, val: "int | bytearray | UnalignedBitStructure"):
+        if isinstance(self._base_field, ByteField):
+            self._backing_array[self.slice_by_idx(key)] = cast(bytearray, val)
+        elif isinstance(self._base_field, StructureField):
+            cast(list["UnalignedBitStructure"], self._backing_struct_arr)[key] = cast(
+                "UnalignedBitStructure", val
+            )
+            return cast(list["UnalignedBitStructure"], self._backing_struct_arr)[key]
+        raise NotImplementedError
+
+
 class UnalignedBitStructure:
     _fields: List[DataField] = []
     _verbose: bool = False
@@ -347,13 +468,15 @@ class UnalignedBitStructure:
             raise Exception(f"{self._class_name}: self._fields must not be an empty array")
 
         for field in self._fields:
-            if type(field) == BitField:
+            if isinstance(field, BitField):
                 self._add_bit_field(field)
-            elif type(field) == ByteField:
+            elif isinstance(field, ByteField):
                 self._add_byte_field(field)
-            elif type(field) == DynamicByteField:
+            elif isinstance(field, RepeatedDynamicField):
+                self._add_repeated_dynamic_field(field.spawn())
+            elif isinstance(field, DynamicByteField):
                 self._add_dynamic_byte_field(field.spawn())
-            elif type(field) == StructureField:
+            elif isinstance(field, StructureField):
                 self._add_structured_field(field)
 
     def _check_if_fields_are_valid(self):
@@ -364,13 +487,13 @@ class UnalignedBitStructure:
         structure_fields = 0
 
         for field in fields:
-            if type(field) == BitField:
+            if isinstance(field, BitField):
                 bit_fields += 1
-            elif type(field) == ByteField:
+            elif isinstance(field, ByteField):
                 byte_fields += 1
-            elif type(field) == DynamicByteField:
+            elif isinstance(field, DynamicByteField):
                 dynamic_byte_fields += 1
-            elif type(field) == StructureField:
+            elif isinstance(field, StructureField):
                 structure_fields += 1
             else:
                 raise Exception(
@@ -393,20 +516,20 @@ class UnalignedBitStructure:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': DataField.start isn't aligned to the previous field"
                 )
-            if type(field) != DynamicByteField and field.end < field.start:
+            if not isinstance(field, DynamicByteField) and field.end < field.start:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': DataField.end cannot be less than DataField.start"
                 )
-            elif type(field) == DynamicByteField and field.length < 0:
+            elif isinstance(field, DynamicByteField) and field.length < 0:
                 raise Exception(
                     f"'{self._class_name}.{field.name}': A byte field with negative length is nonsensical"
                 )
-            if type(field) == DynamicByteField and f_idx != len(fields) - 1:
+            if isinstance(field, DynamicByteField) and f_idx != len(fields) - 1:
                 raise Exception(
                     f"'{self._class_name}.{field.name}: DynamicByteFields must be the last field in their respective packets"
                 )
 
-            if type(field) != DynamicByteField:
+            if not isinstance(field, DynamicByteField):
                 last_offset = field.end
             else:
                 last_offset += field.length
@@ -440,12 +563,12 @@ class UnalignedBitStructure:
         if not fields:
             fields = cls._fields
         last_field = fields[-1]
-        if type(last_field) == BitField:
+        if isinstance(last_field, BitField):
             # NOTE: We may have to throw an error instead
             return (last_field.end + 1) // BITS_IN_BYTE
-        elif type(last_field) == ByteField or type(last_field) == StructureField:
+        elif isinstance(last_field, ByteField) or isinstance(last_field, StructureField):
             return last_field.end + 1
-        elif type(last_field) == DynamicByteField:
+        elif isinstance(last_field, DynamicByteField):
             return last_field.start + last_field.length
         raise Exception(f"Unexpected field type {type(last_field).__name__}")
 
@@ -555,6 +678,32 @@ class UnalignedBitStructure:
             self.__class__,
             field.name,
             property(make_getter(field), make_setter(field)),
+        )
+
+    def _add_repeated_dynamic_field(
+        self: "UnalignedBitStructure", field: RepeatedDynamicFieldInstance
+    ):
+        self._add_field_name(field.name)
+        if self._dynamic_field is not None:
+            raise Exception(
+                f"'{self._class_name}' instance already contains a dynamic field: {self._dynamic_field.name}"
+            )
+        else:
+            self._dynamic_field = field
+
+        def make_getter(field: RepeatedDynamicFieldInstance):
+            def getter(self: "UnalignedBitStructure") -> TableWrapper:
+                return TableWrapper(self._data, field.start, field._underlying_struct)
+
+            return getter
+
+        if field.default > 0:
+            self._data.write_bytes(field.start, field.start + field.length, field.default)
+
+        setattr(
+            self.__class__,
+            field.name,
+            property(make_getter(field), None),
         )
 
     def _add_structured_field(self: "UnalignedBitStructure", field: StructureField):
