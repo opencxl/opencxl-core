@@ -68,14 +68,11 @@ class SystemHeader(Structure):
 
 
 class BasePacket(Structure):
+    system_header: SystemHeader
     _pack_ = 1
     _fields_ = [
         ("system_header", SystemHeader),
     ]
-
-    def from_bytes(self, data):
-        self.system_header = SystemHeader.from_buffer_copy(data)
-        return self
 
     def is_cxl_io(self) -> bool:
         return self.system_header.payload_type == PAYLOAD_TYPE.CXL_IO
@@ -696,18 +693,39 @@ class CxlIoCompletionPacket(CxlIoBasePacket):
         return self.cpl_header.get_transaction_id()
 
 
-class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
-    cpl_header: CxlIoCompletionHeader
+class CxlIoCompletionWithDataPacket(CxlIoCompletionPacket):
     _pack_ = 1
     _fields_ = [
-        ("cpl_header", CxlIoCompletionHeader),
         ("data", POINTER(c_uint8)),
     ]
 
-    def __init__(self, data_size, count=1):
-        self._size = sizeof(CxlIoBasePacket) + sizeof(CxlIoCompletionHeader)
+    # @classmethod
+    # def from_buffer_copy(cls, buf):
+    #     pad_size = sizeof(CxlIoCompletionWithDataPacket) - len(buf)
+    #     data_offset = sizeof(CxlIoCompletionPacket)
+    #     buf += bytes(bytearray(pad_size))
+    #     r = super().__new__(cls)
+    #     memmove(addressof(r), buf, len(buf))
+    #     r.__init__(pad_size)
+    #     return r
+
+    # def __new__(cls, *args, **kwargs):
+    #     print(args, kwargs, *args, *kwargs, **kwargs)
+
+    #     if isinstance(args[0], int):
+    #         return super().__new__(cls)
+
+    #     elif isinstance(args[0], bytes):
+    #         buf = args[0]
+    #         padding = len(buf) - sizeof(CxlIoCompletionPacket)
+    #         buf += bytes(bytearray(padding))
+    #         return cls.from_buffer_copy(buf)
+
+    def __init__(self, data_size):
+        self._size = sizeof(CxlIoCompletionPacket)
         self._data_size = data_size
-        size = data_size * count
+        # size = data_size * count
+        size = data_size
         self._buf = (c_uint8 * size)()
         self._size += size
         self.data = cast(self._buf, POINTER(c_uint8))
@@ -771,7 +789,12 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
 
 p = CxlIoCompletionWithDataPacket.create(req_id, tag, 0xDEADBEEF, pload_len=4)
 print(f"4: {sizeof(p)} {list(bytes(p))} {p._size}")
-print(p.get_data())
+b = b"!\x01D\x00\x00\x01\x00\x10\xa5\x0f\x00\x00\x00\x10\xef\xbe\xad\xde\x00\x00\x00\x00"
+p = CxlIoCompletionWithDataPacket.from_buffer_copy(b)
+# print(p.get_data())
+b = b"!\x01D\x00\x00\x01\x00\x10\xa5\x0f\x00\x00\x00\x10\xef\xbe\xad\xde"
+p = CxlIoCompletionWithDataPacket.from_buffer_copy(b)
+# print(p.get_data())
 
 p = CxlIoCompletionWithDataPacket.create(req_id, tag, 0xDEADBEEF, pload_len=8)
 print(f"8: {sizeof(p)} {list(bytes(p))} {p._size}")

@@ -141,6 +141,7 @@ class PacketReader(LabeledComponent):
         if cxl_io_packet is None:
             protocol = cxl_io_base_packet.cxl_io_header.fmt_type
             raise Exception(f"Unsupported CXL.IO protocol {protocol}")
+        print(f"{cxl_io_packet}, {len(payload)}")
         cxl_io_packet = cxl_io_packet.from_buffer_copy(payload)
         return cxl_io_packet
 
