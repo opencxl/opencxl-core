@@ -12,7 +12,7 @@ from typing import cast, Optional, Dict
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.packet_reader import PacketReader
 from opencxl.cxl.transport.transaction import (

@@ -42,6 +42,7 @@ class HdmDecoderCapabilities(TypedDict):
     uio_capable: int
     uio_capable_decoder_count: int
     mem_data_nxm_capable: int
+    bi_capable: bool
 
 
 @dataclass
@@ -166,8 +167,7 @@ class DeviceHdmDecoderManager(HdmDecoderManagerBase):
         return CXL_DEVICE_TYPE.MEM_DEVICE
 
     def is_bi_capable(self) -> bool:
-        # TODO: Support Back-Invalidate
-        return False
+        return self._capabilities["bi_capable"]
 
     def decoder_enable(self, enabled: bool):
         pass
@@ -213,8 +213,7 @@ class SwitchHdmDecoderManager(HdmDecoderManagerBase):
         return CXL_DEVICE_TYPE.SWITCH
 
     def is_bi_capable(self) -> bool:
-        # TODO: Support Back-Invalidate
-        return False
+        return self._capabilities["bi_capable"]
 
     def decoder_enable(self, enabled: bool):
         pass

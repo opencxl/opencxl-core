@@ -11,7 +11,7 @@ from typing import List
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 
 
 @dataclass

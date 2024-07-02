@@ -10,7 +10,7 @@ from asyncio import gather, create_task
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.device.cxl_type3_device import CxlType3Device, CXL_T3_DEV_TYPE
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 
 
 class SingleLogicalDevice(RunnableComponent):

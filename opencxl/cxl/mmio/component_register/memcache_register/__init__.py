@@ -13,6 +13,12 @@ from opencxl.util.unaligned_bit_structure import (
     ByteField,
     FIELD_ATTR,
 )
+from opencxl.cxl.component.bi_decoder import (
+    CxlBIDecoderCapabilityStructure,
+    CxlBIDecoderCapabilityStructureOptions,
+    CxlBIRTCapabilityStructure,
+    CxlBIRTCapabilityStructureOptions,
+)
 from .capability import (
     CxlCapabilityHeaderStructure,
     CxlCapabilityHeaderStructureOptions,
@@ -29,12 +35,16 @@ class CxlCacheMemRegisterOptions(TypedDict):
     ras: Optional[bool]
     link: Optional[bool]
     hdm_decoder: Optional[CxlHdmDecoderCapabilityStructureOptions]
+    bi_route_table: Optional[CxlBIRTCapabilityStructureOptions]
+    bi_decoder: Optional[CxlBIDecoderCapabilityStructureOptions]
 
 
 STRUCTURE_MAP: Dict[str, BitMaskedBitStructure] = {
     "ras": CxlRasCapabilityStructure,
     "link": CxlLinkCapabilityStructure,
     "hdm_decoder": CxlHdmDecoderCapabilityStructure,
+    "bi_route_table": CxlBIRTCapabilityStructure,
+    "bi_decoder": CxlBIDecoderCapabilityStructure,
 }
 
 CXL_CACHE_MEM_REGISTER_SIZE = 0x1000

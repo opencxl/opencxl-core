@@ -25,8 +25,8 @@ from opencxl.cxl.component.cxl_packet_processor import CxlPacketProcessor
 from opencxl.cxl.component.cxl_component import (
     PortConfig,
     PORT_TYPE,
-    CXL_COMPONENT_TYPE,
 )
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.util.component import RunnableComponent
 from opencxl.util.logger import logger
 

@@ -20,6 +20,20 @@ from opencxl.cxl.mmio.component_register.memcache_register import (
     CxlCacheMemRegisterOptions,
     CXL_CACHE_MEM_REGISTER_SIZE,
 )
+from opencxl.cxl.component.bi_decoder import (
+    CxlBIDecoderCapabilityStructureOptions,
+    CxlBIDecoderCapabilityRegisterOptions,
+    CxlBIDecoderControlRegisterOptions,
+    CxlBIDecoderStatusRegisterOptions,
+    CxlBIDecoderCapabilityStructure,
+    CxlBIRTCapabilityStructureOptions,
+    CxlBIRTCapabilityRegisterOptions,
+    CxlBIRTControlRegisterOptions,
+    CxlBIRTStatusRegisterOptions,
+    CxlBIRTCapabilityStructure,
+    CxlBITimeoutScale,
+)
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import (
     HdmDecoderCapabilities,
     DecoderInfo,
@@ -45,6 +59,8 @@ def test_cxl_capability_header_register():
         "ras": 0x100,
         "link": 0x200,
         "hdm_decoder": 0x400,
+        "bi_route_table": 0x500,
+        "bi_decoder": 0x600,
     }
     register = CxlCapabilityHeaderStructure(options=options)
     assert hasattr(register, "ras")
@@ -53,8 +69,11 @@ def test_cxl_capability_header_register():
     assert register.link.cxl_capability_id == 0x0004
     assert hasattr(register, "hdm_decoder")
     assert register.hdm_decoder.cxl_capability_id == 0x0005
-    assert hasattr(register, "header")
-    assert register.header.array_size == 0x3
+    assert hasattr(register, "bi_route_table")
+    assert register.bi_route_table.cxl_capability_id == 0x000B
+    assert hasattr(register, "bi_decoder")
+    assert register.bi_decoder.cxl_capability_id == 0x000C
+    assert register.header.array_size == len(options.items())
 
 
 def test_hdm_decoder_capability_with_one_decoder():
@@ -69,6 +88,7 @@ def test_hdm_decoder_capability_with_one_decoder():
         uio_capable=0,
         uio_capable_decoder_count=0,
         mem_data_nxm_capable=0,
+        bi_capable=True,
     )
     options = CxlHdmDecoderCapabilityStructureOptions(hdm_decoder_manager=hdm_decoder_manager)
     register = CxlHdmDecoderCapabilityStructure(options=options)
@@ -89,6 +109,7 @@ def test_hdm_decoder_capability_with_four_decoders():
             uio_capable=0,
             uio_capable_decoder_count=0,
             mem_data_nxm_capable=0,
+            bi_capable=True,
         )
     )
     options = CxlHdmDecoderCapabilityStructureOptions(hdm_decoder_manager=hdm_decoder_manager)
@@ -110,6 +131,7 @@ def test_hdm_decoder_capability_enable_decoder():
         uio_capable=0,
         uio_capable_decoder_count=0,
         mem_data_nxm_capable=0,
+        bi_capable=True,
     )
     options = CxlHdmDecoderCapabilityStructureOptions(hdm_decoder_manager=hdm_decoder_manager)
     register = CxlHdmDecoderCapabilityStructure(options=options)
@@ -134,6 +156,7 @@ def test_hdm_decoder_capability_commit():
                     uio_capable=0,
                     uio_capable_decoder_count=0,
                     mem_data_nxm_capable=0,
+                    bi_capable=True,
                 )
             )
             hdm_decoder_manager.get_device_type.return_value = CXL_DEVICE_TYPE.MEM_DEVICE
@@ -202,6 +225,7 @@ def test_cachemem_register_with_options_hdm_decoder_only():
             uio_capable=0,
             uio_capable_decoder_count=0,
             mem_data_nxm_capable=0,
+            bi_capable=True,
         )
     )
     options["hdm_decoder"] = CxlHdmDecoderCapabilityStructureOptions(
@@ -213,6 +237,115 @@ def test_cachemem_register_with_options_hdm_decoder_only():
     assert hasattr(register, "hdm_decoder")
     assert not hasattr(register, "ras")
     assert not hasattr(register, "link")
+
+
+def test_cachemem_register_with_options_bi_decoder_only():
+    options = CxlCacheMemRegisterOptions()
+
+    options["bi_decoder"] = CxlBIDecoderCapabilityStructureOptions()
+    options["bi_decoder"]["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(
+        hdm_d_compatible=0, explicit_bi_decoder_commit_required=1
+    )
+    options["bi_decoder"]["control_options"] = CxlBIDecoderControlRegisterOptions(
+        bi_forward=1, bi_enable=1, bi_decoder_commit=0
+    )
+    options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
+        bi_decoder_committed=0,
+        bi_decoder_error_not_committed=0,
+        bi_decoder_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
+        bi_decoder_commit_timeout_scale=1,
+    )
+    options["bi_decoder"]["device_type"] = CXL_COMPONENT_TYPE.LD
+    register = CxlCacheMemRegister(options=options)
+    assert len(register) == CXL_CACHE_MEM_REGISTER_SIZE
+    assert hasattr(register, "capability_header")
+    assert hasattr(register, "bi_decoder")
+    assert not hasattr(register, "bi_route_table")
+    assert not hasattr(register, "hdm_decoder")
+    assert not hasattr(register, "ras")
+    assert not hasattr(register, "link")
+
+
+def test_cachemem_register_with_options_bi_rt_only():
+    options = CxlCacheMemRegisterOptions()
+
+    options["bi_route_table"] = CxlBIRTCapabilityStructureOptions()
+    options["bi_route_table"]["capability_options"] = CxlBIRTCapabilityRegisterOptions(
+        explicit_bi_rt_commit_required=1
+    )
+    options["bi_route_table"]["control_options"] = CxlBIRTControlRegisterOptions(bi_rt_commit=0)
+    options["bi_route_table"]["status_options"] = CxlBIRTStatusRegisterOptions(
+        bi_rt_committed=0,
+        bi_rt_error_not_committed=0,
+        bi_rt_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
+        bi_rt_commit_timeout_scale=1,
+    )
+
+    register = CxlCacheMemRegister(options=options)
+    assert len(register) == CXL_CACHE_MEM_REGISTER_SIZE
+    assert hasattr(register, "capability_header")
+    assert hasattr(register, "bi_route_table")
+    assert not hasattr(register, "bi_decoder")
+    assert not hasattr(register, "hdm_decoder")
+    assert not hasattr(register, "ras")
+    assert not hasattr(register, "link")
+
+
+def test_cachemem_register_with_options_bi_only():
+    options = CxlCacheMemRegisterOptions()
+
+    options["bi_decoder"] = CxlBIDecoderCapabilityStructureOptions()
+    options["bi_decoder"]["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(
+        hdm_d_compatible=0, explicit_bi_decoder_commit_required=1
+    )
+    options["bi_decoder"]["control_options"] = CxlBIDecoderControlRegisterOptions(
+        bi_forward=1, bi_enable=1, bi_decoder_commit=0
+    )
+    options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
+        bi_decoder_committed=0,
+        bi_decoder_error_not_committed=0,
+        bi_decoder_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
+        bi_decoder_commit_timeout_scale=1,
+    )
+    options["bi_decoder"]["device_type"] = CXL_COMPONENT_TYPE.LD
+
+    options["bi_route_table"] = CxlBIRTCapabilityStructureOptions()
+    options["bi_route_table"]["capability_options"] = CxlBIRTCapabilityRegisterOptions(
+        explicit_bi_rt_commit_required=1
+    )
+    options["bi_route_table"]["control_options"] = CxlBIRTControlRegisterOptions(bi_rt_commit=0)
+    options["bi_route_table"]["status_options"] = CxlBIRTStatusRegisterOptions(
+        bi_rt_committed=0,
+        bi_rt_error_not_committed=0,
+        bi_rt_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
+        bi_rt_commit_timeout_scale=1,
+    )
+
+    register = CxlCacheMemRegister(options=options)
+    assert len(register) == CXL_CACHE_MEM_REGISTER_SIZE
+    assert hasattr(register, "capability_header")
+    assert hasattr(register, "bi_decoder")
+    assert hasattr(register, "bi_route_table")
+    assert not hasattr(register, "hdm_decoder")
+    assert not hasattr(register, "ras")
+    assert not hasattr(register, "link")
+
+
+def test_bi_decoder_without_options_only():
+    # pylint: disable=bare-except, unused-variable
+    # Test if Exception will be thrown if options=None, for 100% code coverage
+    try:
+        register = CxlBIDecoderCapabilityStructure(options=None)
+    except:
+        pass
+
+
+def test_bi_rt_without_options_only():
+    # pylint: disable=bare-except, unused-variable
+    try:
+        register = CxlBIRTCapabilityStructure(options=None)
+    except:
+        pass
 
 
 def test_cachemem_register_with_options_all():
@@ -230,14 +363,42 @@ def test_cachemem_register_with_options_all():
             uio_capable=0,
             uio_capable_decoder_count=0,
             mem_data_nxm_capable=0,
+            bi_capable=True,
         )
     )
     options["hdm_decoder"] = CxlHdmDecoderCapabilityStructureOptions(
         hdm_decoder_manager=hdm_decoder_manager
     )
+    options["bi_decoder"] = CxlBIDecoderCapabilityStructureOptions()
+    options["bi_decoder"]["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(
+        hdm_d_compatible=0, explicit_bi_decoder_commit_required=1
+    )
+    options["bi_decoder"]["control_options"] = CxlBIDecoderControlRegisterOptions(
+        bi_forward=1, bi_enable=1, bi_decoder_commit=0
+    )
+    options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
+        bi_decoder_committed=0,
+        bi_decoder_error_not_committed=0,
+        bi_decoder_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
+        bi_decoder_commit_timeout_scale=1,
+    )
+    options["bi_decoder"]["device_type"] = CXL_COMPONENT_TYPE.LD
+    options["bi_route_table"] = CxlBIRTCapabilityStructureOptions()
+    options["bi_route_table"]["capability_options"] = CxlBIRTCapabilityRegisterOptions(
+        explicit_bi_rt_commit_required=1
+    )
+    options["bi_route_table"]["control_options"] = CxlBIRTControlRegisterOptions(bi_rt_commit=0)
+    options["bi_route_table"]["status_options"] = CxlBIRTStatusRegisterOptions(
+        bi_rt_committed=0,
+        bi_rt_error_not_committed=0,
+        bi_rt_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
+        bi_rt_commit_timeout_scale=1,
+    )
     register = CxlCacheMemRegister(options=options)
     assert len(register) == CXL_CACHE_MEM_REGISTER_SIZE
     assert hasattr(register, "capability_header")
+    assert hasattr(register, "bi_decoder")
+    assert hasattr(register, "bi_route_table")
     assert hasattr(register, "ras")
     assert hasattr(register, "link")
     assert hasattr(register, "hdm_decoder")

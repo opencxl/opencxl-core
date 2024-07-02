@@ -12,7 +12,7 @@ from typing import List, cast, Callable, Coroutine, Any
 
 from opencxl.util.logger import logger
 from opencxl.cxl.component.cxl_connection import CxlConnection
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BIND_STATUS
 from opencxl.cxl.component.virtual_switch.routers import CxlMemRouter, CxlIoRouter
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable

@@ -8,7 +8,7 @@
 import re
 
 from opencxl.util.logger import logger
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.cxl.device.port_device import CxlPortDevice
 from opencxl.cxl.config_space.doe.doe import CxlDoeExtendedCapabilityOptions
 from opencxl.cxl.config_space.dvsec import (

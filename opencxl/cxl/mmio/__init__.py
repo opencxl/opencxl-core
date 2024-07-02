@@ -22,8 +22,8 @@ from opencxl.cxl.mmio.device_register import (
 from opencxl.cxl.component.cxl_component import (
     CxlComponent,
     CxlDeviceComponent,
-    CXL_COMPONENT_TYPE,
 )
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.cxl.config_space.dvsec.register_locator import (
     RegisterOffsetOptions,
     BLOCK_IDENTIFIER,

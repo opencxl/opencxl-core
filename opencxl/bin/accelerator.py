@@ -13,7 +13,7 @@ from typing import List
 from opencxl.util.logger import logger
 from opencxl.cxl.environment import parse_cxl_environment
 from opencxl.apps.accelerator import MyType1Accelerator, MyType2Accelerator
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 
 
 class ACCEL_TYPE(Enum):

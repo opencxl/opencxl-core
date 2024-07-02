@@ -16,7 +16,7 @@ from opencxl.pci.component.pci import (
     PCI_SYSTEM_PERIPHERAL_SUBCLASS,
 )
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 
 
 class PciDevice(RunnableComponent):

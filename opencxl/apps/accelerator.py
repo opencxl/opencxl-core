@@ -12,7 +12,7 @@ from opencxl.util.component import RunnableComponent
 from opencxl.cxl.device.cxl_type1_device import CxlType1Device
 from opencxl.cxl.device.cxl_type2_device import CxlType2Device
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 
 
 # Example devices based on type1 and type2 devices

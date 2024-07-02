@@ -22,7 +22,7 @@ from opencxl.cxl.component.host_manager_conn import (
     UtilConnServer,
     Result,
 )
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 
 
 class CxlHost(RunnableComponent):

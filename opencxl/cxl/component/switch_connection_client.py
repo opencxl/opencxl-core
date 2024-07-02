@@ -16,7 +16,7 @@ from opencxl.cxl.transport.transaction import (
     BaseSidebandPacket,
     CxlIoCfgRdPacket,
 )
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.packet_reader import PacketReader
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.cxl_packet_processor import CxlPacketProcessor

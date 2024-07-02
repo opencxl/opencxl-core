@@ -17,8 +17,8 @@ from opencxl.cxl.component.switch_connection_manager import SwitchConnectionMana
 from opencxl.cxl.component.cxl_component import (
     PORT_TYPE,
     PortConfig,
-    CXL_COMPONENT_TYPE,
 )
+from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 from opencxl.util.component import RunnableComponent
 
 
