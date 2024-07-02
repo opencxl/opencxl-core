@@ -131,6 +131,19 @@ class CXL_IO_FMT_TYPE(IntEnum):
 
 
 class CxlIoHeader(Structure):
+    fmt_type: CXL_IO_FMT_TYPE
+    t9: int
+    tc: int
+    t8: int
+    attr_b2: int
+    rsvd: int
+    th: int
+    td: int
+    ep: int
+    attr: int
+    at: int
+    length_upper: int
+    length_lower: int
     _pack_ = 1
     _fields_ = [
         ("fmt_type", c_uint8, 8),
@@ -249,13 +262,7 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         ("mreq_header", CxlIoMemReqHeader),
     ]
 
-    def fill(
-        self,
-        addr: int,
-        length_dword: int,
-        req_id: int,
-        tag: int,
-    ):
+    def fill(self, addr: int, length_dword: int, req_id: int, tag: int):
         self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
         self.cxl_io_header.length_upper = length_dword & 0x300
         self.cxl_io_header.length_lower = length_dword & 0xFF

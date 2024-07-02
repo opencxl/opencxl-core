@@ -143,7 +143,6 @@ class CxlPacketProcessor(RunnableComponent):
     def _pop_tlp_table_entry(self, cxl_io_packet: CxlIoBasePacket) -> CXL_IO_FIFO_TYPE:
         tid = cxl_io_packet.get_transaction_id()
         if tid not in self._tlp_table:
-            print("WTF?")
             raise Exception(f"tid ({tid:02x}) is not found in the TLP table")
         fifo_type = self._tlp_table[tid]
         del self._tlp_table[tid]

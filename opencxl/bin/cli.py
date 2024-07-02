@@ -16,7 +16,7 @@ from opencxl.bin import fabric_manager
 from opencxl.bin import cxl_switch
 from opencxl.bin import single_logical_device as sld
 
-# from opencxl.bin import accelerator as accel
+from opencxl.bin import accelerator as accel
 from opencxl.bin import cxl_host
 from opencxl.bin import mem
 
