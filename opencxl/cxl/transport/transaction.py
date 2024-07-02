@@ -339,7 +339,13 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         ("mreq_header", CxlIoMemReqHeader),
     ]
 
-    def fill(self, addr: int, length_dword: int, req_id: int, tag: int):
+    def fill(
+        self,
+        addr: int,
+        length_dword: int,
+        req_id: int,
+        tag: int,
+    ):
         self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
         self.cxl_io_header.length_upper = length_dword & 0x300
         self.cxl_io_header.length_lower = length_dword & 0xFF
@@ -389,41 +395,6 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
 
 
 class CxlIoMemWrPacket(CxlIoMemReqPacket):
-    _pack_ = 1
-    _fields_ = [
-        ("data", c_uint32),
-    ]
-
-    # def __init__(self, data_size, count=1):
-    #     self._size = sizeof(CxlIoMemReqPacket)
-    #     self._data_size = data_size
-    #     size = data_size * count
-    #     self._buf = (c_uint8 * size)()
-    #     self._size += size
-    #     self.data = cast(self._buf, POINTER(c_uint8))
-
-    # def __sizeof__(self):
-    #     return self._size
-
-    # def __bytes__(self):
-    #     return (
-    #         bytes(self.system_header)
-    #         + bytes(self.cxl_io_header)
-    #         + bytes(self.mreq_header)
-    #         + bytes(self.get_data().to_bytes(self._data_size, "little"))
-    #     )
-
-    # def get_data(self):
-    #     if self._data_size == 4:
-    #         data = cast(self._buf, POINTER(c_uint32))
-    #     elif self._data_size == 8:
-    #         data = cast(self._buf, POINTER(c_uint64))
-    #     return data.contents.value
-
-    # def set_data(self, data):
-    #     data = data.to_bytes(self._data_size, "little")
-    #     memmove(cast(self._buf, c_void_p).value, cast(data, c_void_p).value, self._data_size)
-
     @classmethod
     def create(
         cls,
@@ -437,23 +408,71 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             req_id = htotlp16(req_id)
         else:
             req_id = 0
+
         if tag is None:
             tag = get_randbits(8)
 
+        if length == 4:
+            packet = CxlIoMemWr32Packet.create(addr, data, req_id, tag)
+        else:
+            packet = CxlIoMemWr64Packet.create(addr, data, req_id, tag)
+        return packet
+
+
+class CxlIoMemWr32Packet(CxlIoMemWrPacket):
+    _pack_ = 1
+    _fields_ = [
+        ("data", c_uint32),
+    ]
+
+    @staticmethod
+    def create(
+        addr: int,
+        data: int,
+        req_id: Optional[int] = None,
+        tag: Optional[int] = None,
+        length: int = 4,
+    ) -> "CxlIoMemWr32Packet":
         length_dword = (length + 3) // 4
-        packet = CxlIoMemWrPacket()
+        packet = CxlIoMemWr32Packet()
+        packet.fill(addr, length_dword, req_id, tag)
+        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_32B
+        packet.data = data
+        packet.system_header.payload_length = sizeof(packet)
+        return packet
+
+
+class CxlIoMemWr64Packet(CxlIoMemReqPacket):
+    _pack_ = 1
+    _fields_ = [
+        ("data", c_uint64),
+    ]
+
+    @staticmethod
+    def create(
+        addr: int,
+        data: int,
+        req_id: Optional[int] = None,
+        tag: Optional[int] = None,
+        length: int = 8,
+    ) -> "CxlIoMemWr64Packet":
+        length_dword = (length + 3) // 4
+        packet = CxlIoMemWr64Packet()
         packet.fill(addr, length_dword, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
         packet.data = data
         packet.system_header.payload_length = sizeof(packet)
-        # print(sizeof(packet), sizeof(packet.system_header), sizeof(packet.cxl_io_header), sizeof(packet.mreq_header))
         return packet
 
 
-p = CxlIoMemWrPacket.create(addr=1111, length=4, data=222)
-print(f"4: {ctypes.sizeof(p)} {list(bytes(p))}")
-p = CxlIoMemWrPacket.create(addr=1111, length=8, data=222)
-print(f"8: {ctypes.sizeof(p)} {list(bytes(p))}")
+p = CxlIoMemWrPacket.create(addr=1111, length=4, data=0x11223344)
+print(f"4: {sizeof(p)} {list(bytes(p))}")
+p = CxlIoMemWrPacket.create(addr=1111, length=8, data=0x1122334455667788)
+print(f"8: {sizeof(p)} {list(bytes(p))}")
+
+# print(f"4: {ctypes.sizeof(p)} {list(bytes(p))}")
+# p = CxlIoMemWrPacket.create(addr=1111, length=8, data=222)
+# print(f"8: {ctypes.sizeof(p)} {list(bytes(p))}")
 
 
 class CxlIoCfgReqHeader(Structure):
@@ -693,67 +712,49 @@ class CxlIoCplPacket(CxlIoBasePacket):
         return self.cpl_header.get_transaction_id()
 
 
-class CxlIoCplData32Packet(CxlIoCplPacket):
+class CxlIoCplDataPacket(CxlIoCplPacket):
+    @staticmethod
+    def create(
+        req_id: int,
+        tag: int,
+        data: int,
+        pload_len: int,
+        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
+    ):
+        if pload_len == 4:
+            packet = CxlIoCplData32Packet.create(req_id, tag, data, status)
+        else:
+            packet = CxlIoCplData64Packet.create(req_id, tag, data, status)
+        return packet
+
+    def fill(self, req_id: int, tag: int, data: int, pload_len: int, status: CXL_IO_CPL_STATUS):
+        self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
+        self.system_header.payload_length = sizeof(CxlIoCplDataPacket) + pload_len
+        self.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
+
+        # convert to DWORDs
+        self.cxl_io_header.length_upper = extract_upper(pload_len // 4, 2, 10)
+        self.cxl_io_header.length_lower = extract_lower(pload_len // 4, 8, 10)
+
+        # TODO: actual ID to be added
+        self.cpl_header.cpl_id = htotlp16(get_randbits(16))
+        self.cpl_header.status = status
+        self.cpl_header.req_id = htotlp16(req_id)
+        self.cpl_header.tag = tag
+
+        self.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
+        self.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
+        self.data = data
+
+    def get_transaction_id(self) -> int:
+        return self.cpl_header.get_transaction_id()
+
+
+class CxlIoCplData32Packet(CxlIoCplDataPacket):
     _pack_ = 1
     _fields_ = [
         ("data", c_uint32),
     ]
-    # def __new__(cls, *args, **kwargs):
-    #     print(args, kwargs, *args, *kwargs, **kwargs)
-
-    #     if isinstance(args[0], int):
-    #         return super().__new__(cls)
-
-    #     elif isinstance(args[0], bytes):
-    #         buf = args[0]
-    #         padding = len(buf) - sizeof(CxlIoCplPacket)
-    #         buf += bytes(bytearray(padding))
-    #         return cls.from_buffer_copy(buf)
-
-    @classmethod
-    def factory(self, size):
-        class VariableStructure(CxlIoCplPacket):
-            _pack_ = 1
-            _fields_ = [
-                ("data", c_uint64) if size == 8 else ("data", c_uint32),
-            ]
-
-        return VariableStructure
-
-    # def __init__(self, data_size):
-    #     self._size = sizeof(CxlIoCplPacket)
-    #     self._data_size = data_size
-    #     # size = data_size * count
-    #     size = data_size
-    #     self._buf = (c_uint8 * size)()
-    #     self._size += size
-    #     self.data = cast(self._buf, POINTER(c_uint8))
-
-    # def __sizeof__(self):
-    #     return self._size
-
-    # def __bytes__(self):
-    #     return (
-    #         bytes(self.system_header)
-    #         + bytes(self.cxl_io_header)
-    #         + bytes(self.cpl_header)
-    #         + bytes(self.get_data().to_bytes(self._data_size, "little"))
-    #     )
-
-    # def get_data(self):
-    #     if self._data_size == 4:
-    #         data = cast(self._buf, POINTER(c_uint32))
-    #     elif self._data_size == 8:
-    #         data = cast(self._buf, POINTER(c_uint64))
-    #     return data.contents.value
-
-    # def set_data(self, data):
-    #     data = data.to_bytes(4, "little")
-    #     memmove(
-    #         cast(self.data, c_void_p).value,
-    #         cast(data, c_void_p).value,
-    #         4,
-    # )
 
     @staticmethod
     def create(
@@ -761,49 +762,43 @@ class CxlIoCplData32Packet(CxlIoCplPacket):
         tag: int,
         data: int,
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
-        pload_len=0x04,
-    ) -> "CxlIoCompletionWithDataPacket":
-        # for config reads, always 1 DWORD (4 bytes)
-
-        CxlIoCplDType = CxlIoCompletionWithDataPacket.factory(pload_len)
-        packet = CxlIoCplDType()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
-        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
-
-        # convert to DWORDs
-        packet.cxl_io_header.length_upper = extract_upper(pload_len // 4, 2, 10)
-        packet.cxl_io_header.length_lower = extract_lower(pload_len // 4, 8, 10)
-
-        # TODO: actual ID to be added
-        packet.cpl_header.cpl_id = htotlp16(get_randbits(16))
-        packet.cpl_header.status = status
-        packet.cpl_header.req_id = htotlp16(req_id)
-        packet.cpl_header.tag = tag
-
-        packet.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
-        packet.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
-        packet.data = data
-        packet.system_header.payload_length = sizeof(packet)
-
+    ) -> "CxlIoCplData32Packet":
+        packet = CxlIoCplData32Packet()
+        packet.fill(req_id, tag, data, pload_len=4, status=status)
         return packet
 
-    def get_transaction_id(self) -> int:
-        return self.cpl_header.get_transaction_id()
+
+class CxlIoCplData64Packet(CxlIoCplDataPacket):
+    _pack_ = 1
+    _fields_ = [
+        ("data", c_uint64),
+    ]
+
+    @staticmethod
+    def create(
+        req_id: int,
+        tag: int,
+        data: int,
+        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
+    ) -> "CxlIoCplData64Packet":
+        packet = CxlIoCplData64Packet()
+        packet.fill(req_id, tag, data, pload_len=8, status=status)
+        return packet
 
 
-p = CxlIoCompletionWithDataPacket.create(req_id, tag, 0x11223344, pload_len=4)
+p = CxlIoCplDataPacket.create(req_id, tag, 0x11223344, pload_len=4)
 print(f"4: {sizeof(p)} {list(bytes(p))}")
-p = CxlIoCompletionWithDataPacket.create(req_id, tag, 0x1122334455667788, pload_len=4)
+p = CxlIoCplDataPacket.create(req_id, tag, 0x1122334455667788, pload_len=4)
 print(f"4: {sizeof(p)} {list(bytes(p))}")
-p = CxlIoCompletionWithDataPacket.create(req_id, tag, 0x1122334455667788, pload_len=8)
+p = CxlIoCplDataPacket.create(req_id, tag, 0x1122334455667788, pload_len=8)
 print(f"8: {sizeof(p)} {list(bytes(p))}")
-p = CxlIoCompletionWithDataPacket.create(req_id, tag, 0xDEADBEEF, pload_len=8)
+p = CxlIoCplDataPacket.create(req_id, tag, 0xDEADBEEF, pload_len=8)
 print(f"8: {sizeof(p)} {list(bytes(p))}")
 b = b"!\x01D\x00\x00\x01\x00\x10\xa5\x0f\x00\x00\x00\x10\xef\xbe\xad\xde\x00\x00\x00\x00"
-p = CxlIoCompletionWithDataPacket.from_buffer_copy(b)
+p = CxlIoCplData64Packet.from_buffer_copy(b)
 print(f"8: {sizeof(p)} {list(bytes(p))}")
 b = b"!\x01D\x00\x00\x01\x00\x10\xa5\x0f\x00\x00\x00\x10\xef\xbe\xad\xde"
-p = CxlIoCompletionWithDataPacket.from_buffer_copy(b)
+p = CxlIoCplData32Packet.from_buffer_copy(b)
 print(f"8: {sizeof(p)} {list(bytes(p))}")
 
 

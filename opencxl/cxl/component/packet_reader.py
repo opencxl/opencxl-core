@@ -35,8 +35,11 @@ from opencxl.cxl.transport.transaction import (
     CxlIoCfgWrPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
+    CxlIoMemWr32Packet,
+    CxlIoMemWr64Packet,
     CxlIoCplPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCplData32Packet,
+    CxlIoCplData64Packet,
     CxlMemBasePacket,
     CxlMemM2SReqPacket,
     CxlMemM2SRwDPacket,
@@ -126,24 +129,32 @@ class PacketReader(LabeledComponent):
     def _get_cxl_io_packet(self, payload: bytes) -> CxlIoBasePacket:
         cxl_io_base_packet = CxlIoBasePacket.from_buffer_copy(payload)
         if cxl_io_base_packet.is_cfg_read():
-            cxl_io_packet = CxlIoCfgRdPacket
+            packet_type = CxlIoCfgRdPacket
         elif cxl_io_base_packet.is_cfg_write():
-            cxl_io_packet = CxlIoCfgWrPacket
+            packet_type = CxlIoCfgWrPacket
         elif cxl_io_base_packet.is_mem_read():
-            cxl_io_packet = CxlIoMemRdPacket
+            packet_type = CxlIoMemRdPacket
         elif cxl_io_base_packet.is_mem_write():
-            cxl_io_packet = CxlIoMemWrPacket
+            packet_type = CxlIoMemWrPacket
+            data_size = len(payload) - sizeof(CxlIoMemWrPacket)
+            if data_size == 4:
+                packet_type = CxlIoMemWr32Packet
+            else:
+                packet_type = CxlIoMemWr64Packet
         elif cxl_io_base_packet.is_cpl():
-            cxl_io_packet = CxlIoCplPacket
+            packet_type = CxlIoCplPacket
         elif cxl_io_base_packet.is_cpld():
             data_size = len(payload) - sizeof(CxlIoCplPacket)
-            cxl_io_packet = CxlIoCompletionWithDataPacket.factory(data_size)
+            if data_size == 4:
+                packet_type = CxlIoCplData32Packet
+            else:
+                packet_type = CxlIoCplData64Packet
 
-        if cxl_io_packet is None:
+        if packet_type is None:
             protocol = cxl_io_base_packet.cxl_io_header.fmt_type
             raise Exception(f"Unsupported CXL.IO protocol {protocol}")
-        print(f"{cxl_io_packet}, {len(payload)}")
-        cxl_io_packet = cxl_io_packet.from_buffer_copy(payload)
+
+        cxl_io_packet = packet_type.from_buffer_copy(payload)
         return cxl_io_packet
 
     def _get_cxl_mem_packet(self, payload: bytes):

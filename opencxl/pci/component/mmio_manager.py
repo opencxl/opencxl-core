@@ -21,7 +21,7 @@ from opencxl.cxl.transport.transaction import (
     CxlIoMemWrPacket,
     CxlIoMemReqPacket,
     CxlIoCplPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCplDataPacket,
 )
 
 
@@ -137,7 +137,7 @@ class MmioManager(PacketProcessor):
             if isinstance(data, int) and data >= (1 << (data_len * 8)):
                 # if isinstance(data, MagicMock), then just assume it'll fit in the given size
                 raise Exception(f"'Data: {data} could not possibly fit within length: {data_len}")
-            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_len=data_len)
+            packet = CxlIoCplDataPacket.create(req_id, tag, data, pload_len=data_len)
         else:
             packet = CxlIoCplPacket.create(req_id, tag)
         await self._upstream_fifo.target_to_host.put(packet)
@@ -169,7 +169,7 @@ class MmioManager(PacketProcessor):
         start_offset = offset
         end_offset = offset + size - 1
         if mem_req_packet.is_mem_write():
-            data = cast(CxlIoMemWrPacket, mem_req_packet).get_data()
+            data = cast(CxlIoMemWrPacket, mem_req_packet).data
             logger.debug(self._create_message(f"WR: 0x{address:x}[{size}]=0x{data:08x}"))
             register.write_bytes(start_offset, end_offset, data)
         elif mem_req_packet.is_mem_read():

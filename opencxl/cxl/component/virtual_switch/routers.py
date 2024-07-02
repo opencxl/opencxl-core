@@ -22,7 +22,7 @@ from opencxl.cxl.transport.transaction import (
     CxlIoCfgWrPacket,
     CxlIoCplPacket,
     CxlIoMemReqPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCplDataPacket,
     CXL_IO_CPL_STATUS,
     CxlMemBasePacket,
     CxlMemM2SReqPacket,
@@ -162,7 +162,7 @@ class MmioRouter(CxlRouter):
         Note that data_len should be in bytes.
         """
         if data is not None:
-            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_len=data_len)
+            packet = CxlIoCplDataPacket.create(req_id, tag, data, pload_len=data_len)
         else:
             packet = CxlIoCplPacket.create(req_id, tag)
         await self._upstream_connection.target_to_host.put(packet)

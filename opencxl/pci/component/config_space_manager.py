@@ -18,7 +18,7 @@ from opencxl.cxl.transport.transaction import (
     CxlIoCfgWrPacket,
     CxlIoCfgReqPacket,
     CxlIoCplPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCplDataPacket,
     CXL_IO_FMT_TYPE,
     CXL_IO_CPL_STATUS,
 )
@@ -107,7 +107,7 @@ class ConfigSpaceManager(RunnableComponent):
         )
         value = self._register.read_bytes(cfg_addr, cfg_addr + size - 1)
 
-        completion_packet = CxlIoCompletionWithDataPacket.create(req_id, tag, value)
+        completion_packet = CxlIoCplDataPacket.create(req_id, tag, value, size)
         await self._upstream_fifo.target_to_host.put(completion_packet)
 
     async def _process_cxl_io_cfg_wr(self, cfg_wr_packet: CxlIoCfgWrPacket):
