@@ -36,7 +36,9 @@ class SIDEBAND_TYPES(IntEnum):
 
 class SidebandHeader(Structure):
     _pack_ = 1
-    _fields_ = [("type", c_uint8)]
+    _fields_ = [
+        ("type", c_uint8),
+    ]
 
 
 class BaseSidebandPacket(BasePacket):
