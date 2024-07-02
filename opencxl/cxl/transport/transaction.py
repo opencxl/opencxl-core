@@ -379,16 +379,6 @@ class CxlIoMemWr64Packet(CxlIoMemReqPacket):
         return packet
 
 
-# p = CxlIoMemWrPacket.create(addr=1111, length=4, data=0x11223344)
-# print(f"4: {sizeof(p)} {list(bytes(p))}")
-# p = CxlIoMemWrPacket.create(addr=1111, length=8, data=0x1122334455667788)
-# print(f"8: {sizeof(p)} {list(bytes(p))}")
-
-# print(f"4: {ctypes.sizeof(p)} {list(bytes(p))}")
-# p = CxlIoMemWrPacket.create(addr=1111, length=8, data=222)
-# print(f"8: {ctypes.sizeof(p)} {list(bytes(p))}")
-
-
 class CxlIoCfgReqHeader(Structure):
     req_id: int
     tag: int
@@ -556,12 +546,6 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         return (self.value >> bit_offset) & bit_mask
 
 
-# req_id = 0x10
-# tag = 0xA5
-# p = CxlIoCfgWrPacket.create(0, 0x10, 4, 0xDEADBEEF, req_id=req_id, tag=tag)
-# print(f"4: {sizeof(p)} {bytes(p)}")
-
-
 class CXL_IO_CPL_STATUS(IntEnum):
     SC = 0b000
     UR = 0b001
@@ -711,22 +695,6 @@ class CxlIoCplData64Packet(CxlIoCplDataPacket):
         return packet
 
 
-# p = CxlIoCplDataPacket.create(req_id, tag, 0x11223344, pload_len=4)
-# print(f"4: {sizeof(p)} {list(bytes(p))}")
-# p = CxlIoCplDataPacket.create(req_id, tag, 0x1122334455667788, pload_len=4)
-# print(f"4: {sizeof(p)} {list(bytes(p))}")
-# p = CxlIoCplDataPacket.create(req_id, tag, 0x1122334455667788, pload_len=8)
-# print(f"8: {sizeof(p)} {list(bytes(p))}")
-# p = CxlIoCplDataPacket.create(req_id, tag, 0xDEADBEEF, pload_len=8)
-# print(f"8: {sizeof(p)} {list(bytes(p))}")
-# b = b"!\x01D\x00\x00\x01\x00\x10\xa5\x0f\x00\x00\x00\x10\xef\xbe\xad\xde\x00\x00\x00\x00"
-# p = CxlIoCplData64Packet.from_buffer_copy(b)
-# print(f"8: {sizeof(p)} {list(bytes(p))}")
-# b = b"!\x01D\x00\x00\x01\x00\x10\xa5\x0f\x00\x00\x00\x10\xef\xbe\xad\xde"
-# p = CxlIoCplData32Packet.from_buffer_copy(b)
-# print(f"8: {sizeof(p)} {list(bytes(p))}")
-
-
 def is_cxl_io_completion_status_sc(packet: BasePacket) -> bool:
     if not packet.is_cxl_io():
         return False
@@ -748,8 +716,6 @@ def is_cxl_io_completion_status_ur(packet: BasePacket) -> bool:
 #
 # Packet Definitions for PAYLOAD_TYPE.CXL_CACHE
 #
-
-
 class CXL_CACHE_MSG_CLASS(IntEnum):
     D2H_REQ = 1
     D2H_RSP = 2
@@ -1312,11 +1278,6 @@ class CxlMemM2SRwDPacket(CxlMemBasePacket):
         return self.m2srwd_header.addr << 6
 
 
-# p = CxlMemM2SRwDPacket.from_buffer_copy(bb)
-# print(f"m2srwd: {sizeof(p)} {list(bytes(p))}")
-# print(p.data)
-
-
 # CXL.mem M2S Back-Invalidate Response (BIRsp)
 class CXL_MEM_M2SBIRSP_OPCODE(IntEnum):
     BIRSP_I = 0b0000
@@ -1508,12 +1469,6 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         return packet
 
 
-# p = CxlMemMemWrPacket.create(64, 0xDEADBEEF)
-# print(f"{sizeof(p)}, {p.data}")
-# data = int.from_bytes(p.data, "little")
-# print(f"{data:x}")
-
-
 class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
     @staticmethod
     def create(data: int) -> "CxlMemMemDataPacket":
@@ -1525,10 +1480,6 @@ class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
         data = data.to_bytes(0x40, "little")
         memmove(packet.data, data, 0x40)
         return packet
-
-
-# p = CxlMemMemDataPacket.create(0xDEADBEEF)
-# print(sizeof(p))
 
 
 class CxlMemCmpPacket(CxlMemS2MNDRPacket):
