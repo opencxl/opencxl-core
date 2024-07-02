@@ -35,7 +35,7 @@ from opencxl.cxl.transport.transaction import (
     CxlIoCfgWrPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
-    CxlIoCompletionPacket,
+    CxlIoCplPacket,
     CxlIoCompletionWithDataPacket,
     CxlMemBasePacket,
     CxlMemM2SReqPacket,
@@ -134,9 +134,10 @@ class PacketReader(LabeledComponent):
         elif cxl_io_base_packet.is_mem_write():
             cxl_io_packet = CxlIoMemWrPacket
         elif cxl_io_base_packet.is_cpl():
-            cxl_io_packet = CxlIoCompletionPacket
+            cxl_io_packet = CxlIoCplPacket
         elif cxl_io_base_packet.is_cpld():
-            cxl_io_packet = CxlIoCompletionWithDataPacket
+            data_size = len(payload) - sizeof(CxlIoCplPacket)
+            cxl_io_packet = CxlIoCompletionWithDataPacket.factory(data_size)
 
         if cxl_io_packet is None:
             protocol = cxl_io_base_packet.cxl_io_header.fmt_type

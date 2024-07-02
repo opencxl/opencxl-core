@@ -50,7 +50,7 @@ def extract_cfg_read_value(packet):
     cxl_io_packet = cast(CxlIoBasePacket, packet)
     assert cxl_io_packet.is_cpld()
     cxl_io_cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-    return cxl_io_cpld_packet.get_data()
+    return cxl_io_cpld_packet.data
 
 
 def create_vcs_and_rp() -> Tuple[CxlVirtualSwitch, List[CxlPortDevice], CxlRootPortDevice]:

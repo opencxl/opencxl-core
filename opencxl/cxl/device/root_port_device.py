@@ -33,7 +33,7 @@ from opencxl.cxl.transport.transaction import (
     BasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
-    CxlIoCompletionPacket,
+    CxlIoCplPacket,
     CxlIoCompletionWithDataPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
@@ -207,7 +207,7 @@ class CxlRootPortDevice(RunnableComponent):
         tpl_type_str = "CFG WR0" if is_type0 else "CFG WR1"
 
         if not is_cxl_io_completion_status_sc(packet):
-            cpl_packet = cast(CxlIoCompletionPacket, packet)
+            cpl_packet = cast(CxlIoCplPacket, packet)
             logger.debug(
                 self._create_message(
                     f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : "
@@ -250,7 +250,7 @@ class CxlRootPortDevice(RunnableComponent):
         tpl_type_str = "CFG RD0" if is_type0 else "CFG RD1"
 
         if not is_cxl_io_completion_status_sc(packet):
-            cpl_packet = cast(CxlIoCompletionPacket, packet)
+            cpl_packet = cast(CxlIoCplPacket, packet)
             logger.debug(
                 self._create_message(
                     f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : "
@@ -260,7 +260,7 @@ class CxlRootPortDevice(RunnableComponent):
             return 0xFFFFFFFF & bit_mask
 
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        data = (cpld_packet.get_data() >> bit_offset) & bit_mask
+        data = (cpld_packet.data >> bit_offset) & bit_mask
 
         logger.debug(
             self._create_message(
@@ -291,7 +291,7 @@ class CxlRootPortDevice(RunnableComponent):
         packet = await self._downstream_connection.mmio_fifo.target_to_host.get()
         assert is_cxl_io_completion_status_sc(packet)
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        return cpld_packet.get_data()
+        return cpld_packet.data
 
     async def cxl_mem_read(self, address: int) -> int:
         logger.info(self._create_message(f"CXL.mem Read: HPA addr:0x{address:08x}"))
