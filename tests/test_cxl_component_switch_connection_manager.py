@@ -28,12 +28,11 @@ from opencxl.cxl.transport.transaction import (
     CxlIoCfgWrPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCplDataPacket,
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
     CxlMemMemDataPacket,
     CxlMemCmpPacket,
-    CXL_IO_CPL_STATUS,
 )
 
 
@@ -459,7 +458,7 @@ async def test_switch_connection_manager_handle_cfg_completion():
         tag = 0xA6
         req2 = CxlIoCfgRdPacket.create(0, 0x10, 4, req_id=req_id, tag=tag)
         await client_connection.cfg_fifo.host_to_target.put(req2)
-        cpl2 = CxlIoCompletionWithDataPacket.create(req_id, tag, CXL_IO_CPL_STATUS.SC, 0xDEADBEEF)
+        cpl2 = CxlIoCplDataPacket.create(req_id, tag, data=0xDEADBEEF, pload_len=4)
         await server_connection.cfg_fifo.target_to_host.put(cpl2)
 
         logger.info("[PyTest] Checking config space completion packets received from client")
@@ -524,7 +523,7 @@ async def test_switch_connection_manager_handle_mmio_completion():
         tag = 0x2
         req2 = CxlIoMemRdPacket.create(0x10, 4, req_id=req_id, tag=tag)
         await client_connection.mmio_fifo.host_to_target.put(req2)
-        cpl2 = CxlIoCompletionWithDataPacket.create(req_id, tag, data=0)
+        cpl2 = CxlIoCplDataPacket.create(req_id, tag, data=0, pload_len=4)
         await server_connection.mmio_fifo.target_to_host.put(cpl2)
 
         logger.info("[PyTest] Checking MMIO completion packets received from client")

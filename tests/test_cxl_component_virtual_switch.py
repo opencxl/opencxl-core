@@ -27,7 +27,7 @@ from opencxl.util.unaligned_bit_structure import UnalignedBitStructure
 from opencxl.cxl.transport.transaction import (
     BasePacket,
     CxlIoBasePacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCplDataPacket,
     is_cxl_io_completion_status_ur,
 )
 from opencxl.util.pci import (
@@ -49,7 +49,7 @@ def extract_cfg_read_value(packet):
     assert base_packet.is_cxl_io()
     cxl_io_packet = cast(CxlIoBasePacket, packet)
     assert cxl_io_packet.is_cpld()
-    cxl_io_cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+    cxl_io_cpld_packet = cast(CxlIoCplDataPacket, packet)
     return cxl_io_cpld_packet.data
 
 

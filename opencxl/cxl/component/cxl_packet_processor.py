@@ -12,6 +12,7 @@ from typing import cast, Optional, Dict
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
+from opencxl.util.string import get_pretty_string
 from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.packet_reader import PacketReader
@@ -185,7 +186,7 @@ class CxlPacketProcessor(RunnableComponent):
                         await self._incoming.mmio.put(cxl_io_packet)
                     else:
                         logger.warning(self._create_message("Unexpected CXL.io packet"))
-                        logger.debug(self._create_message(packet.get_pretty_string()))
+                        logger.debug(self._create_message(get_pretty_string(packet)))
                         raise Exception("Received unexpected CXL.io packet")
                 elif packet.is_cxl_mem():
                     if self._incoming.cxl_mem is None:

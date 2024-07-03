@@ -33,8 +33,8 @@ from opencxl.cxl.transport.transaction import (
     BasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
-    CxlIoCompletionPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCplPacket,
+    CxlIoCplDataPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     CxlMemMemWrPacket,
@@ -207,7 +207,7 @@ class CxlRootPortDevice(RunnableComponent):
         tpl_type_str = "CFG WR0" if is_type0 else "CFG WR1"
 
         if not is_cxl_io_completion_status_sc(packet):
-            cpl_packet = cast(CxlIoCompletionPacket, packet)
+            cpl_packet = cast(CxlIoCplPacket, packet)
             logger.debug(
                 self._create_message(
                     f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : "
@@ -250,7 +250,7 @@ class CxlRootPortDevice(RunnableComponent):
         tpl_type_str = "CFG RD0" if is_type0 else "CFG RD1"
 
         if not is_cxl_io_completion_status_sc(packet):
-            cpl_packet = cast(CxlIoCompletionPacket, packet)
+            cpl_packet = cast(CxlIoCplPacket, packet)
             logger.debug(
                 self._create_message(
                     f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : "
@@ -259,7 +259,7 @@ class CxlRootPortDevice(RunnableComponent):
             )
             return 0xFFFFFFFF & bit_mask
 
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCplDataPacket, packet)
         data = (cpld_packet.data >> bit_offset) & bit_mask
 
         logger.debug(
@@ -280,7 +280,7 @@ class CxlRootPortDevice(RunnableComponent):
 
     async def read_mmio(
         self, address: int, size: int = 4, verbose: bool = True
-    ) -> CxlIoCompletionWithDataPacket:
+    ) -> CxlIoCplDataPacket:
         message = self._create_message(f"MMIO: Reading data from 0x{address:08x}")
         if verbose:
             logger.info(message)
@@ -290,7 +290,7 @@ class CxlRootPortDevice(RunnableComponent):
         await self._downstream_connection.mmio_fifo.host_to_target.put(packet)
         packet = await self._downstream_connection.mmio_fifo.target_to_host.get()
         assert is_cxl_io_completion_status_sc(packet)
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCplDataPacket, packet)
         return cpld_packet.data
 
     async def cxl_mem_read(self, address: int) -> int:
@@ -302,7 +302,7 @@ class CxlRootPortDevice(RunnableComponent):
                 packet = await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
             assert is_cxl_mem_data(packet)
             mem_data_packet = cast(CxlMemMemDataPacket, packet)
-            return mem_data_packet.data
+            return int.from_bytes(mem_data_packet.data, "little")
         except asyncio.exceptions.TimeoutError:
             logger.error(self._create_message("CXL.mem Read: Timed-out"))
             return None

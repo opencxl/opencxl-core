@@ -20,8 +20,8 @@ from opencxl.util.pci import (
 from opencxl.cxl.transport.transaction import (
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
-    CxlIoCompletionPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCplPacket,
+    CxlIoCplDataPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     is_cxl_io_completion_status_sc,
@@ -82,7 +82,7 @@ class IoBridge(RunnableComponent):
         tpl_type_str = "CFG WR0" if is_type0 else "CFG WR1"
 
         if not is_cxl_io_completion_status_sc(packet):
-            cpl_packet = cast(CxlIoCompletionPacket, packet)
+            cpl_packet = cast(CxlIoCplPacket, packet)
             logger.debug(
                 self._create_message(
                     f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : "
@@ -131,7 +131,7 @@ class IoBridge(RunnableComponent):
         tpl_type_str = "CFG RD0" if is_type0 else "CFG RD1"
 
         if not is_cxl_io_completion_status_sc(packet):
-            cpl_packet = cast(CxlIoCompletionPacket, packet)
+            cpl_packet = cast(CxlIoCplPacket, packet)
             logger.debug(
                 self._create_message(
                     f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : "
@@ -140,7 +140,7 @@ class IoBridge(RunnableComponent):
             )
             return 0xFFFFFFFF & bit_mask
 
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCplDataPacket, packet)
         data = (cpld_packet.data >> bit_offset) & bit_mask
 
         logger.debug(
@@ -156,7 +156,7 @@ class IoBridge(RunnableComponent):
         packet = CxlIoMemWrPacket.create(address, size, value)
         await self._cxl_io_mmio_fifos.host_to_target.put(packet)
 
-    async def read_mmio(self, address: int, size: int) -> CxlIoCompletionWithDataPacket:
+    async def read_mmio(self, address: int, size: int) -> CxlIoCplDataPacket:
         message = self._create_message(f"MMIO: Reading data from 0x{address:08x}")
         logger.debug(message)
         packet = CxlIoMemRdPacket.create(address, size)
@@ -164,7 +164,7 @@ class IoBridge(RunnableComponent):
 
         packet = await self._get_mmio_response(packet.mreq_header.tag)
         assert is_cxl_io_completion_status_sc(packet)
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCplDataPacket, packet)
         return cpld_packet.data
 
     # pylint: enable=duplicate-code

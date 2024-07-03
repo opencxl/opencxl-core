@@ -20,9 +20,9 @@ from opencxl.cxl.transport.transaction import (
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
-    CxlIoCompletionPacket,
+    CxlIoCplPacket,
     CxlIoMemReqPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCplDataPacket,
     CXL_IO_CPL_STATUS,
     CxlMemBasePacket,
     CxlMemM2SReqPacket,
@@ -162,9 +162,9 @@ class MmioRouter(CxlRouter):
         Note that data_len should be in bytes.
         """
         if data is not None:
-            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_len=data_len)
+            packet = CxlIoCplDataPacket.create(req_id, tag, data, pload_len=data_len)
         else:
-            packet = CxlIoCompletionPacket.create(req_id, tag)
+            packet = CxlIoCplPacket.create(req_id, tag)
         await self._upstream_connection.target_to_host.put(packet)
 
 
@@ -231,7 +231,7 @@ class ConfigSpaceRouter(CxlRouter):
             await self._upstream_connection.target_to_host.put(packet)
 
     async def _send_unsupported_request(self, req_id, tag):
-        packet = CxlIoCompletionPacket.create(req_id, tag, CXL_IO_CPL_STATUS.UR)
+        packet = CxlIoCplPacket.create(req_id, tag, CXL_IO_CPL_STATUS.UR)
         await self._upstream_connection.target_to_host.put(packet)
 
 

@@ -6,13 +6,7 @@
 """
 
 from enum import IntEnum
-
-from opencxl.util.unaligned_bit_structure import (
-    UnalignedBitStructure,
-    BitField,
-    ByteField,
-    StructureField,
-)
+from ctypes import Structure, c_uint8, c_uint16
 
 
 #
@@ -26,30 +20,21 @@ class PAYLOAD_TYPE(IntEnum):
     SIDEBAND = 15
 
 
-class SystemHeaderPacket(UnalignedBitStructure):
-    payload_type: PAYLOAD_TYPE
+class SystemHeader(Structure):
+    payload_type: int
     payload_length: int
-    _fields = [
-        # Bit offset [00:03]
-        BitField("payload_type", 0x0, 0x3),
-        # Bit offset [4:15]
-        BitField("payload_length", 0x4, 0xF),
+    _pack_ = 1
+    _fields_ = [
+        ("payload_type", c_uint8, 4),
+        ("payload_length", c_uint16, 12),
     ]
 
 
-SYSTEM_HEADER_START = 0x00
-SYSTEM_HEADER_END = SystemHeaderPacket.get_size() - 1
-
-
-class BasePacket(UnalignedBitStructure):
-    system_header: SystemHeaderPacket
-    _fields = [
-        StructureField(
-            "system_header",
-            SYSTEM_HEADER_START,
-            SYSTEM_HEADER_END,
-            SystemHeaderPacket,
-        )
+class BasePacket(Structure):
+    system_header: SystemHeader
+    _pack_ = 1
+    _fields_ = [
+        ("system_header", SystemHeader),
     ]
 
     def is_cxl_io(self) -> bool:
@@ -110,29 +95,3 @@ class CXL_PROTOCOL_ID(IntEnum):
     UPSTREAM_PORT_CXL_MEM = 0b1001
     DOWNSTREAM_PORT_CXL_CACHE = 0b1010
     DOWNSTREAM_PORT_CXL_MEM = 0b1011
-
-
-class CxlHeaderPacket(UnalignedBitStructure):
-    cxl_protocol_id: CXL_PROTOCOL_ID
-    cpi_header: int
-
-    _fields = [
-        # Byte offset [01:00]
-        ByteField("cxl_protocol_id", 0, 1),
-        # Byte offset [17:02]
-        ByteField("cpi_header", 2, 17),
-        # Byte offset [19:18]
-        ByteField("reserved", 18, 19),
-    ]
-
-    @staticmethod
-    def get_cxl_port(cxl_protocol_id: CXL_PROTOCOL_ID) -> CXL_PORT:
-        protocol_id = int(cxl_protocol_id)
-        port_value = (protocol_id >> 1) & 0x1
-        return CXL_PORT(port_value)
-
-    @staticmethod
-    def get_cxl_protocol(cxl_protocol_id: CXL_PROTOCOL_ID) -> CXL_PROTOCOL:
-        protocol_id = int(cxl_protocol_id)
-        port_value = protocol_id & 0x1
-        return CXL_PROTOCOL(port_value)

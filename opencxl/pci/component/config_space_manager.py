@@ -17,8 +17,8 @@ from opencxl.cxl.transport.transaction import (
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
     CxlIoCfgReqPacket,
-    CxlIoCompletionPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCplPacket,
+    CxlIoCplDataPacket,
     CXL_IO_FMT_TYPE,
     CXL_IO_CPL_STATUS,
 )
@@ -61,7 +61,7 @@ class ConfigSpaceManager(RunnableComponent):
         await self._downstream_fifo.host_to_target.put(packet)
 
     async def _send_unsupported_request(self, req_id, tag):
-        packet = CxlIoCompletionPacket.create(req_id, tag, status=CXL_IO_CPL_STATUS.UR)
+        packet = CxlIoCplPacket.create(req_id, tag, status=CXL_IO_CPL_STATUS.UR)
         await self._upstream_fifo.target_to_host.put(packet)
 
     def _is_bridge(self) -> bool:
@@ -107,7 +107,7 @@ class ConfigSpaceManager(RunnableComponent):
         )
         value = self._register.read_bytes(cfg_addr, cfg_addr + size - 1)
 
-        completion_packet = CxlIoCompletionWithDataPacket.create(req_id, tag, value)
+        completion_packet = CxlIoCplDataPacket.create(req_id, tag, value, size)
         await self._upstream_fifo.target_to_host.put(completion_packet)
 
     async def _process_cxl_io_cfg_wr(self, cfg_wr_packet: CxlIoCfgWrPacket):
@@ -138,7 +138,7 @@ class ConfigSpaceManager(RunnableComponent):
         )
         self._register.write_bytes(cfg_addr, cfg_addr + size - 1, value)
 
-        completion_packet = CxlIoCompletionPacket.create(req_id, tag)
+        completion_packet = CxlIoCplPacket.create(req_id, tag)
         await self._upstream_fifo.target_to_host.put(completion_packet)
 
     async def _process_host_to_target(self):

@@ -5,17 +5,11 @@
  See LICENSE for details.
 """
 
+from ctypes import sizeof, Structure, c_uint8, c_uint16, c_uint32, c_uint64, memmove
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import cast, Optional
+from typing import Optional
 
-from opencxl.util.unaligned_bit_structure import (
-    UnalignedBitStructure,
-    BitField,
-    ByteField,
-    DynamicByteField,
-    StructureField,
-)
 from opencxl.util.pci import (
     extract_function_from_bdf,
     extract_device_from_bdf,
@@ -28,14 +22,9 @@ from opencxl.util.number import (
     extract_upper,
     extract_lower,
 )
-from opencxl.cxl.transport.common import (
-    BasePacket,
-    SYSTEM_HEADER_END,
-    PAYLOAD_TYPE,
-)
+from opencxl.cxl.transport.common import PAYLOAD_TYPE, BasePacket
 
 
-#
 # Packet Definitions for PAYLOAD_TYPE.SIDEBAND
 #
 class SIDEBAND_TYPES(IntEnum):
@@ -45,32 +34,25 @@ class SIDEBAND_TYPES(IntEnum):
     CONNECTION_DISCONNECTED = 3
 
 
-class SidebandHeaderPacket(UnalignedBitStructure):
-    type: SIDEBAND_TYPES
-    _fields = [ByteField("type", 0, 0)]
-
-
-SIDEBAND_HEADER_START = SYSTEM_HEADER_END + 1
-SIDEBAND_HEADER_END = SIDEBAND_HEADER_START + SidebandHeaderPacket.get_size() - 1
-SIDEBAND_FIELD_START = SIDEBAND_HEADER_END + 1
+class SidebandHeader(Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("type", c_uint8),
+    ]
 
 
 class BaseSidebandPacket(BasePacket):
-    sideband_header: SidebandHeaderPacket
-    _fields = BasePacket._fields + [
-        StructureField(
-            "sideband_header",
-            SIDEBAND_HEADER_START,
-            SIDEBAND_HEADER_END,
-            SidebandHeaderPacket,
-        ),
+    sideband_header: SidebandHeader
+    _pack_ = 1
+    _fields_ = [
+        ("sideband_header", SidebandHeader),
     ]
 
     @staticmethod
     def create(type: SIDEBAND_TYPES) -> "BaseSidebandPacket":
         packet = BaseSidebandPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.SIDEBAND
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.sideband_header.type = type
         return packet
 
@@ -88,24 +70,19 @@ class BaseSidebandPacket(BasePacket):
 
 
 class SidebandConnectionRequestPacket(BasePacket):
-    sideband_header: SidebandHeaderPacket
-    port: int
-
-    _fields = BasePacket._fields + [
-        StructureField(
-            "sideband_header",
-            SIDEBAND_HEADER_START,
-            SIDEBAND_HEADER_END,
-            SidebandHeaderPacket,
-        ),
-        ByteField("port", SIDEBAND_FIELD_START, SIDEBAND_FIELD_START + 0x00),
+    sideband_header: SidebandHeader
+    port: c_uint8
+    _pack_ = 1
+    _fields_ = [
+        ("sideband_header", SidebandHeader),
+        ("port", c_uint8),
     ]
 
     @staticmethod
     def create(port_index: int) -> "SidebandConnectionRequestPacket":
         packet = SidebandConnectionRequestPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.SIDEBAND
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.sideband_header.type = SIDEBAND_TYPES.CONNECTION_REQUEST
         packet.port = port_index
         return packet
@@ -155,7 +132,7 @@ class CXL_IO_FMT_TYPE(IntEnum):
     CAS_64B = 0b01101110
 
 
-class CxlIoHeader(UnalignedBitStructure):
+class CxlIoHeader(Structure):
     fmt_type: CXL_IO_FMT_TYPE
     t9: int
     tc: int
@@ -169,38 +146,28 @@ class CxlIoHeader(UnalignedBitStructure):
     at: int
     length_upper: int
     length_lower: int
-    _fields = [
-        BitField("fmt_type", 0, 7),
-        BitField("th", 8, 8),
-        BitField("rsvd", 9, 9),
-        BitField("attr_b2", 10, 10),
-        BitField("t8", 11, 11),
-        BitField("tc", 12, 14),
-        BitField("t9", 15, 15),
-        BitField("length_upper", 16, 17),
-        BitField("at", 18, 19),
-        BitField("attr", 20, 21),
-        BitField("ep", 22, 22),
-        BitField("td", 23, 23),
-        BitField("length_lower", 24, 31),
+    _pack_ = 1
+    _fields_ = [
+        ("fmt_type", c_uint8, 8),
+        ("th", c_uint8, 1),
+        ("rsvd", c_uint8, 1),
+        ("attr_b2", c_uint8, 1),
+        ("t8", c_uint8, 1),
+        ("tc", c_uint8, 3),
+        ("t9", c_uint8, 1),
+        ("length_upper", c_uint8, 2),
+        ("at", c_uint8, 2),
+        ("attr", c_uint8, 2),
+        ("ep", c_uint8, 1),
+        ("td", c_uint8, 1),
+        ("length_lower", c_uint8, 8),
     ]
 
 
-CXL_IO_BASE_HEADER_START = SYSTEM_HEADER_END + 1
-CXL_IO_BASE_HEADER_END = CXL_IO_BASE_HEADER_START + CxlIoHeader.get_size() - 1
-CXL_IO_BASE_FIELD_START = CXL_IO_BASE_HEADER_END + 1
-
-
 class CxlIoBasePacket(BasePacket):
-    tag: int = 0
     cxl_io_header: CxlIoHeader
-    _fields = BasePacket._fields + [
-        StructureField(
-            "cxl_io_header",
-            CXL_IO_BASE_HEADER_START,
-            CXL_IO_BASE_HEADER_END,
-            CxlIoHeader,
-        ),
+    _fields_ = [
+        ("cxl_io_header", CxlIoHeader),
     ]
 
     def is_cfg_type0(self) -> bool:
@@ -270,7 +237,7 @@ class CxlIoBasePacket(BasePacket):
         raise Exception("get_transaction_id must be implemented by a child class")
 
 
-class CxlIoMReqHeader(UnalignedBitStructure):
+class CxlIoMemReqHeader(Structure):
     req_id: int
     tag: int
     first_dw_be: int
@@ -278,37 +245,26 @@ class CxlIoMReqHeader(UnalignedBitStructure):
     addr_upper: int
     addr_lower: int
     ph: int
-    _fields = [
-        BitField("req_id", 0, 15),
-        BitField("tag", 16, 23),
-        BitField("first_dw_be", 24, 27),
-        BitField("last_dw_be", 28, 31),
-        BitField("addr_upper", 32, 87),
-        BitField("rsvd", 88, 89),
-        BitField("addr_lower", 90, 95),
+    _pack_ = 1
+    _fields_ = [
+        ("req_id", c_uint16, 16),
+        ("tag", c_uint8, 8),
+        ("first_dw_be", c_uint8, 4),
+        ("last_dw_be", c_uint8, 4),
+        ("addr_upper", c_uint64, 56),
+        ("rsvd", c_uint8, 2),
+        ("addr_lower", c_uint8, 6),
     ]
-
-    def get_transaction_id(self) -> int:
-        return CxlIoBasePacket.build_transaction_id(self.req_id, self.tag)
-
-
-CXL_IO_MREQ_HEADER_START = CXL_IO_BASE_FIELD_START
-CXL_IO_MREQ_HEADER_END = CXL_IO_MREQ_HEADER_START + CxlIoMReqHeader.get_size() - 1
-CXL_IO_MREQ_FIELD_START = CXL_IO_MREQ_HEADER_END + 1
 
 
 class CxlIoMemReqPacket(CxlIoBasePacket):
-    mreq_header: CxlIoMReqHeader
-    _fields = CxlIoBasePacket._fields + [
-        StructureField(
-            "mreq_header",
-            CXL_IO_MREQ_HEADER_START,
-            CXL_IO_MREQ_HEADER_END,
-            CxlIoMReqHeader,
-        ),
+    mreq_header: CxlIoMemReqHeader
+    _pack_ = 1
+    _fields_ = [
+        ("mreq_header", CxlIoMemReqHeader),
     ]
 
-    def fill(self, addr: int, length_dword: int, req_id: int, tag: int) -> "CxlIoMemRdPacket":
+    def fill(self, addr: int, length_dword: int, req_id: int, tag: int):
         self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
         self.cxl_io_header.length_upper = length_dword & 0x300
         self.cxl_io_header.length_lower = length_dword & 0xFF
@@ -318,9 +274,6 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         addr_upper_bytes = (addr >> 8).to_bytes(7, byteorder="big")
         self.mreq_header.addr_upper = int.from_bytes(addr_upper_bytes, byteorder="little")
         self.mreq_header.addr_lower = (addr & 0xFF) >> 2
-
-    def get_transaction_id(self) -> int:
-        return self.mreq_header.get_transaction_id()
 
     def get_address(self) -> int:
         addr = 0
@@ -333,6 +286,9 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         size = (self.cxl_io_header.length_upper << 8) | (self.cxl_io_header.length_lower & 0xFF)
         return size * 4
 
+    def get_transaction_id(self) -> int:
+        return CxlIoBasePacket.build_transaction_id(self.mreq_header.req_id, self.mreq_header.tag)
+
 
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
     @classmethod
@@ -344,27 +300,17 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
         else:
             req_id = 0
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
+            tag = get_randbits(8)
 
-        """
-        `length` field from the TLP header is measured in DWORDs.
-        """
         length_dword = (length + 3) // 4
         packet = CxlIoMemRdPacket()
         packet.fill(addr, length_dword, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
-        packet.system_header.payload_length = CxlIoMemRdPacket.get_size()
+        packet.system_header.payload_length = sizeof(packet)
         return packet
 
 
 class CxlIoMemWrPacket(CxlIoMemReqPacket):
-    data: int
-    # TODO: Support dynamic data size. Fixed to 8 for now.
-    _fields = CxlIoMemReqPacket._fields + [
-        DynamicByteField("data", CXL_IO_MREQ_FIELD_START, 0x0),
-    ]
-
     @classmethod
     def create(
         cls,
@@ -378,23 +324,64 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             req_id = htotlp16(req_id)
         else:
             req_id = 0
+
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
-        """
-        `length` field from the TLP header is measured in DWORDs.
-        """
-        length_dword = (length + 3) // 4
-        packet = CxlIoMemWrPacket()
-        packet.fill(addr, length_dword, req_id, tag)
-        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
-        packet.set_dynamic_field_length(length)
-        packet.data = data
-        packet.system_header.payload_length = len(packet)
+            tag = get_randbits(8)
+
+        if length == 4:
+            packet = CxlIoMemWr32Packet.generate(addr, data, req_id, tag)
+        else:
+            packet = CxlIoMemWr64Packet.generate(addr, data, req_id, tag)
         return packet
 
 
-class CxlIoCfgReqHeader(UnalignedBitStructure):
+class CxlIoMemWr32Packet(CxlIoMemWrPacket):
+    data: c_uint32
+    _pack_ = 1
+    _fields_ = [
+        ("data", c_uint32),
+    ]
+
+    @staticmethod
+    def generate(
+        addr: int,
+        data: int,
+        req_id: Optional[int] = None,
+        tag: Optional[int] = None,
+    ) -> "CxlIoMemWr32Packet":
+        length_dword = 1  # (4 + 3) // 4
+        packet = CxlIoMemWr32Packet()
+        packet.fill(addr, length_dword, req_id, tag)
+        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_32B
+        packet.data = data
+        packet.system_header.payload_length = sizeof(packet)
+        return packet
+
+
+class CxlIoMemWr64Packet(CxlIoMemReqPacket):
+    data: c_uint64
+    _pack_ = 1
+    _fields_ = [
+        ("data", c_uint64),
+    ]
+
+    @staticmethod
+    def generate(
+        addr: int,
+        data: int,
+        req_id: Optional[int] = None,
+        tag: Optional[int] = None,
+    ) -> "CxlIoMemWr64Packet":
+        length_dword = 2  # (8 + 3) // 4
+        packet = CxlIoMemWr64Packet()
+        packet.fill(addr, length_dword, req_id, tag)
+        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
+        packet.data = data
+        packet.system_header.payload_length = sizeof(packet)
+        return packet
+
+
+class CxlIoCfgReqHeader(Structure):
     req_id: int
     tag: int
     first_dw_be: int
@@ -404,36 +391,28 @@ class CxlIoCfgReqHeader(UnalignedBitStructure):
     rsvd: int
     r: int
     reg_num: int
-    _fields = [
-        BitField("req_id", 0, 15),
-        BitField("tag", 16, 23),
-        BitField("first_dw_be", 24, 27),
-        BitField("last_dw_be", 28, 31),
-        BitField("dest_id", 32, 47),
-        BitField("ext_reg_num", 48, 51),
-        BitField("rsvd", 52, 55),
-        BitField("r", 56, 57),
-        BitField("reg_num", 58, 63),
+    _pack_ = 1
+    _fields_ = [
+        ("req_id", c_uint16, 16),
+        ("tag", c_uint8, 8),
+        ("first_dw_be", c_uint8, 4),
+        ("last_dw_be", c_uint8, 4),
+        ("dest_id", c_uint16, 16),
+        ("ext_reg_num", c_uint8, 4),
+        ("rsvd", c_uint8, 4),
+        ("r", c_uint8, 2),
+        ("reg_num", c_uint8, 6),
     ]
 
     def get_transaction_id(self) -> int:
         return CxlIoBasePacket.build_transaction_id(self.req_id, self.tag)
 
 
-CXL_IO_CFG_REQ_HEADER_START = CXL_IO_BASE_FIELD_START
-CXL_IO_CFG_REQ_HEADER_END = CXL_IO_CFG_REQ_HEADER_START + CxlIoCfgReqHeader.get_size() - 1
-CXL_IO_CFG_REQ_FIELD_START = CXL_IO_CFG_REQ_HEADER_END + 1
-
-
 class CxlIoCfgReqPacket(CxlIoBasePacket):
     cfg_req_header: CxlIoCfgReqHeader
-    _fields = CxlIoBasePacket._fields + [
-        StructureField(
-            "cfg_req_header",
-            CXL_IO_CFG_REQ_HEADER_START,
-            CXL_IO_CFG_REQ_HEADER_END,
-            CxlIoCfgReqHeader,
-        ),
+    _pack_ = 1
+    _fields_ = [
+        ("cfg_req_header", CxlIoCfgReqHeader),
     ]
 
     def fill(self, id: int, cfg_addr: int, size: int, req_id: int, tag: int) -> "CxlIoCfgReqPacket":
@@ -501,8 +480,6 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
 
 
 class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
-    _fields = CxlIoCfgReqPacket._fields
-
     @classmethod
     def create(
         cls,
@@ -518,23 +495,22 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         else:
             req_id = 0
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
+            tag = get_randbits(8)
 
         packet = CxlIoCfgRdPacket()
         packet.fill(id, cfg_addr, size, req_id, tag)
         packet.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
         )
-        packet.system_header.payload_length = CxlIoCfgRdPacket.get_size()
+        packet.system_header.payload_length = sizeof(CxlIoCfgRdPacket)
         return packet
 
 
 class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
+    cfg_req_header: CxlIoCfgReqHeader
     value: int
-    _fields = CxlIoCfgReqPacket._fields + [
-        ByteField("value", CXL_IO_CFG_REQ_FIELD_START, CXL_IO_CFG_REQ_FIELD_START + 0x03),
-    ]
+    _pack_ = 1
+    _fields_ = [("value", c_uint32)]
 
     @classmethod
     def create(
@@ -552,8 +528,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         else:
             req_id = 0
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
+            tag = get_randbits(8)
 
         offset = cfg_addr % 4
         packet = CxlIoCfgWrPacket()
@@ -561,9 +536,8 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         packet.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
         )
-        packet = cast(CxlIoCfgWrPacket, packet)
         packet.value = value << (8 * offset)
-        packet.system_header.payload_length = CxlIoCfgWrPacket.get_size()
+        packet.system_header.payload_length = sizeof(CxlIoCfgWrPacket)
         return packet
 
     def get_value(self) -> int:
@@ -581,7 +555,7 @@ class CXL_IO_CPL_STATUS(IntEnum):
     CA = 0b100
 
 
-class CxlIoCompletionHeader(UnalignedBitStructure):
+class CxlIoCplHeader(Structure):
     cpl_id: int
     byte_count_upper: int
     bcm: int
@@ -591,45 +565,39 @@ class CxlIoCompletionHeader(UnalignedBitStructure):
     tag: int
     rsvd: int
     lower_addr: int
-    _fields = [
-        BitField("cpl_id", 0, 15),
-        BitField("byte_count_upper", 16, 19),
-        BitField("bcm", 20, 20),
-        BitField("status", 21, 23),
-        BitField("byte_count_lower", 24, 31),
-        BitField("req_id", 32, 47),
-        BitField("tag", 48, 55),
-        BitField("lower_addr", 56, 62),
-        BitField("rsvd", 63, 63),
+    _pack_ = 1
+    _fields_ = [
+        ("cpl_id", c_uint16, 16),
+        ("byte_count_upper", c_uint8, 4),
+        ("bcm", c_uint8, 1),
+        ("status", c_uint8, 3),
+        ("byte_count_lower", c_uint8, 8),
+        ("req_id", c_uint16, 16),
+        ("tag", c_uint8, 8),
+        ("lower_addr", c_uint8, 7),
+        ("rsvd", c_uint8, 1),
     ]
 
     def get_transaction_id(self) -> int:
         return CxlIoBasePacket.build_transaction_id(self.req_id, self.tag)
 
 
-CXL_IO_CPL_HEADER_START = CXL_IO_BASE_FIELD_START
-CXL_IO_CPL_HEADER_END = CXL_IO_CPL_HEADER_START + CxlIoCompletionHeader.get_size() - 1
-CXL_IO_CPL_FIELD_START = CXL_IO_CPL_HEADER_END + 1
-
-
-class CxlIoCompletionPacket(CxlIoBasePacket):
-    cpl_header: CxlIoCompletionHeader
-    _fields = CxlIoBasePacket._fields + [
-        StructureField(
-            "cpl_header",
-            CXL_IO_CPL_HEADER_START,
-            CXL_IO_CPL_HEADER_END,
-            CxlIoCompletionHeader,
-        ),
+class CxlIoCplPacket(CxlIoBasePacket):
+    cpl_header: CxlIoCplHeader
+    _pack_ = 1
+    _fields_ = [
+        ("cpl_header", CxlIoCplHeader),
     ]
 
     @staticmethod
     def create(
-        req_id: int, tag: int, status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC
-    ) -> "CxlIoCompletionPacket":
-        packet = CxlIoCompletionPacket()
+        req_id: int,
+        tag: int,
+        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
+    ) -> "CxlIoCplPacket":
+        packet = CxlIoCplPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL
         packet.cxl_io_header.length_upper = 0b000
         packet.cxl_io_header.length_lower = 0b00000000
@@ -646,20 +614,11 @@ class CxlIoCompletionPacket(CxlIoBasePacket):
         return self.cpl_header.get_transaction_id()
 
 
-class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
-    cpl_header: CxlIoCompletionHeader
-    id: int
-    data: int
-
-    # TODO: Support dynamic data size. Fixed to 8 for now.
-    _fields = CxlIoBasePacket._fields + [
-        StructureField(
-            "cpl_header",
-            CXL_IO_CPL_HEADER_START,
-            CXL_IO_CPL_HEADER_END,
-            CxlIoCompletionHeader,
-        ),
-        DynamicByteField("data", CXL_IO_CPL_FIELD_START, 0x0),
+class CxlIoCplDataPacket(CxlIoBasePacket):
+    cpl_header: CxlIoCplHeader
+    _pack_ = 1
+    _fields_ = [
+        ("cpl_header", CxlIoCplHeader),
     ]
 
     @staticmethod
@@ -667,66 +626,98 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         req_id: int,
         tag: int,
         data: int,
+        pload_len: int,
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
-        pload_len=0x04,
-    ) -> "CxlIoCompletionWithDataPacket":
-        # for config reads, always 1 DWORD (4 bytes)
+    ):
+        if pload_len == 4:
+            packet = CxlIoCplData32Packet.generate(req_id, tag, data, status)
+        else:
+            packet = CxlIoCplData64Packet.generate(req_id, tag, data, status)
+        return packet
 
-        packet = CxlIoCompletionWithDataPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
-        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
+    def fill(self, req_id: int, tag: int, pload_len: int, status: CXL_IO_CPL_STATUS):
+        self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
+        self.system_header.payload_length = sizeof(CxlIoCplDataPacket) + pload_len
+        self.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
 
         # convert to DWORDs
-        packet.cxl_io_header.length_upper = extract_upper(pload_len // 4, 2, 10)
-        packet.cxl_io_header.length_lower = extract_lower(pload_len // 4, 8, 10)
+        self.cxl_io_header.length_upper = extract_upper(pload_len // 4, 2, 10)
+        self.cxl_io_header.length_lower = extract_lower(pload_len // 4, 8, 10)
 
         # TODO: actual ID to be added
-        packet.cpl_header.cpl_id = htotlp16(get_randbits(16))
-        packet.cpl_header.status = status
-        packet.cpl_header.req_id = htotlp16(req_id)
-        packet.cpl_header.tag = tag
+        self.cpl_header.cpl_id = htotlp16(get_randbits(16))
+        self.cpl_header.status = status
+        self.cpl_header.req_id = htotlp16(req_id)
+        self.cpl_header.tag = tag
 
-        packet.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
-        packet.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
-
-        packet.set_dynamic_field_length(pload_len)
-        packet.data = data
-
-        packet.system_header.payload_length = len(packet)
-
-        return packet
+        self.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
+        self.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
 
     def get_transaction_id(self) -> int:
         return self.cpl_header.get_transaction_id()
 
 
+class CxlIoCplData32Packet(CxlIoCplDataPacket):
+    data: c_uint32
+    _pack_ = 1
+    _fields_ = [
+        ("data", c_uint32),
+    ]
+
+    @staticmethod
+    def generate(
+        req_id: int,
+        tag: int,
+        data: int,
+        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
+    ) -> "CxlIoCplData32Packet":
+        packet = CxlIoCplData32Packet()
+        packet.fill(req_id, tag, 4, status)
+        packet.data = data
+        return packet
+
+
+class CxlIoCplData64Packet(CxlIoCplDataPacket):
+    data: c_uint64
+    _pack_ = 1
+    _fields_ = [
+        ("data", c_uint64),
+    ]
+
+    @staticmethod
+    def generate(
+        req_id: int,
+        tag: int,
+        data: int,
+        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
+    ) -> "CxlIoCplData64Packet":
+        packet = CxlIoCplData64Packet()
+        packet.fill(req_id, tag, 8, status)
+        packet.data = data
+        return packet
+
+
 def is_cxl_io_completion_status_sc(packet: BasePacket) -> bool:
     if not packet.is_cxl_io():
         return False
-    cxl_io_packet = cast(CxlIoBasePacket, packet)
-    if cxl_io_packet.is_cpld():
+    if packet.is_cpld():
         return True
-    if not cxl_io_packet.is_cpl():
+    if not packet.is_cpl():
         return False
-    cpl_packet = cast(CxlIoCompletionPacket, packet)
-    return cpl_packet.cpl_header.status == CXL_IO_CPL_STATUS.SC
+    return packet.cpl_header.status == CXL_IO_CPL_STATUS.SC
 
 
 def is_cxl_io_completion_status_ur(packet: BasePacket) -> bool:
     if not packet.is_cxl_io():
         return False
-    cxl_io_packet = cast(CxlIoBasePacket, packet)
-    if not cxl_io_packet.is_cpl():
+    if not packet.is_cpl():
         return False
-    cpl_packet = cast(CxlIoCompletionPacket, packet)
-    return cpl_packet.cpl_header.status == CXL_IO_CPL_STATUS.UR
+    return packet.cpl_header.status == CXL_IO_CPL_STATUS.UR
 
 
 #
 # Packet Definitions for PAYLOAD_TYPE.CXL_CACHE
 #
-
-
 class CXL_CACHE_MSG_CLASS(IntEnum):
     D2H_REQ = 1
     D2H_RSP = 2
@@ -736,26 +727,21 @@ class CXL_CACHE_MSG_CLASS(IntEnum):
     H2D_DATA = 6
 
 
-class CxlCacheHeaderPacket(UnalignedBitStructure):
+class CxlCacheHeader(Structure):
     port_index: int
     msg_class: CXL_CACHE_MSG_CLASS
-    _fields = [ByteField("port_index", 0, 0), ByteField("msg_class", 1, 1)]
-
-
-CXL_CACHE_HEADER_START = SYSTEM_HEADER_END + 1
-CXL_CACHE_HEADER_END = CXL_CACHE_HEADER_START + CxlCacheHeaderPacket.get_size() - 1
-CXL_CACHE_FIELD_START = CXL_CACHE_HEADER_END + 1
+    _pack_ = 1
+    _fields_ = [
+        ("port_index", c_uint8),
+        ("msg_class", c_uint8),
+    ]
 
 
 class CxlCacheBasePacket(BasePacket):
-    cxl_cache_header: CxlCacheHeaderPacket
-    _fields = BasePacket._fields + [
-        StructureField(
-            "cxl_cache_header",
-            CXL_CACHE_HEADER_START,
-            CXL_CACHE_HEADER_END,
-            CxlCacheHeaderPacket,
-        ),
+    cxl_cache_header: CxlCacheHeader
+    _pack_ = 1
+    _fields_ = [
+        ("cxl_cache_header", CxlCacheHeader),
     ]
 
     def is_d2hreq(self) -> bool:
@@ -803,7 +789,7 @@ class CXL_CACHE_NON_TEMPORAL_ENCODINGS(IntEnum):
 
 
 # Table 3-13
-class CxlCacheD2HReqHeader(UnalignedBitStructure):
+class CxlCacheD2HReqHeader(Structure):
     valid: int
     cache_opcode: CXL_CACHE_D2HREQ_OPCODE
     cq_id: int
@@ -811,14 +797,15 @@ class CxlCacheD2HReqHeader(UnalignedBitStructure):
     cache_id: int
     addr: int
     rsvd: int
-    _fields = [
-        BitField("valid", 0, 0),
-        BitField("cache_opcode", 1, 5),
-        BitField("cq_id", 6, 17),
-        BitField("nt", 18, 18),
-        BitField("cache_id", 19, 22),
-        BitField("addr", 23, 68),
-        BitField("rsvd", 69, 75),
+    _pack_ = 1
+    _fields_ = [
+        ("valid", c_uint8, 1),
+        ("cache_opcode", c_uint8, 5),
+        ("cq_id", c_uint16, 12),
+        ("nt", c_uint8, 1),
+        ("cache_id", c_uint8, 4),
+        ("addr", c_uint64, 46),
+        ("rsvd", c_uint8, 7),
     ]
 
 
@@ -834,34 +821,36 @@ class CXL_CACHE_D2HRSP_OPCODE(IntEnum):
 
 
 # Table 3-15
-class CxlCacheD2HRspHeader(UnalignedBitStructure):
+class CxlCacheD2HRspHeader(Structure):
     valid: int
     cache_opcode: CXL_CACHE_D2HRSP_OPCODE
     uqid: int
     rsvd: int
-    _fields = [
-        BitField("valid", 0, 0),
-        BitField("cache_opcode", 1, 5),
-        BitField("uqid", 6, 17),
-        BitField("rsvd", 18, 23),
+    _pack_ = 1
+    _fields_ = [
+        ("valid", c_uint8, 1),
+        ("cache_opcode", c_uint8, 5),
+        ("uqid", c_uint16, 12),
+        ("rsvd", c_uint8, 6),
     ]
 
 
 # Table 3-16
-class CxlCacheD2HDataHeader(UnalignedBitStructure):
+class CxlCacheD2HDataHeader(Structure):
     valid: int
     uqid: int
     bogus: int
     poison: int
     bep: int
     rsvd: int
-    _fields = [
-        BitField("valid", 0, 0),
-        BitField("uqid", 1, 12),
-        BitField("bogus", 13, 13),
-        BitField("poison", 14, 14),
-        BitField("bep", 15, 15),
-        BitField("rsvd", 16, 23),
+    _pack_ = 1
+    _fields_ = [
+        ("valid", c_uint8, 1),
+        ("uqid", c_uint16, 12),
+        ("bogus", c_uint8, 1),
+        ("poison", c_uint8, 1),
+        ("bep", c_uint8, 1),
+        ("rsvd", c_uint8, 8),
     ]
 
 
@@ -873,20 +862,21 @@ class CXL_CACHE_H2DREQ_OPCODE(IntEnum):
 
 
 # Table 3-17
-class CxlCacheH2DReqHeader(UnalignedBitStructure):
+class CxlCacheH2DReqHeader(Structure):
     valid: int
     cache_opcode: CXL_CACHE_H2DREQ_OPCODE
     addr: int
     uqid: int
     cache_id: int
     rsvd: int
-    _fields = [
-        BitField("valid", 0, 0),
-        BitField("cache_opcode", 1, 3),
-        BitField("addr", 4, 49),
-        BitField("uqid", 50, 61),
-        BitField("cache_id", 62, 65),
-        BitField("rsvd", 66, 71),
+    _pack_ = 1
+    _fields_ = [
+        ("valid", c_uint8, 1),
+        ("cache_opcode", c_uint8, 3),
+        ("addr", c_uint64, 46),
+        ("uqid", c_uint16, 12),
+        ("cache_id", c_uint8, 4),
+        ("rsvd", c_uint8, 6),
     ]
 
 
@@ -920,7 +910,7 @@ class CXL_CACHE_H2DRSP_CACHE_STATE(IntEnum):
 
 
 # Table 3-18
-class CxlCacheH2DRspHeader(UnalignedBitStructure):
+class CxlCacheH2DRspHeader(Structure):
     valid: int
     cache_opcode: CXL_CACHE_H2DRSP_OPCODE
     rsp_data: int  # Could be CXL_CACHE_H2DRSP_CACHE_STATE
@@ -929,104 +919,69 @@ class CxlCacheH2DRspHeader(UnalignedBitStructure):
     cache_id: int
     rsvd: int
     _fields = [
-        BitField("valid", 0, 0),
-        BitField("cache_opcode", 1, 4),
-        BitField("rsp_data", 5, 16),
-        BitField("rsp_pre", 17, 18),
-        BitField("cq_id", 19, 30),
-        BitField("cache_id", 31, 34),
-        BitField("rsvd", 35, 39),
+        ("valid", c_uint8, 1),
+        ("cache_opcode", c_uint8, 4),
+        ("rsp_data", c_uint16, 12),
+        ("rsp_pre", c_uint8, 2),
+        ("cq_id", c_uint16, 12),
+        ("cache_id", c_uint8, 4),
+        ("rsvd", c_uint8, 5),
     ]
 
 
 # Table 3-21
-class CxlCacheH2DDataHeader(UnalignedBitStructure):
+class CxlCacheH2DDataHeader(Structure):
     valid: int
     cq_id: int
     poison: int
     go_err: int
     cache_id: int
     rsvd: int
-    _fields = [
-        BitField("valid", 0, 0),
-        BitField("cq_id", 1, 12),
-        BitField("poison", 13, 13),
-        BitField("go_err", 14, 14),
-        BitField("cache_id", 15, 18),
-        BitField("rsvd", 19, 27),
+    _pack_ = 1
+    _fields_ = [
+        ("valid", c_uint8, 1),
+        ("cq_id", c_uint16, 12),
+        ("poison", c_uint8, 1),
+        ("go_err", c_uint8, 1),
+        ("cache_id", c_uint8, 4),
+        ("rsvd", c_uint16, 9),
     ]
-
-
-D2HREQ_HEADER_START = CXL_CACHE_HEADER_END + 1
-D2HREQ_HEADER_END = D2HREQ_HEADER_START + CxlCacheD2HReqHeader.get_size() - 1
-D2HREQ_FIELD_START = D2HREQ_HEADER_END + 1
 
 
 class CxlCacheD2HReqPacket(CxlCacheBasePacket):
     d2hreq_header: CxlCacheD2HReqHeader
-    _fields = CxlCacheBasePacket._fields + [
-        StructureField(
-            "d2hreq_header",
-            D2HREQ_HEADER_START,
-            D2HREQ_HEADER_END,
-            CxlCacheD2HReqHeader,
-        ),
+    _pack_ = 1
+    _fields_ = [
+        ("d2hreq_header", CxlCacheD2HReqHeader),
     ]
 
     def get_address(self) -> int:
         return self.d2hreq_header.addr << 6
 
 
-D2HRSP_HEADER_START = CXL_CACHE_HEADER_END + 1
-D2HRSP_HEADER_END = D2HRSP_HEADER_START + CxlCacheD2HRspHeader.get_size() - 1
-D2HRSP_FIELD_START = D2HRSP_HEADER_END + 1
-
-
 class CxlCacheD2HRspPacket(CxlCacheBasePacket):
     d2hrsp_header: CxlCacheD2HRspHeader
-    _fields = CxlCacheBasePacket._fields + [
-        StructureField(
-            "d2hrsp_header",
-            D2HRSP_HEADER_START,
-            D2HRSP_HEADER_END,
-            CxlCacheD2HRspHeader,
-        ),
+    _pack_ = 1
+    _fields_ = [
+        ("d2hrsp_header", CxlCacheD2HRspHeader),
     ]
-
-
-D2HDATA_HEADER_START = CXL_CACHE_HEADER_END + 1
-D2HDATA_HEADER_END = D2HDATA_HEADER_START + CxlCacheD2HDataHeader.get_size() - 1
-D2HDATA_FIELD_START = D2HDATA_HEADER_END + 1
 
 
 class CxlCacheD2HDataPacket(CxlCacheBasePacket):
     d2hdata_header: CxlCacheD2HDataHeader
     data: int
-    _fields = CxlCacheBasePacket._fields + [
-        StructureField(
-            "d2hdata_header",
-            D2HRSP_HEADER_START,
-            D2HRSP_HEADER_END,
-            CxlCacheD2HDataHeader,
-        ),
-        ByteField("data", D2HDATA_FIELD_START, D2HDATA_FIELD_START + 63),
+    _pack_ = 1
+    _fields_ = [
+        ("d2hdata_header", CxlCacheD2HDataHeader),
+        ("data", c_uint64),
     ]
-
-
-H2DREQ_HEADER_START = CXL_CACHE_HEADER_END + 1
-H2DREQ_HEADER_END = H2DREQ_HEADER_START + CxlCacheH2DReqHeader.get_size() - 1
-H2DREQ_FIELD_START = H2DREQ_HEADER_END + 1
 
 
 class CxlCacheH2DReqPacket(CxlCacheBasePacket):
     h2dreq_header: CxlCacheH2DReqHeader
-    _fields = CxlCacheBasePacket._fields + [
-        StructureField(
-            "h2dreq_header",
-            H2DREQ_HEADER_START,
-            H2DREQ_HEADER_END,
-            CxlCacheH2DReqHeader,
-        ),
+    _pack_ = 1
+    _fields_ = [
+        ("h2dreq_header", CxlCacheH2DReqHeader),
     ]
 
     def get_address(self) -> int:
@@ -1036,42 +991,23 @@ class CxlCacheH2DReqPacket(CxlCacheBasePacket):
         return self.h2dreq_header.cache_opcode
 
 
-H2DRSP_HEADER_START = CXL_CACHE_HEADER_END + 1
-H2DRSP_HEADER_END = H2DRSP_HEADER_START + CxlCacheH2DRspHeader.get_size() - 1
-H2DRSP_FIELD_START = H2DRSP_HEADER_END + 1
-
-
 class CxlCacheH2DRspPacket(CxlCacheBasePacket):
     h2drsp_header: CxlCacheH2DRspHeader
-    _fields = CxlCacheBasePacket._fields + [
-        StructureField(
-            "h2drsp_header",
-            H2DRSP_HEADER_START,
-            H2DRSP_HEADER_END,
-            CxlCacheH2DRspHeader,
-        ),
+    _pack_ = 1
+    _fields_ = [
+        ("h2drsp_header", CxlCacheH2DRspHeader),
     ]
 
     def get_opcode(self) -> CXL_CACHE_H2DRSP_OPCODE:
         return self.h2drsp_header.cache_opcode
 
 
-H2DDATA_HEADER_START = CXL_CACHE_HEADER_END + 1
-H2DDATA_HEADER_END = H2DDATA_HEADER_START + CxlCacheH2DDataHeader.get_size() - 1
-H2DDATA_FIELD_START = H2DDATA_HEADER_END + 1
-
-
 class CxlCacheH2DDataPacket(CxlCacheBasePacket):
     h2ddata_header: CxlCacheH2DDataHeader
     data: int
-    _fields = CxlCacheBasePacket._fields + [
-        StructureField(
-            "h2ddata_header",
-            H2DDATA_HEADER_START,
-            H2DDATA_HEADER_END,
-            CxlCacheH2DDataHeader,
-        ),
-        ByteField("data", H2DDATA_FIELD_START, H2DDATA_FIELD_START + 63),
+    _fields_ = [
+        ("h2ddata_header", CxlCacheH2DDataHeader),
+        ("data", c_uint64),
     ]
 
     def get_cqid(self) -> int:
@@ -1090,7 +1026,7 @@ class CxlCacheCacheD2HReqPacket(CxlCacheD2HReqPacket):
     ) -> "CxlCacheCacheD2HReqPacket":
         packet = CxlCacheCacheD2HReqPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_REQ
         packet.d2hreq_header.valid = 0b1
         packet.d2hreq_header.cache_opcode = opcode
@@ -1107,7 +1043,7 @@ class CxlCacheCacheD2HRspPacket(CxlCacheD2HRspPacket):
     def create(uqid: int, opcode: CXL_CACHE_D2HRSP_OPCODE) -> "CxlCacheCacheD2HRspPacket":
         packet = CxlCacheCacheD2HRspPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_RSP
         packet.d2hrsp_header.valid = 0b1
         packet.d2hrsp_header.uqid = uqid
@@ -1120,7 +1056,7 @@ class CxlCacheCacheD2HDataPacket(CxlCacheD2HDataPacket):
     def create(uqid: int, data: int) -> "CxlCacheCacheD2HDataPacket":
         packet = CxlCacheCacheD2HDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_DATA
         packet.d2hdata_header.valid = 0b1
         packet.d2hdata_header.uqid = uqid
@@ -1135,7 +1071,7 @@ class CxlCacheCacheH2DReqPacket(CxlCacheH2DReqPacket):
     def create(addr: int, opcode: CXL_CACHE_H2DREQ_OPCODE) -> "CxlCacheCacheH2DReqPacket":
         packet = CxlCacheCacheH2DReqPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_REQ
         packet.h2dreq_header.valid = 0b1
         packet.h2dreq_header.cache_opcode = opcode
@@ -1151,7 +1087,7 @@ class CxlCacheCacheH2DRspPacket(CxlCacheH2DRspPacket):
     def create(opcode: CXL_CACHE_H2DRSP_OPCODE) -> "CxlCacheCacheH2DRspPacket":
         packet = CxlCacheCacheH2DRspPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_RSP
         packet.h2drsp_header.valid = 0b1
         packet.h2drsp_header.cache_opcode = opcode
@@ -1163,7 +1099,7 @@ class CxlCacheCacheH2DDataPacket(CxlCacheH2DDataPacket):
     def create(data: int) -> "CxlCacheCacheH2DDataPacket":
         packet = CxlCacheCacheH2DDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
         packet.h2ddata_header.valid = 0b1
         packet.data = data
@@ -1173,10 +1109,6 @@ class CxlCacheCacheH2DDataPacket(CxlCacheH2DDataPacket):
 #
 # Packet Definitions for PAYLOAD_TYPE.CXL_MEM
 #
-
-# TODO: Support tag
-
-
 class CXL_MEM_MSG_CLASS(IntEnum):
     M2S_REQ = 1
     M2S_RWD = 2
@@ -1186,26 +1118,21 @@ class CXL_MEM_MSG_CLASS(IntEnum):
     S2M_DRS = 6
 
 
-class CxlMemHeaderPacket(UnalignedBitStructure):
+class CxlMemHeader(Structure):
     port_index: int
     msg_class: CXL_MEM_MSG_CLASS
-    _fields = [ByteField("port_index", 0, 0), ByteField("msg_class", 1, 1)]
-
-
-CXL_MEM_HEADER_START = SYSTEM_HEADER_END + 1
-CXL_MEM_HEADER_END = CXL_MEM_HEADER_START + CxlMemHeaderPacket.get_size() - 1
-CXL_MEM_FIELD_START = CXL_MEM_HEADER_END + 1
+    _pack_ = 1
+    _fields_ = [
+        ("port_index", c_uint8),
+        ("msg_class", c_uint8),
+    ]
 
 
 class CxlMemBasePacket(BasePacket):
-    cxl_mem_header: CxlMemHeaderPacket
-    _fields = BasePacket._fields + [
-        StructureField(
-            "cxl_mem_header",
-            CXL_MEM_HEADER_START,
-            CXL_MEM_HEADER_END,
-            CxlMemHeaderPacket,
-        ),
+    cxl_mem_header: CxlMemHeader
+    _pack_ = 1
+    _fields_ = [
+        ("cxl_mem_header", CxlMemHeader),
     ]
 
     def is_m2sreq(self) -> bool:
@@ -1258,7 +1185,7 @@ class CXL_MEM_M2SREQ_OPCODE(IntEnum):
     MEM_CLN_EVCT = 0b1010
 
 
-class CxlMemM2SReqHeader(UnalignedBitStructure):
+class CxlMemM2SReqHeader(Structure):
     valid: int
     mem_opcode: CXL_MEM_M2SREQ_OPCODE
     snp_type: CXL_MEM_M2S_SNP_TYPE
@@ -1270,36 +1197,28 @@ class CxlMemM2SReqHeader(UnalignedBitStructure):
     rsvd: int
     tc: int
     padding: int
-    _fields = [
-        BitField("valid", 0, 0),
-        BitField("mem_opcode", 1, 4),
-        BitField("snp_type", 5, 7),
-        BitField("meta_field", 8, 9),
-        BitField("meta_value", 10, 11),
-        BitField("tag", 12, 27),
-        BitField("addr", 28, 73),
-        BitField("ld_id", 74, 77),
-        BitField("rsvd", 78, 97),
-        BitField("tc", 98, 99),
+    _pack_ = 1
+    _fields_ = [
+        ("valid", c_uint8, 1),
+        ("mem_opcode", c_uint8, 4),
+        ("snp_type", c_uint8, 3),
+        ("meta_field", c_uint8, 2),
+        ("meta_value", c_uint8, 2),
+        ("tag", c_uint16, 16),
+        ("addr", c_uint64, 46),
+        ("ld_id", c_uint8, 4),
+        ("rsvd", c_uint32, 20),
+        ("tc", c_uint8, 2),
         # padding to align to the byte boundary. Not part of the CXL spec
-        BitField("padding", 100, 103),
+        ("padding", c_uint8, 4),
     ]
-
-
-M2SREQ_HEADER_START = CXL_MEM_HEADER_END + 1
-M2SREQ_HEADER_END = M2SREQ_HEADER_START + CxlMemM2SReqHeader.get_size() - 1
-M2SREQ_FIELD_START = M2SREQ_HEADER_END + 1
 
 
 class CxlMemM2SReqPacket(CxlMemBasePacket):
     m2sreq_header: CxlMemM2SReqHeader
-    _fields = CxlMemBasePacket._fields + [
-        StructureField(
-            "m2sreq_header",
-            M2SREQ_HEADER_START,
-            M2SREQ_HEADER_END,
-            CxlMemM2SReqHeader,
-        ),
+    _pack_ = 1
+    _fields_ = [
+        ("m2sreq_header", CxlMemM2SReqHeader),
     ]
 
     def is_mem_rd(self) -> bool:
@@ -1316,7 +1235,7 @@ class CXL_MEM_M2SRWD_OPCODE(IntEnum):
     BI_CONFLICT = 0b0100
 
 
-class CxlMemM2SRwDHeader(UnalignedBitStructure):
+class CxlMemM2SRwDHeader(Structure):
     valid: int
     mem_opcode: CXL_MEM_M2SRWD_OPCODE
     snp_type: CXL_MEM_M2S_SNP_TYPE
@@ -1329,38 +1248,29 @@ class CxlMemM2SRwDHeader(UnalignedBitStructure):
     ld_id: int
     rsvd: int
     tc: int
-    _fields = [
-        BitField("valid", 0, 0),
-        BitField("mem_opcode", 1, 4),
-        BitField("snp_type", 5, 7),
-        BitField("meta_field", 8, 9),
-        BitField("meta_value", 10, 11),
-        BitField("tag", 12, 27),
-        BitField("addr", 28, 73),
-        BitField("poison", 74, 74),
-        BitField("bep", 75, 75),
-        BitField("ld_id", 76, 79),
-        BitField("rsvd", 80, 101),
-        BitField("tc", 102, 103),
+    _pack_ = 1
+    _fields_ = [
+        ("valid", c_uint8, 1),
+        ("mem_opcode", c_uint8, 4),
+        ("snp_type", c_uint8, 3),
+        ("meta_field", c_uint8, 2),
+        ("meta_value", c_uint8, 2),
+        ("tag", c_uint16, 16),
+        ("addr", c_uint64, 46),
+        ("poison", c_uint8, 1),
+        ("bep", c_uint8, 1),
+        ("ld_id", c_uint8, 4),
+        ("rsvd", c_uint32, 22),
+        ("tc", c_uint8, 2),
     ]
-
-
-M2SRWD_HEADER_START = CXL_MEM_HEADER_END + 1
-M2SRWD_HEADER_END = M2SRWD_HEADER_START + CxlMemM2SRwDHeader.get_size() - 1
-M2SRWD_FIELD_START = M2SRWD_HEADER_END + 1
 
 
 class CxlMemM2SRwDPacket(CxlMemBasePacket):
     m2srwd_header: CxlMemM2SRwDHeader
-    data: int
-    _fields = CxlMemBasePacket._fields + [
-        StructureField(
-            "m2srwd_header",
-            M2SRWD_HEADER_START,
-            M2SRWD_HEADER_END,
-            CxlMemM2SRwDHeader,
-        ),
-        ByteField("data", M2SRWD_FIELD_START, M2SRWD_FIELD_START + 63),
+    _pack_ = 1
+    _fields_ = [
+        ("m2srwd_header", CxlMemM2SRwDHeader),
+        ("data", c_uint8 * 0x40),
     ]
 
     def is_mem_wr(self) -> bool:
@@ -1380,37 +1290,29 @@ class CXL_MEM_M2SBIRSP_OPCODE(IntEnum):
     BIRSP_EBLK = 0b0110
 
 
-class CxlMemM2SBIRspHeader(UnalignedBitStructure):
+class CxlMemM2SBIRspHeader(Structure):
     valid: int
     opcode: CXL_MEM_M2SBIRSP_OPCODE
     bi_id: int
     bi_tag: int
     low_addr: int
     rsvd: int
-    _fields = [
-        BitField("valid", 0, 0),
-        BitField("opcode", 1, 4),
-        BitField("bi_id", 5, 16),
-        BitField("bi_tag", 17, 28),
-        BitField("low_addr", 29, 30),
-        BitField("rsvd", 31, 39),
+    _pack_ = 1
+    _fields_ = [
+        ("valid", c_uint8, 1),
+        ("opcode", c_uint8, 4),
+        ("bi_id", c_uint16, 12),
+        ("bi_tag", c_uint16, 12),
+        ("low_addr", c_uint8, 2),
+        ("rsvd", c_uint16, 9),
     ]
-
-
-M2SBIRSP_HEADER_START = CXL_MEM_HEADER_END + 1
-M2SBIRSP_HEADER_END = M2SBIRSP_HEADER_START + CxlMemM2SBIRspHeader.get_size() - 1
-M2SBIRSP_FIELD_START = M2SBIRSP_HEADER_END + 1
 
 
 class CxlMemM2SBIRspPacket(CxlMemBasePacket):
     m2sbirsp_header: CxlMemM2SBIRspHeader
-    _fields = CxlMemBasePacket._fields + [
-        StructureField(
-            "m2sbirsp_header",
-            M2SBIRSP_HEADER_START,
-            M2SBIRSP_HEADER_END,
-            CxlMemM2SBIRspHeader,
-        ),
+    _pack_ = 1
+    _fields_ = [
+        ("m2sbirsp_header", CxlMemM2SBIRspHeader),
     ]
 
 
@@ -1432,37 +1334,29 @@ class CXL_MEM_S2MBISNP_OPCODE(IntEnum):
     BISNP_INV_BLK = 0b0110
 
 
-class CxlMemS2MBISnpHeader(UnalignedBitStructure):
+class CxlMemS2MBISnpHeader(Structure):
     valid: int
     opcode: CXL_MEM_S2MBISNP_OPCODE
     bi_id: int
     bi_tag: int
     low_addr: int
     rsvd: int
-    _fields = [
-        BitField("valid", 0, 0),
-        BitField("opcode", 1, 4),
-        BitField("bi_id", 5, 16),
-        BitField("bi_tag", 17, 28),
-        BitField("addr", 29, 74),
-        BitField("rsvd", 75, 83),
+    _pack_ = 1
+    _fields_ = [
+        ("valid", c_uint8, 1),
+        ("opcode", c_uint8, 4),
+        ("bi_id", c_uint16, 12),
+        ("bi_tag", c_uint16, 12),
+        ("addr", c_uint64, 46),
+        ("rsvd", c_uint16, 9),
     ]
-
-
-S2MBISNP_HEADER_START = CXL_MEM_HEADER_END + 1
-S2MBISNP_HEADER_END = S2MBISNP_HEADER_START + CxlMemS2MBISnpHeader.get_size() - 1
-S2MBISNP_FIELD_START = S2MBISNP_HEADER_END + 1
 
 
 class CxlMemS2MBISnpPacket(CxlMemBasePacket):
     s2mbisnp_header: CxlMemS2MBISnpHeader
-    _fields = CxlMemBasePacket._fields + [
-        StructureField(
-            "s2mbisnp_header",
-            S2MBISNP_HEADER_START,
-            S2MBISNP_HEADER_END,
-            CxlMemS2MBISnpHeader,
-        ),
+    _pack_ = 1
+    _fields_ = [
+        ("s2mbisnp_header", CxlMemS2MBISnpHeader),
     ]
 
 
@@ -1474,7 +1368,7 @@ class CXL_MEM_S2MNDR_OPCODE(IntEnum):
     BI_CONFLICT_ACK = 0b100
 
 
-class CxlMemS2MNDRHeader(UnalignedBitStructure):
+class CxlMemS2MNDRHeader(Structure):
     valid: int
     opcode: CXL_MEM_S2MNDR_OPCODE
     meta_field: CXL_MEM_META_FIELD
@@ -1483,32 +1377,24 @@ class CxlMemS2MNDRHeader(UnalignedBitStructure):
     ld_id: int
     dev_load: CXL_MEM_S2M_DEV_LOAD
     rsvd: int
-    _fields = [
-        BitField("valid", 0, 0),
-        BitField("opcode", 1, 3),
-        BitField("meta_field", 4, 5),
-        BitField("meta_value", 6, 7),
-        BitField("tag", 8, 23),
-        BitField("ld_id", 24, 27),
-        BitField("dev_load", 28, 29),
-        BitField("rsvd", 30, 39),
+    _pack_ = 1
+    _fields_ = [
+        ("valid", c_uint8, 1),
+        ("opcode", c_uint8, 3),
+        ("meta_field", c_uint8, 2),
+        ("meta_value", c_uint8, 2),
+        ("tag", c_uint16, 16),
+        ("ld_id", c_uint8, 4),
+        ("dev_load", c_uint8, 2),
+        ("rsvd", c_uint16, 10),
     ]
-
-
-S2MNDR_HEADER_START = CXL_MEM_HEADER_END + 1
-S2MNDR_HEADER_END = S2MNDR_HEADER_START + CxlMemS2MNDRHeader.get_size() - 1
-S2MNDR_FIELD_START = S2MNDR_HEADER_END + 1
 
 
 class CxlMemS2MNDRPacket(CxlMemBasePacket):
     s2mndr_header: CxlMemS2MNDRHeader
-    _fields = CxlMemBasePacket._fields + [
-        StructureField(
-            "s2mndr_header",
-            S2MNDR_HEADER_START,
-            S2MNDR_HEADER_END,
-            CxlMemS2MNDRHeader,
-        ),
+    _pack_ = 1
+    _fields_ = [
+        ("s2mndr_header", CxlMemS2MNDRHeader),
     ]
 
 
@@ -1518,7 +1404,7 @@ class CXL_MEM_S2MDRS_OPCODE(IntEnum):
     MEM_DATA_NXM = 0b001
 
 
-class CxlMemS2MDRSHeader(UnalignedBitStructure):
+class CxlMemS2MDRSHeader(Structure):
     valid: int
     opcode: CXL_MEM_S2MDRS_OPCODE
     meta_field: int
@@ -1528,35 +1414,26 @@ class CxlMemS2MDRSHeader(UnalignedBitStructure):
     ld_id: int
     dev_load: CXL_MEM_S2M_DEV_LOAD
     rsvd: int
-    _fields = [
-        BitField("valid", 0, 0),
-        BitField("opcode", 1, 3),
-        BitField("meta_field", 4, 5),
-        BitField("meta_value", 6, 7),
-        BitField("tag", 8, 23),
-        BitField("poison", 24, 24),
-        BitField("ld_id", 25, 28),
-        BitField("dev_load", 29, 30),
-        BitField("rsvd", 31, 39),
+    _pack_ = 1
+    _fields_ = [
+        ("valid", c_uint8, 1),
+        ("opcode", c_uint8, 3),
+        ("meta_field", c_uint8, 2),
+        ("meta_value", c_uint8, 2),
+        ("tag", c_uint16, 16),
+        ("poison", c_uint8, 1),
+        ("ld_id", c_uint8, 4),
+        ("dev_load", c_uint8, 2),
+        ("rsvd", c_uint16, 9),
     ]
-
-
-S2MDRS_HEADER_START = CXL_MEM_HEADER_END + 1
-S2MDRS_HEADER_END = S2MDRS_HEADER_START + CxlMemS2MDRSHeader.get_size() - 1
-S2MDRS_FIELD_START = S2MDRS_HEADER_END + 1
 
 
 class CxlMemS2MDRSPacket(CxlMemBasePacket):
     s2mdrs_header: CxlMemS2MDRSHeader
-    data: int
-    _fields = CxlMemBasePacket._fields + [
-        StructureField(
-            "s2mdrs_header",
-            S2MDRS_HEADER_START,
-            S2MDRS_HEADER_END,
-            CxlMemS2MDRSHeader,
-        ),
-        ByteField("data", S2MDRS_FIELD_START, S2MDRS_FIELD_START + 63),
+    _pack_ = 1
+    _fields_ = [
+        ("s2mdrs_header", CxlMemS2MDRSHeader),
+        ("data", c_uint8 * 0x40),
     ]
 
 
@@ -1567,7 +1444,7 @@ class CxlMemMemRdPacket(CxlMemM2SReqPacket):
     def create(addr: int) -> "CxlMemMemRdPacket":
         packet = CxlMemMemRdPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_REQ
         packet.m2sreq_header.valid = 0b1
         packet.m2sreq_header.mem_opcode = CXL_MEM_M2SREQ_OPCODE.MEM_RD
@@ -1582,14 +1459,15 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
     def create(addr: int, data: int) -> "CxlMemMemWrPacket":
         packet = CxlMemMemWrPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_RWD
         packet.m2srwd_header.valid = 0b1
         packet.m2srwd_header.mem_opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         packet.m2srwd_header.addr = addr >> 6
-        packet.data = data
+        data = data.to_bytes(0x40, "little")
+        memmove(packet.data, data, 0x40)
         return packet
 
 
@@ -1598,10 +1476,11 @@ class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
     def create(data: int) -> "CxlMemMemDataPacket":
         packet = CxlMemMemDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_DRS
         packet.s2mdrs_header.opcode = CXL_MEM_S2MDRS_OPCODE.MEM_DATA
-        packet.data = data
+        data = data.to_bytes(0x40, "little")
+        memmove(packet.data, data, 0x40)
         return packet
 
 
@@ -1610,7 +1489,7 @@ class CxlMemCmpPacket(CxlMemS2MNDRPacket):
     def create() -> "CxlMemCmpPacket":
         packet = CxlMemCmpPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
-        packet.system_header.payload_length = len(packet)
+        packet.system_header.payload_length = sizeof(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_NDR
         packet.s2mndr_header.valid = 0b1
         packet.s2mndr_header.opcode = CXL_MEM_S2MNDR_OPCODE.CMP
@@ -1620,7 +1499,7 @@ class CxlMemCmpPacket(CxlMemS2MNDRPacket):
 def is_cxl_mem_data(packet: BasePacket) -> bool:
     if not packet.is_cxl_mem():
         return False
-    cxl_mem_packet = cast(CxlMemMemDataPacket, packet)
+    cxl_mem_packet = packet
     return (
         cxl_mem_packet.is_s2mdrs()
         and cxl_mem_packet.s2mdrs_header.opcode == CXL_MEM_S2MDRS_OPCODE.MEM_DATA
@@ -1630,7 +1509,7 @@ def is_cxl_mem_data(packet: BasePacket) -> bool:
 def is_cxl_mem_completion(packet: BasePacket) -> bool:
     if not packet.is_cxl_mem():
         return False
-    cxl_mem_packet = cast(CxlMemCmpPacket, packet)
+    cxl_mem_packet = packet
     return (
         cxl_mem_packet.is_s2mndr()
         and cxl_mem_packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP
@@ -1642,7 +1521,7 @@ class CCI_MCTP_MESSAGE_CATEGORY(IntEnum):
     RESPONSE = 1
 
 
-class CciMessageHeaderPacket(UnalignedBitStructure):
+class CciMessageHeaderPacket(Structure):
     message_category: int
     message_tag: int
     command_opcode: int
@@ -1651,19 +1530,19 @@ class CciMessageHeaderPacket(UnalignedBitStructure):
     background_operation: int
     return_code: int
     vendor_specific_extended_status: int
-
-    _fields = [
-        BitField("message_category", 0, 3),
-        BitField("reserved0", 4, 7),
-        BitField("message_tag", 8, 15),
-        BitField("reserved1", 16, 23),
-        BitField("command_opcode", 24, 39),
-        BitField("message_payload_length_low", 40, 55),
-        BitField("message_payload_length_high", 56, 60),
-        BitField("reserved2", 61, 62),
-        BitField("background_operation", 63, 63),
-        BitField("return_code", 64, 79),
-        BitField("vendor_specific_extended_status", 80, 95),
+    _pack_ = 1
+    _fields_ = [
+        ("message_category", c_uint8, 4),
+        ("reserved0", c_uint8, 4),
+        ("message_tag", c_uint8, 8),
+        ("reserved1", c_uint8, 8),
+        ("command_opcode", c_uint16, 16),
+        ("message_payload_length_low", c_uint16, 16),
+        ("message_payload_length_high", c_uint8, 5),
+        ("reserved2", c_uint8, 2),
+        ("background_operation", c_uint8, 1),
+        ("return_code", c_uint16, 16),
+        ("vendor_specific_extended_status", c_uint16, 16),
     ]
 
     def get_message_payload_length(self) -> int:
