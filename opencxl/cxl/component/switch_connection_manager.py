@@ -29,6 +29,7 @@ from opencxl.cxl.component.cxl_component import (
 )
 from opencxl.util.component import RunnableComponent
 from opencxl.util.logger import logger
+from opencxl.util.string import get_pretty_string
 
 
 @dataclass
@@ -163,14 +164,14 @@ class SwitchConnectionManager(RunnableComponent):
         if base_packet.system_header.payload_type != PAYLOAD_TYPE.SIDEBAND:
             message = "Handshake Error"
             logger.debug(self._create_message(message))
-            logger.debug(self._create_message(base_packet.get_pretty_string()))
+            logger.debug(self._create_message(get_pretty_string(base_packet)))
             raise Exception(message)
 
         base_sideband_packet = cast(BaseSidebandPacket, packet)
         if base_sideband_packet.sideband_header.type != SIDEBAND_TYPES.CONNECTION_REQUEST:
             message = "Handshake Error"
             logger.debug(self._create_message(message))
-            logger.debug(self._create_message(base_packet.get_pretty_string()))
+            logger.debug(self._create_message(get_pretty_string(base_packet)))
             raise Exception(message)
 
         connection_request = cast(SidebandConnectionRequestPacket, packet)
