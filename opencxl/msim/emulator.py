@@ -1,4 +1,6 @@
 from sortedcontainers import SortedDict
+from readerwriterlock import rwlock
+
 from ctypes import Structure, POINTER, c_uint8, byref, pointer, addressof, cast, memmove, memset
 from typing import Iterable
 
@@ -32,14 +34,27 @@ class Page(Structure):
 
 class Simple64BitEmulator:
     _memory: SortedDict
+    _rwlock: rwlock.RWLockFair
 
     def __init__(self):
         self._memory = SortedDict()
+        self._rwlock = rwlock.RWLockFair()
 
     def read(self, addr: int, buf: memoryview):
         """
-        Fills buf with contents of memory from addr to addr + len(buf).
+        Fills buf with contents of memory from addr to addr + len(buf). Thread-safe.
         """
+        with self._rwlock.gen_rlock():
+            self._read(addr, buf)
+
+    def write(self, addr: int, buf: memoryview):
+        """
+        Writes to memory with up to len(buf) bytes from buf. Thread-safe.
+        """
+        with self._rwlock.gen_wlock():
+            self._write(addr, buf)
+
+    def _read(self, addr: int, buf: memoryview):
         count = len(buf)
         pg_lower = round_down_to_page_boundary(addr)
         pg_upper = round_down_to_page_boundary(addr + count)
@@ -80,10 +95,7 @@ class Simple64BitEmulator:
             # update pointer to first unwritten byte within buffer
             bytes_read += len_slice
 
-    def write(self, addr: int, buf: memoryview):
-        """
-        Writes to memory with up to len(buf) bytes from buf.
-        """
+    def _write(self, addr: int, buf: memoryview):
         count = len(buf)
         pg_lower = round_down_to_page_boundary(addr)
         pg_upper = round_down_to_page_boundary(addr + count)
