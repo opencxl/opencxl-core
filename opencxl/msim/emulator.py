@@ -2,7 +2,7 @@ from sortedcontainers import SortedDict
 from ctypes import Structure, POINTER, c_uint8, byref, pointer, addressof, cast, memmove, memset
 from typing import Iterable
 
-PAGE_SZ = 16
+PAGE_SZ = 4096
 SENTINEL = 0xFE
 
 def round_down_to_page_boundary(addr: int) -> int:
@@ -49,6 +49,7 @@ class Simple64BitEmulator:
         bytes_read = 0
         curr_addr = addr
 
+        # OPTIMIZE: can potentially use sorteddict's invariant to our advantage.
         for page_idx, page_addr in enumerate(pg_addr_range):
             # compute how much of the buffer to fill
             next_pg = next_page(page_addr)
@@ -57,7 +58,7 @@ class Simple64BitEmulator:
             len_slice = len(buf_slice)
             buf_ptr = cast_mv_to_ptr(buf, bytes_read)
 
-            if page_addr not in self._memory:
+            if page_addr not in self._memory.irange(pg_lower, pg_upper):
                 # if page_addr is not in self._memory, that means we haven't written to it,
                 # so we can just fill the buffer with SENTINEL
                 memset(buf_ptr, SENTINEL, len_slice)
@@ -68,7 +69,7 @@ class Simple64BitEmulator:
                 # note that if addr is not page aligned and this is the first page,
                 # we have to match the page offset
                 if page_idx == 0:
-                    memmove(buf_ptr, pointer(page._data[offset_within_page]), len_slice)
+                    memmove(buf_ptr, byref(page._data, offset_within_page), len_slice)
                 else:
                     memmove(buf_ptr, page._data, len_slice)
 
@@ -79,9 +80,43 @@ class Simple64BitEmulator:
             # update pointer to first unwritten byte within buffer
             bytes_read += len_slice
 
+    def write(self, addr: int, buf: memoryview):
+        """
+        Writes to memory with up to len(buf) bytes from buf.
+        """
+        count = len(buf)
+        pg_lower = round_down_to_page_boundary(addr)
+        pg_upper = round_down_to_page_boundary(addr + count)
+        pg_addr_range = iterate_over_pages(pg_lower, pg_upper)
+
+        offset_within_page = addr % PAGE_SZ
+        bytes_written = 0
+        curr_addr = addr
+
+        for page_idx, page_addr in enumerate(pg_addr_range):
+            next_pg = next_page(page_addr)
+            buf_slice = buf[bytes_written : min(len(buf), bytes_written + next_pg - curr_addr)]
+            len_slice = len(buf_slice)
+            buf_ptr = cast_mv_to_ptr(buf, bytes_written)
+
+            if page_addr not in self._memory.irange(pg_lower, pg_upper):
+                # if page_addr is not in self._memory, then create a new page
+                self._memory[page_addr] = Page()
+
+            page = self._memory[page_addr]
+
+            if page_idx == 0:
+                memmove(byref(page._data, offset_within_page), buf_ptr, len_slice)
+            else:
+                memmove(page._data, buf_ptr, len_slice)
+
+            curr_addr = next_page(page_addr)
+            bytes_written += len_slice
 
 if __name__ == "__main__":
     emulator = Simple64BitEmulator()
-    buf = bytearray(48)
-    emulator.read(1, memoryview(buf))
-    print(buf)
+    buf = bytearray([ord('h'), ord('e'), ord('l'), ord('l'), ord('o')])
+    buf2 = bytearray(7)
+    emulator.write(0xDEADBEEF, memoryview(buf))
+    emulator.read(0xDEADBEEE, memoryview(buf2))
+    print(buf2)
