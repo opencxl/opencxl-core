@@ -7,14 +7,18 @@ from typing import Iterable
 PAGE_SZ = 4096
 SENTINEL = 0xFE
 
+
 def round_down_to_page_boundary(addr: int) -> int:
     return (addr // PAGE_SZ) * PAGE_SZ
+
 
 def next_page(page_addr: int) -> int:
     return page_addr + PAGE_SZ
 
+
 def cast_mv_to_ptr(mv: memoryview, off: int):
     return byref(c_uint8.from_buffer(mv.obj), off)
+
 
 def iterate_over_pages(s: int, e: int) -> Iterable:
     """
@@ -23,14 +27,14 @@ def iterate_over_pages(s: int, e: int) -> Iterable:
     """
     return range(s, e + PAGE_SZ, PAGE_SZ)
 
+
 class Page(Structure):
-    _fields_ = [
-        ("_data", c_uint8 * PAGE_SZ)
-    ]
+    _fields_ = [("_data", c_uint8 * PAGE_SZ)]
 
     def __init__(self):
         super().__init__()
         memset(self._data, SENTINEL, PAGE_SZ)
+
 
 class Simple64BitEmulator:
     _memory: SortedDict
@@ -125,9 +129,10 @@ class Simple64BitEmulator:
             curr_addr = next_page(page_addr)
             bytes_written += len_slice
 
+
 if __name__ == "__main__":
     emulator = Simple64BitEmulator()
-    buf = bytearray([ord('h'), ord('e'), ord('l'), ord('l'), ord('o')])
+    buf = bytearray([ord("h"), ord("e"), ord("l"), ord("l"), ord("o")])
     buf2 = bytearray(7)
     emulator.write(0xDEADBEEF, memoryview(buf))
     emulator.read(0xDEADBEEE, memoryview(buf2))
