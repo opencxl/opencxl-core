@@ -10,16 +10,9 @@ import click
 from opencxl.util.logger import logger
 from opencxl.cxl.environment import parse_cxl_environment
 from opencxl.cxl.component.cxl_component import PORT_TYPE
+from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
+from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
 from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
-
-
-# class CxlComplexHostConfig:
-#     host_name: str
-#     root_bus: int
-#     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
-#     memory_controller: RootComplexMemoryControllerConfig
-#     root_ports: List[RootPortClientConfig] = field(default_factory=list)
-#     memory_ranges: List[MemoryRange] = field(default_factory=list)
 
 
 @click.group(name="host")
@@ -41,7 +34,24 @@ def start_group(config_file: str):
         return
 
     hosts = []
-    for idx, port_config in enumerate(environment.switch_config.port_configs):
+    for _, port_config in enumerate(environment.switch_config.port_configs):
         if port_config.type == PORT_TYPE.USP:
-            hosts.append(CxlComplexHost(port_index=idx))
+            # TODO: Placeholder config for test purpose,
+            # This doesn't even run. MUST be changed
+            host_name = "foo"
+            root_bus = 1
+            root_port_switch_type = 1
+            memory_controller = RootComplexMemoryControllerConfig(2000, "foo.bin")
+            root_ports = [RootPortClientConfig(0, "localhost", 8000)]
+            memory_ranges = [1, 2]
+
+            config = CxlComplexHostConfig(
+                host_name,
+                root_bus,
+                root_port_switch_type,
+                memory_controller,
+                root_ports,
+                memory_ranges,
+            )
+            hosts.append(CxlComplexHost(config))
     asyncio.run(run_host_group(hosts))
