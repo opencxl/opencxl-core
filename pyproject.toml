@@ -23,6 +23,8 @@ websockets = "^12.0"
 jsonrpcserver = "^5.0.9"
 jsonrpcclient = "^4.0.3"
 black = "^24.4.2"
+sortedcontainers = "^2.4.0"
+readerwriterlock = "^1.0.9"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
