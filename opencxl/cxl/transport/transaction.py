@@ -1410,7 +1410,7 @@ M2SBIRSP_HEADER_END = M2SBIRSP_HEADER_START + CxlMemM2SBIRspHeader.get_size() - 
 M2SBIRSP_FIELD_START = M2SBIRSP_HEADER_END + 1
 
 
-class CxlMemM2SBIRspPacket(CxlMemBasePacket):
+class CxlMemM2SBiRspPacket(CxlMemBasePacket):
     m2sbirsp_header: CxlMemM2SBIRspHeader
     _fields = CxlMemBasePacket._fields + [
         StructureField(
@@ -1445,7 +1445,7 @@ class CxlMemS2MBISnpHeader(UnalignedBitStructure):
     opcode: CXL_MEM_S2MBISNP_OPCODE
     bi_id: int
     bi_tag: int
-    low_addr: int
+    addr: int
     rsvd: int
     _fields = [
         BitField("valid", 0, 0),
@@ -1454,6 +1454,7 @@ class CxlMemS2MBISnpHeader(UnalignedBitStructure):
         BitField("bi_tag", 17, 28),
         BitField("addr", 29, 74),
         BitField("rsvd", 75, 83),
+        BitField("padding", 84, 87),
     ]
 
 
@@ -1462,7 +1463,7 @@ S2MBISNP_HEADER_END = S2MBISNP_HEADER_START + CxlMemS2MBISnpHeader.get_size() - 
 S2MBISNP_FIELD_START = S2MBISNP_HEADER_END + 1
 
 
-class CxlMemS2MBISnpPacket(CxlMemBasePacket):
+class CxlMemS2MBiSnpPacket(CxlMemBasePacket):
     s2mbisnp_header: CxlMemS2MBISnpHeader
     _fields = CxlMemBasePacket._fields + [
         StructureField(
@@ -1472,6 +1473,9 @@ class CxlMemS2MBISnpPacket(CxlMemBasePacket):
             CxlMemS2MBISnpHeader,
         ),
     ]
+
+    def get_address(self):
+        return self.s2mbisnp_header.addr
 
 
 # CXL.mem S2M No Data Response (NDR)
@@ -1601,6 +1605,55 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         return packet
 
 
+class CxlMemMemBiSnpPacket(CxlMemS2MBiSnpPacket):
+    tag: int = 0
+
+    @staticmethod
+    def get_tag():
+        old_tag = CxlMemMemBiSnpPacket.tag
+        CxlMemMemBiSnpPacket.tag += 1
+        CxlMemMemBiSnpPacket.tag %= 4096
+        return old_tag
+
+    @staticmethod
+    def create(addr: int, opcode: CXL_MEM_S2MBISNP_OPCODE) -> "CxlMemMemBiSnpPacket":
+        packet = CxlMemMemBiSnpPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_length = len(packet)
+        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_BISNP
+        packet.s2mbisnp_header.addr = addr
+        packet.s2mbisnp_header.valid = 0b1
+        packet.s2mbisnp_header.opcode = opcode
+        packet.s2mbisnp_header.bi_tag = CxlMemMemBiSnpPacket.get_tag()
+        return packet
+
+
+class CxlMemMemBiRspPacket(CxlMemM2SBiRspPacket):
+    tag: int = 0
+
+    @staticmethod
+    def get_tag():
+        old_tag = CxlMemMemBiRspPacket.tag
+        CxlMemMemBiRspPacket.tag += 1
+        CxlMemMemBiRspPacket.tag %= 4096
+        return old_tag
+
+    @staticmethod
+    def create(
+        low_addr: int, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0
+    ) -> "CxlMemMemBiRspPacket":
+        packet = CxlMemMemBiRspPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_length = len(packet)
+        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_BIRSP
+        packet.m2sbirsp_header.low_addr = low_addr
+        packet.m2sbirsp_header.valid = 0b1
+        packet.m2sbirsp_header.opcode = opcode
+        packet.m2sbirsp_header.bi_tag = CxlMemMemBiRspPacket.get_tag()
+        packet.m2sbirsp_header.bi_id = bi_id
+        return packet
+
+
 class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
     @staticmethod
     def create(data: int) -> "CxlMemMemDataPacket":
@@ -1643,6 +1696,13 @@ def is_cxl_mem_completion(packet: BasePacket) -> bool:
         cxl_mem_packet.is_s2mndr()
         and cxl_mem_packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP
     )
+
+
+def is_cxl_mem_birsp(packet: BasePacket) -> bool:
+    if not packet.is_cxl_mem():
+        return False
+    cxl_mem_packet = cast(CxlMemMemBiRspPacket, packet)
+    return cxl_mem_packet.is_m2sbirsp()
 
 
 class CCI_MCTP_MESSAGE_CATEGORY(IntEnum):

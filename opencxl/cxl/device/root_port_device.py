@@ -30,6 +30,7 @@ from opencxl.util.pci import (
     generate_bdfs_for_bus,
 )
 from opencxl.cxl.transport.transaction import (
+    CXL_MEM_M2SBIRSP_OPCODE,
     BasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
@@ -37,6 +38,7 @@ from opencxl.cxl.transport.transaction import (
     CxlIoCompletionWithDataPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
+    CxlMemMemBiRspPacket,
     CxlMemMemWrPacket,
     CxlMemMemRdPacket,
     CxlMemMemDataPacket,
@@ -321,6 +323,16 @@ class CxlRootPortDevice(RunnableComponent):
         except asyncio.exceptions.TimeoutError:
             logger.error(self._create_message("CXL.mem Write: Timed-out"))
             return None
+
+    async def cxl_mem_birsp(
+        self, low_addr: int, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0
+    ) -> int:
+        logger.info(
+            self._create_message(f"CXL.mem BIRsp: low_addr:0x{low_addr:08x} opcode:0x{opcode:x}")
+        )
+        packet = CxlMemMemBiRspPacket.create(low_addr, opcode, bi_id)
+        await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
+        return 0
 
     """
     Helper functions for PCI Config Space access

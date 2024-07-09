@@ -79,6 +79,7 @@ class DownstreamPortDevice(CxlPortDevice):
         self._is_dummy = dummy_config is not None
         self._pci_bridge_component = None
         self._pci_registers = None
+        self._cxl_component = None
         self._upstream_connection = CxlConnection()
 
         self._cxl_io_manager = CxlIoManager(
@@ -121,6 +122,7 @@ class DownstreamPortDevice(CxlPortDevice):
 
         # Create MMIO register
         cxl_component = CxlDownstreamPortComponent()
+        self._cxl_component = cxl_component
         mmio_options = CombinedMmioRegiterOptions(cxl_component=cxl_component)
         mmio_register = CombinedMmioRegister(options=mmio_options)
         mmio_manager.set_bar_entries([BarEntry(mmio_register)])
@@ -178,6 +180,9 @@ class DownstreamPortDevice(CxlPortDevice):
         )
         return info
 
+    def get_secondary_bus_number(self):
+        return self._pci_registers.pci.secondary_bus_number
+
     def restore_enumeration_info(self, info: EnumerationInfo):
         self._pci_registers.write_bytes(
             REG_ADDR.SECONDARY_BUS_NUMBER.START,
@@ -199,3 +204,6 @@ class DownstreamPortDevice(CxlPortDevice):
             REG_ADDR.MEMORY_LIMIT.END,
             info.memory_limit,
         )
+
+    def get_cxl_component(self) -> CxlDownstreamPortComponent:
+        return self._cxl_component

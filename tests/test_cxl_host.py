@@ -15,6 +15,9 @@ from jsonrpcclient import request_json
 import websockets
 import pytest
 
+from opencxl.cxl.transport.transaction import (
+    CXL_MEM_M2SBIRSP_OPCODE,
+)
 from opencxl.apps.cxl_host import CxlHostManager, CxlHost, CxlHostUtilClient
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
@@ -186,6 +189,12 @@ async def test_cxl_host_manager_handle_res():
     await send_and_check_res(util_client, cmd, addr)
     cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": addr, "data": data})
     await send_and_check_res(util_client, cmd, data)
+    cmd = request_json(
+        "UTIL_CXL_MEM_BIRSP",
+        params={"port": 0, "low_addr": 0x00, "opcode": CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E},
+    )
+    await util_client.connect()
+    await util_client.send(cmd)
 
     await host.conn_close()
     await util_client.close()
@@ -338,6 +347,108 @@ async def test_cxl_host_type3_ete():
     ]
     await asyncio.gather(*stop_tasks)
     await asyncio.gather(*start_tasks)
+
+
+# TODO: This is a test for BI packets for now.
+# Should be merged with test_cxl_host_type3_ete after
+# the real BI logics are implemented.
+@pytest.mark.asyncio
+async def test_cxl_host_type3_ete_bi_only():
+    # pylint: disable=protected-access
+    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 55
+    util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 56
+    switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 57
+
+    port_configs = [
+        PortConfig(PORT_TYPE.USP),
+        PortConfig(PORT_TYPE.DSP),
+    ]
+    sw_conn_manager = SwitchConnectionManager(port_configs, port=switch_port)
+    physical_port_manager = PhysicalPortManager(
+        switch_connection_manager=sw_conn_manager, port_configs=port_configs
+    )
+
+    switch_configs = [
+        VirtualSwitchConfig(
+            upstream_port_index=0,
+            vppb_counts=1,
+            initial_bounds=[1],
+        )
+    ]
+
+    virtual_switch_manager1 = VirtualSwitchManager(
+        switch_configs=switch_configs,
+        physical_port_manager=physical_port_manager,
+        bi_enable_override_for_test=1,
+        bi_forward_override_for_test=0,
+    )
+
+    virtual_switch_manager2 = VirtualSwitchManager(
+        switch_configs=switch_configs,
+        physical_port_manager=physical_port_manager,
+        bi_enable_override_for_test=0,
+        bi_forward_override_for_test=1,
+    )
+
+    virtual_switch_manager3 = VirtualSwitchManager(
+        switch_configs=switch_configs, physical_port_manager=physical_port_manager
+    )
+
+    async def run(virtual_switch_manager: VirtualSwitchManager):
+        DSP_2ND_BUS_NUM = 3
+        sld = SingleLogicalDevice(
+            port_index=1,
+            memory_size=0x1000000,
+            memory_file=f"mem{switch_port}.bin",
+            port=switch_port,
+        )
+
+        host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+        host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
+
+        start_tasks = [
+            asyncio.create_task(host.run()),
+            asyncio.create_task(host_manager.run()),
+            asyncio.create_task(sw_conn_manager.run()),
+            asyncio.create_task(physical_port_manager.run()),
+            asyncio.create_task(virtual_switch_manager.run()),
+            asyncio.create_task(sld.run()),
+        ]
+
+        wait_tasks = [
+            asyncio.create_task(sw_conn_manager.wait_for_ready()),
+            asyncio.create_task(physical_port_manager.wait_for_ready()),
+            asyncio.create_task(virtual_switch_manager.wait_for_ready()),
+            asyncio.create_task(host_manager.wait_for_ready()),
+            asyncio.create_task(host.wait_for_ready()),
+            asyncio.create_task(sld.wait_for_ready()),
+        ]
+        await asyncio.gather(*wait_tasks)
+
+        test_tasks = [
+            asyncio.create_task(sld._cxl_type3_device.init_bi_snp()),
+            asyncio.create_task(
+                host._cxl_mem_birsp(0x0, CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, bi_id=DSP_2ND_BUS_NUM)
+            ),
+            # Required, or otherwise the queues will be stopped before handling anything
+            asyncio.create_task(asyncio.sleep(2, result="Blocker")),
+        ]
+        await asyncio.gather(*test_tasks)
+
+        stop_tasks = [
+            asyncio.create_task(sw_conn_manager.stop()),
+            asyncio.create_task(physical_port_manager.stop()),
+            asyncio.create_task(virtual_switch_manager.stop()),
+            asyncio.create_task(host_manager.stop()),
+            asyncio.create_task(host.stop()),
+            asyncio.create_task(sld.stop()),
+        ]
+        await asyncio.gather(*stop_tasks)
+        await asyncio.gather(*start_tasks)
+
+    await run(virtual_switch_manager1)
+    await run(virtual_switch_manager2)
+    await run(virtual_switch_manager3)
 
 
 @pytest.mark.asyncio

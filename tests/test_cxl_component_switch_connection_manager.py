@@ -32,8 +32,12 @@ from opencxl.cxl.transport.transaction import (
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
     CxlMemMemDataPacket,
+    CxlMemMemBiRspPacket,
+    CxlMemMemBiSnpPacket,
     CxlMemCmpPacket,
     CXL_IO_CPL_STATUS,
+    CXL_MEM_M2SBIRSP_OPCODE,
+    CXL_MEM_S2MBISNP_OPCODE,
 )
 
 
@@ -371,7 +375,7 @@ async def test_switch_connection_manager_handle_mmio_packet():
 
 
 @pytest.mark.asyncio
-async def test_switch_connection_manager_handle_cxl_mem_packet():
+async def test_switch_connection_manager_handle_cxl_mem_packet_m2s():
     port_configs = [
         PortConfig(PORT_TYPE.USP),
         PortConfig(PORT_TYPE.USP),
@@ -402,6 +406,8 @@ async def test_switch_connection_manager_handle_cxl_mem_packet():
         packet = CxlMemMemWrPacket.create(0x80, 0xDEADBEEF)
         await client_connection.cxl_mem_fifo.host_to_target.put(packet)
         packet = CxlMemMemRdPacket.create(0x80)
+        await client_connection.cxl_mem_fifo.host_to_target.put(packet)
+        packet = CxlMemMemBiRspPacket.create(0x0, CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E)
         await client_connection.cxl_mem_fifo.host_to_target.put(packet)
 
         logger.info("[PyTest] Checking CXL.mem request packets received from server")
@@ -551,7 +557,7 @@ async def test_switch_connection_manager_handle_mmio_completion():
 
 
 @pytest.mark.asyncio
-async def test_switch_connection_manager_handle_cxl_mem_completion():
+async def test_switch_connection_manager_handle_cxl_mem_s2m():
     port_configs = [
         PortConfig(PORT_TYPE.USP),
         PortConfig(PORT_TYPE.USP),
@@ -583,6 +589,8 @@ async def test_switch_connection_manager_handle_cxl_mem_completion():
         await server_connection.cxl_mem_fifo.target_to_host.put(sent_packet1)
         sent_packet2 = CxlMemCmpPacket.create()
         await server_connection.cxl_mem_fifo.target_to_host.put(sent_packet2)
+        sent_packet3 = CxlMemMemBiSnpPacket.create(0x0, CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA)
+        await server_connection.cxl_mem_fifo.target_to_host.put(sent_packet3)
 
         logger.info("[PyTest] Checking CXL.mem completion packets received from client")
         client_connection = client.get_cxl_connection()
@@ -590,6 +598,8 @@ async def test_switch_connection_manager_handle_cxl_mem_completion():
         assert bytes(received_packet1) == bytes(sent_packet1)
         received_packet2 = await client_connection.cxl_mem_fifo.target_to_host.get()
         assert bytes(received_packet2) == bytes(sent_packet2)
+        received_packet3 = await client_connection.cxl_mem_fifo.target_to_host.get()
+        assert bytes(received_packet3) == bytes(sent_packet3)
 
         logger.info("[PyTest] Stopping SwitchConnectionManager")
         await manager.stop()

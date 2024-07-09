@@ -60,6 +60,26 @@ class CxlUpstreamPortComponent(CxlComponent):
     def get_hdm_decoder_manager(self) -> Optional[HdmDecoderManagerBase]:
         return self._hdm_decoder_manager
 
+    def get_bi_rt_options(self) -> Optional[CxlBIRTCapabilityStructureOptions]:
+        options = CxlBIRTCapabilityStructureOptions()
+        options["capability_options"] = CxlBIRTCapabilityRegisterOptions(
+            explicit_bi_rt_commit_required=1
+        )
+        options["control_options"] = CxlBIRTControlRegisterOptions(bi_rt_commit=0)
+        options["status_options"] = CxlBIRTStatusRegisterOptions(
+            bi_rt_committed=0,
+            bi_rt_error_not_committed=0,
+            bi_rt_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
+            bi_rt_commit_timeout_scale=1,
+        )
+        return options
+
+    def set_routing_table(self, routing_table: RoutingTable):
+        self._routing_table = routing_table
+        self._routing_table.set_hdm_decoder(self._hdm_decoder_manager)
+
+
+class CxlDownstreamPortComponent(CxlComponent):
     def get_bi_decoder_options(self) -> Optional[CxlBIDecoderCapabilityStructureOptions]:
         options = CxlBIDecoderCapabilityStructureOptions()
         options["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(
@@ -67,7 +87,7 @@ class CxlUpstreamPortComponent(CxlComponent):
         )
         options["control_options"] = CxlBIDecoderControlRegisterOptions(
             bi_forward=1,
-            bi_enable=1,
+            bi_enable=0,
             bi_decoder_commit=0,
         )
         options["status_options"] = CxlBIDecoderStatusRegisterOptions(
@@ -77,26 +97,7 @@ class CxlUpstreamPortComponent(CxlComponent):
             bi_decoder_commit_timeout_scale=1,
         )
         options["device_type"] = self.get_component_type()
+        return options
 
-    def get_bi_rt_options(self) -> Optional[CxlBIRTCapabilityStructureOptions]:
-        options = CxlBIRTCapabilityStructureOptions()
-        options["bi_route_table"] = CxlBIRTCapabilityStructureOptions()
-        options["bi_route_table"]["capability_options"] = CxlBIRTCapabilityRegisterOptions(
-            explicit_bi_rt_commit_required=1
-        )
-        options["bi_route_table"]["control_options"] = CxlBIRTControlRegisterOptions(bi_rt_commit=0)
-        options["bi_route_table"]["status_options"] = CxlBIRTStatusRegisterOptions(
-            bi_rt_committed=0,
-            bi_rt_error_not_committed=0,
-            bi_rt_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
-            bi_rt_commit_timeout_scale=1,
-        )
-
-    def set_routing_table(self, routing_table: RoutingTable):
-        self._routing_table = routing_table
-        self._routing_table.set_hdm_decoder(self._hdm_decoder_manager)
-
-
-class CxlDownstreamPortComponent(CxlComponent):
     def get_component_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.DSP

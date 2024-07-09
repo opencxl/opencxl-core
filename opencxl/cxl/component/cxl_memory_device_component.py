@@ -250,6 +250,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             bi_decoder_commit_timeout_scale=1,
         )
         options["device_type"] = self.get_component_type()
+        return options
 
     def get_cdat_entries(self) -> List[CDAT_ENTRY]:
         dsmas = DeviceScopedMemoryAffinity()

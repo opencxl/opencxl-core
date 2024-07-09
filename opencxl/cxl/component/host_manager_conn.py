@@ -14,6 +14,7 @@ from jsonrpcserver.result import ERROR_INTERNAL_ERROR
 import websockets
 from websockets import WebSocketClientProtocol
 
+from opencxl.cxl.transport.transaction import CXL_MEM_M2SBIRSP_OPCODE
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 
@@ -87,6 +88,7 @@ class UtilConnServer(RunnableComponent):
         self._util_methods = {
             "UTIL_CXL_MEM_READ": self._util_cxl_mem_read,
             "UTIL_CXL_MEM_WRITE": self._util_cxl_mem_write,
+            "UTIL_CXL_MEM_BIRSP": self._util_cxl_mem_birsp,
             "UTIL_REINIT": self._util_reinit,
         }
         self._fut = None
@@ -115,6 +117,14 @@ class UtilConnServer(RunnableComponent):
 
     async def _util_cxl_mem_read(self, port: int, addr: int) -> jsonrpcserver.Result:
         cmd = jsonrpcclient.request_json("HOST_CXL_MEM_READ", params={"addr": addr})
+        return await self._process_cmd(cmd, port)
+
+    async def _util_cxl_mem_birsp(
+        self, port: int, low_addr: int, opcode: CXL_MEM_M2SBIRSP_OPCODE
+    ) -> jsonrpcserver.Result:
+        cmd = jsonrpcclient.request_json(
+            "HOST_CXL_MEM_BIRSP", params={"low_addr": low_addr, "opcode": opcode}
+        )
         return await self._process_cmd(cmd, port)
 
     async def _util_reinit(self, port: int, hpa_base: int) -> jsonrpcserver.Result:

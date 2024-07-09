@@ -131,3 +131,6 @@ class UpstreamPortDevice(CxlPortDevice):
     def get_hdm_decoder_count(self) -> int:
         name = HDM_DECODER_COUNT(self._decoder_count).name
         return int(re.search(r"\d+", name).group())
+
+    def get_cxl_component(self) -> CxlUpstreamPortComponent:
+        return self._cxl_component
