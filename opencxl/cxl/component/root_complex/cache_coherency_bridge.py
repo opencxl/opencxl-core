@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from asyncio import create_task, gather
 from opencxl.util.component import RunnableComponent
 from opencxl.pci.component.fifo_pair import FifoPair
-from opencxl.cxl.component.root_complex.memory_fifo import MemoryFifoPair
+from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.util.logger import logger
 
 
