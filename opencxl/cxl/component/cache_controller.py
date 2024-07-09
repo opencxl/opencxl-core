@@ -142,7 +142,7 @@ class CacheController(RunnableComponent):
             if self._cache[set][blk].state == CacheState.CACHE_INVALID:
                 return blk
 
-        return -1
+        return None
 
     def _cache_find_valid_block(self, tag: int, set: int) -> int:
         for blk in range(self._cache_assoc_size):
@@ -151,7 +151,7 @@ class CacheController(RunnableComponent):
             ):
                 return blk
 
-        return -1
+        return None
 
     def _cache_data_read(self, set: int, blk: int) -> int:
         self._cache_priority_update(set, blk)
@@ -204,7 +204,7 @@ class CacheController(RunnableComponent):
 
         cache_blk = self._cache_find_valid_block(tag, set)
 
-        if cache_blk != -1:
+        if cache_blk is not None:
             data = self._cache_data_read(set, cache_blk)
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_SHARED)
@@ -226,14 +226,14 @@ class CacheController(RunnableComponent):
         cache_blk = self._cache_find_valid_block(tag, set)
 
         # cache hit
-        if cache_blk != -1:
+        if cache_blk is not None:
             data = self._cache_data_read(set, cache_blk)
         # cache miss
         else:
             cache_blk = self._cache_find_invalid_block(set)
 
             # cache block full
-            if cache_blk == -1:
+            if cache_blk is None:
                 cache_blk = self._cache_find_replace_block(set)
                 assem_addr = self._cache_assem_addr(set, cache_blk)
                 cached_data = self._cache_data_read(set, cache_blk)
@@ -267,7 +267,7 @@ class CacheController(RunnableComponent):
         cache_blk = self._cache_find_valid_block(tag, set)
 
         # cache hit
-        if cache_blk != -1:
+        if cache_blk is not None:
             cache_state = self._cache_extract_block_state(set, cache_blk)
             assert cache_state != CacheState.CACHE_INVALID
 
@@ -283,7 +283,7 @@ class CacheController(RunnableComponent):
             cache_blk = self._cache_find_invalid_block(set)
 
             # cache block full
-            if cache_blk == -1:
+            if cache_blk is None:
                 cache_blk = self._cache_find_replace_block(set)
                 assem_addr = self._cache_assem_addr(set, cache_blk)
                 cached_data = self._cache_data_read(set, cache_blk)
@@ -324,7 +324,7 @@ class CacheController(RunnableComponent):
             packet = await self._coh_agent_to_cache_fifo.request.get()
             if packet is not None:
                 cache_blk, data = await self._coh_to_cache_state_lookup(packet.type, packet.address)
-                if cache_blk == -1:
+                if cache_blk is None:
                     packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
                 elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
                     packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S, data)
