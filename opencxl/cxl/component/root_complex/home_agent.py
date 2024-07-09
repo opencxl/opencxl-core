@@ -11,7 +11,7 @@ from enum import Enum, auto
 from typing import List
 from opencxl.util.component import RunnableComponent
 from opencxl.pci.component.fifo_pair import FifoPair
-from opencxl.cxl.component.root_complex.memory_fifo import (
+from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
     MEMORY_REQUEST_TYPE,
     MemoryResponse,

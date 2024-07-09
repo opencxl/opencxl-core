@@ -11,7 +11,7 @@ import asyncio
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.root_complex.io_bridge import IoBridge, IoBridgeConfig
-from opencxl.cxl.component.root_complex.memory_fifo import MemoryFifoPair
+from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.cxl.component.root_complex.root_port_switch import (
     SimpleRootPortSwitch,
     RootPortSwitchConfig,
