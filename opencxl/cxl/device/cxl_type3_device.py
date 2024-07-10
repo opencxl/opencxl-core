@@ -133,7 +133,9 @@ class CxlType3Device(RunnableComponent):
                     cache_capable=0,
                     mem_capable=1,
                     hdm_count=1,
-                    cache_writeback_and_invalidate_capable=1,
+                    cache_writeback_and_invalidate_capable=0,
+                    cache_size_unit=0b0,
+                    cache_size=0,
                 ),
             ),
             doe=CxlDoeExtendedCapabilityOptions(

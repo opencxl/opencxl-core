@@ -43,7 +43,14 @@ class DvsecCxlCapabilityOptions:
 
 
 class DvsecCxlCapability(BitMaskedBitStructure):
-    def __init__(self, options: DvsecCxlCapabilityOptions):
+    def __init__(
+        self,
+        data: Optional[ShareableByteArray] = None,
+        parent_name: Optional[str] = None,
+        options: Optional[DvsecCxlCapabilityOptions] = None,
+    ):
+        if options is None:
+            raise Exception("options is required")
         self._fields = [
             BitField("cache_capable", 0, 0, FIELD_ATTR.RO, options.cache_capable),
             BitField("io_capable", 1, 1, FIELD_ATTR.RO, 1),
@@ -65,6 +72,7 @@ class DvsecCxlCapability(BitMaskedBitStructure):
             BitField("viral_capable", 14, 14, FIELD_ATTR.RO),
             BitField("pm_init_completion_reporting_capable", 15, 15, FIELD_ATTR.HW_INIT),
         ]
+        super().__init__(data, parent_name)
 
 
 class DvsecCxlControl(BitMaskedBitStructure):
@@ -200,6 +208,7 @@ class DvsecCxlDevices(BitMaskedBitStructure):
 
         header_options = options.get("header")
         memory_device_component = options["memory_device_component"]
+        capability_options = options["capability_options"]
         identity = memory_device_component.get_identity()
 
         range1_size_low_options: DvsecCxlRangeSizeLowOptions = {
@@ -219,10 +228,7 @@ class DvsecCxlDevices(BitMaskedBitStructure):
             StructureField("dvsec_header1", 4, 7, CxlDvsecHeader1),
             ByteField("dvsec_header2", 8, 9, attribute=FIELD_ATTR.RO, default=0x0000),
             StructureField(
-                "cxl_capability",
-                0xA,
-                0xB,
-                DvsecCxlCapability,
+                "cxl_capability", 0xA, 0xB, DvsecCxlCapability, options=capability_options
             ),
             StructureField("cxl_control", 0xC, 0xD, DvsecCxlControl),
             StructureField("cxl_status", 0xE, 0xF, DvsecCxlStatus),
