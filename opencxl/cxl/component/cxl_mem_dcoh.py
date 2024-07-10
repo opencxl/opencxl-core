@@ -218,9 +218,7 @@ class CxlMemDcoh(PacketProcessor):
         if m2srwd_packet.m2srwd_header.meta_field == CXL_MEM_META_FIELD.NO_OP:
             await self._memory_device_component.write_mem(addr, m2srwd_packet.data)
 
-            packet, _ = self._create_mem_rsp_packet(
-                CXL_MEM_S2MNDR_OPCODE.CMP, m2srwd_packet.data
-            )
+            packet, _ = self._create_mem_rsp_packet(CXL_MEM_S2MNDR_OPCODE.CMP, m2srwd_packet.data)
             await self._upstream_fifo.target_to_host.put(packet)
             return
 
