@@ -375,4 +375,5 @@ class CxlMemDcoh(PacketProcessor):
         await gather(*tasks)
 
     async def _stop(self):
-        await self._cache_to_coh_agent_fifo.response.put(None)
+        await self._upstream_fifo.host_to_target.put(None)
+        await self._cache_to_coh_agent_fifo.request.put(None)

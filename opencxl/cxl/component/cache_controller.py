@@ -6,7 +6,7 @@
 """
 
 from typing import Optional, Tuple
-from asyncio import create_task
+from asyncio import create_task, gather
 from dataclasses import dataclass
 from enum import Enum, auto
 from math import log2
@@ -301,17 +301,20 @@ class CacheController(RunnableComponent):
     async def _processor_request_scheduler(self):
         while True:
             packet = await self._processor_to_cache_fifo.request.get()
-            if packet is not None:
-                if packet.type == MEMORY_REQUEST_TYPE.READ:
-                    data = await self.cache_coherent_load(packet.address, packet.size)
-                    packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
-                    await self._processor_to_cache_fifo.response.put(packet)
-                elif packet.type == MEMORY_REQUEST_TYPE.WRITE:
-                    await self.cache_coherent_store(packet.address, packet.size, packet.data)
-                    packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
-                    await self._processor_to_cache_fifo.response.put(packet)
-                else:
-                    assert False
+            if packet is None:
+                logger.debug(
+                    self._create_message("Stop processing processor request scheduler fifo")
+                )
+                break
+
+            if packet.type == MEMORY_REQUEST_TYPE.READ:
+                data = await self.cache_coherent_load(packet.address, packet.size)
+                packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
+                await self._processor_to_cache_fifo.response.put(packet)
+            elif packet.type == MEMORY_REQUEST_TYPE.WRITE:
+                await self.cache_coherent_store(packet.address, packet.size, packet.data)
+                packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
+                await self._processor_to_cache_fifo.response.put(packet)
             else:
                 assert False
 
@@ -319,28 +322,33 @@ class CacheController(RunnableComponent):
     async def _coh_request_scheduler(self):
         while True:
             packet = await self._coh_agent_to_cache_fifo.request.get()
-            if packet is not None:
-                cache_blk, data = await self._coh_to_cache_state_lookup(packet.type, packet.address)
-                if cache_blk is None:
-                    packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
-                elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
-                    packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S, data)
-                elif packet.type == CACHE_REQUEST_TYPE.SNP_INV:
-                    packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data)
-                elif packet.type == CACHE_REQUEST_TYPE.SNP_CUR:
-                    packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V, data)
-                elif packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
-                    packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V, data)
-                else:
-                    assert False
-                await self._coh_agent_to_cache_fifo.response.put(packet)
+            if packet is None:
+                logger.debug(self._create_message("Stop processing coh request scheduler fifo"))
+                break
+
+            cache_blk, data = await self._coh_to_cache_state_lookup(packet.type, packet.address)
+            if cache_blk is None:
+                packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
+            elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
+                packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S, data)
+            elif packet.type == CACHE_REQUEST_TYPE.SNP_INV:
+                packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data)
+            elif packet.type == CACHE_REQUEST_TYPE.SNP_CUR:
+                packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V, data)
+            elif packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
+                packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V, data)
+            else:
+                assert False
+            await self._coh_agent_to_cache_fifo.response.put(packet)
 
     async def _run(self):
-        create_task(self._processor_request_scheduler())
-        create_task(self._coh_request_scheduler())
+        tasks = [
+            create_task(self._processor_request_scheduler()),
+            create_task(self._coh_request_scheduler()),
+        ]
         await self._change_status_to_running()
+        await gather(*tasks)
 
     async def _stop(self):
-        await self._processor_to_cache_fifo.response.put(None)
-        await self._cache_to_coh_agent_fifo.response.put(None)
-        await self._coh_agent_to_cache_fifo.response.put(None)
+        await self._processor_to_cache_fifo.request.put(None)
+        await self._coh_agent_to_cache_fifo.request.put(None)
