@@ -174,7 +174,6 @@ class CacheController(RunnableComponent):
         return cache_state
 
     async def _memory_load(self, address: int, size: int) -> CacheResponse:
-        # packet = CacheRequest(CACHE_REQUEST_TYPE.READ, address, size)
         packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, address, size)
         await self._cache_to_coh_agent_fifo.request.put(packet)
         packet = await self._cache_to_coh_agent_fifo.response.get()
@@ -182,7 +181,6 @@ class CacheController(RunnableComponent):
         return packet
 
     async def _memory_store(self, address: int, size: int, value: int) -> None:
-        # packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE, address, size, value)
         packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, address, size, value)
         await self._cache_to_coh_agent_fifo.request.put(packet)
 
@@ -212,7 +210,6 @@ class CacheController(RunnableComponent):
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_INVALID)
             elif type == CACHE_REQUEST_TYPE.WRITE_BACK:
                 assert self._cache_extract_block_state(set, cache_blk) == CacheState.CACHE_SHARED
-                # self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_EXCLUSIVE)
 
         return cache_blk, data
 
