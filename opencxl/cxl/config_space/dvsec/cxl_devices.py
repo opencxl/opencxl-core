@@ -175,6 +175,29 @@ class DvsecCxlRangeBaseLow(BitMaskedBitStructure):
     ]
 
 
+@dataclass
+class DvsecCxlCacheableRangeOptions:
+    start_addr: int
+    end_addr: int
+
+
+class DvsecCxlCacheableRange(BitMaskedBitStructure):
+    def __init__(
+        self,
+        data: Optional[ShareableByteArray] = None,
+        parent_name: Optional[str] = None,
+        options: Optional[DvsecCxlCacheableRangeOptions] = None,
+    ):
+        if options is None:
+            raise Exception("options is required")
+        self._fields = [
+            BitField("start_addr", 0, 45, FIELD_ATTR.HW_INIT, options.start_addr),
+            BitField("end_addr", 46, 91, FIELD_ATTR.HW_INIT, options.end_addr),
+            BitField("reserved", 92, 95, FIELD_ATTR.RESERVED),
+        ]
+        super().__init__(data, parent_name)
+
+
 class DvsecCxlCapability3(BitMaskedBitStructure):
     _fields = [
         BitField("default_volatile_hdm_state_after_cold_reset", 0, 0, FIELD_ATTR.HW_INIT),
@@ -194,6 +217,7 @@ class DvsecCxlDevicesOptions(TypedDict):
     header: Optional[DvsecCapabilityHeaderOptions]
     memory_device_component: CxlMemoryDeviceComponent
     capability_options: DvsecCxlCapabilityOptions
+    cacheable_address_range: DvsecCxlCacheableRangeOptions
 
 
 class DvsecCxlDevices(BitMaskedBitStructure):
@@ -209,6 +233,7 @@ class DvsecCxlDevices(BitMaskedBitStructure):
         header_options = options.get("header")
         memory_device_component = options["memory_device_component"]
         capability_options = options["capability_options"]
+        cacheable_address_range = options["cacheable_address_range"]
         identity = memory_device_component.get_identity()
 
         range1_size_low_options: DvsecCxlRangeSizeLowOptions = {
@@ -258,10 +283,17 @@ class DvsecCxlDevices(BitMaskedBitStructure):
             StructureField("range2_base_low", 0x34, 0x37, DvsecCxlRangeBaseLow),
             StructureField("cxl_capability3", 0x38, 0x39, DvsecCxlCapability3),
             ByteField("reserved1", 0x3A, 0x3F),
+            StructureField(
+                "cxl_cacheable_range",
+                0x40,
+                0x4B,
+                DvsecCxlCacheableRange,
+                options=cacheable_address_range,
+            ),
         ]
 
         super().__init__(data, parent_name)
 
     @staticmethod
     def get_size(fields: List[DataField] | None = None) -> int:
-        return 0x40
+        return 0x4C

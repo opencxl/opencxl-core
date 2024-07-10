@@ -18,7 +18,12 @@ from opencxl.util.unaligned_bit_structure import (
     BitMaskedBitStructure,
     StructureField,
 )
-from .cxl_devices import DvsecCxlCapabilityOptions, DvsecCxlDevices, DvsecCxlDevicesOptions
+from .cxl_devices import (
+    DvsecCxlCacheableRangeOptions,
+    DvsecCxlCapabilityOptions,
+    DvsecCxlDevices,
+    DvsecCxlDevicesOptions,
+)
 from .flex_bus_port import DvsecFlexBusPortCapability, DvsecFlexBusPortCapabilityOptions
 from .register_locator import DvsecRegisterLocator, DvsecRegisterLocatorOptions
 
@@ -38,6 +43,7 @@ class DvsecConfigSpaceOptions(TypedDict):
     register_locator: DvsecRegisterLocatorOptions
     memory_device_component: Optional[CxlMemoryDeviceComponent]
     capability_options: Optional[DvsecCxlCapabilityOptions]
+    cacheable_address_range: Optional[DvsecCxlCacheableRangeOptions]
 
 
 class DvsecConfigSpace(BitMaskedBitStructure):
@@ -57,11 +63,14 @@ class DvsecConfigSpace(BitMaskedBitStructure):
         next_offset = options["next"]
         memory_device_component = options.get("memory_device_component")
         capability_options = options.get("capability_options")
+        cacheable_address_range = options.get("cacheable_address_range")
 
         self._fields = []
 
         start = 0
-        start = self._add_cxl_devices_dvsec(start, memory_device_component, capability_options)
+        start = self._add_cxl_devices_dvsec(
+            start, memory_device_component, capability_options, cacheable_address_range
+        )
         start = self._add_cxl_extension_dvsec_for_ports(start)
         start = self._add_pcie_dvsec_for_flex_bus_ports(start)
         start = self._add_register_locator_dvsec(start)
@@ -75,6 +84,7 @@ class DvsecConfigSpace(BitMaskedBitStructure):
         start: int,
         memory_device_component: Optional[DvsecConfigSpaceOptions] = None,
         capability_options: Optional[DvsecCxlCapabilityOptions] = None,
+        cacheable_address_range: Optional[DvsecCxlCacheableRangeOptions] = None,
     ) -> int:
         if self._device_type not in (CXL_DEVICE_TYPE.LD, CXL_DEVICE_TYPE.ACCEL_T2):
             return start
@@ -91,6 +101,7 @@ class DvsecConfigSpace(BitMaskedBitStructure):
             "header": {"next_capability_offset": next},
             "memory_device_component": memory_device_component,
             "capability_options": capability_options,
+            "cacheable_address_range": cacheable_address_range,
         }
         self._last_offset_header = dvsec_options["header"]
         self._fields.append(

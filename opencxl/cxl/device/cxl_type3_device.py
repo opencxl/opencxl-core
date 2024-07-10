@@ -9,7 +9,10 @@ from asyncio import create_task, gather
 from enum import Enum, auto
 from typing import Optional
 
-from opencxl.cxl.config_space.dvsec.cxl_devices import DvsecCxlCapabilityOptions
+from opencxl.cxl.config_space.dvsec.cxl_devices import (
+    DvsecCxlCacheableRangeOptions,
+    DvsecCxlCapabilityOptions,
+)
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
@@ -137,6 +140,7 @@ class CxlType3Device(RunnableComponent):
                     cache_size_unit=0b0,
                     cache_size=0,
                 ),
+                cacheable_address_range=DvsecCxlCacheableRangeOptions(0x0, 0x0),
             ),
             doe=CxlDoeExtendedCapabilityOptions(
                 cdat_entries=self._cxl_memory_device_component.get_cdat_entries()
