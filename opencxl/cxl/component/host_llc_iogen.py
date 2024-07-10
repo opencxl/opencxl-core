@@ -59,15 +59,13 @@ class HostLlcIoGen(RunnableComponent):
                 valid_addr.add(addr)
 
                 await self.store(addr, 64, written_data)
-                # logger.info(f"[{self._host_name}] Write 0x{written_data:X} at 0x{addr:x}")
+                logger.debug(f"[{self._host_name}] Write 0x{written_data:X} at 0x{addr:x}")
 
             logger.info(f"[{self._host_name}] Written Counts {len(valid_addr)}")
 
-            for _ in range(len(valid_addr)):
-                addr = valid_addr.pop()
-
+            for _, addr in enumerate(valid_addr):
                 read_data = await self.load(addr, 64)
-                # logger.info(f"[{self._host_name}] Read 0x{read_data:X} from 0x{addr:x}")
+                logger.debug(f"[{self._host_name}] Read 0x{read_data:X} from 0x{addr:x}")
                 assert addr == read_data, f"addr={hex(addr)}:data={hex(read_data)}"
 
             logger.info(f"[{self._host_name}] Simple Test Done")

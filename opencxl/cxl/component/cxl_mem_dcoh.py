@@ -122,7 +122,7 @@ class CxlMemDcoh(PacketProcessor):
         if m2sreq_packet.m2sreq_header.meta_field == CXL_MEM_META_FIELD.NO_OP:
             data = await self._memory_device_component.read_mem(addr)
 
-            dummy, packet = self._create_mem_rsp_packet(CXL_MEM_S2MNDR_OPCODE.CMP, data)
+            _, packet = self._create_mem_rsp_packet(CXL_MEM_S2MNDR_OPCODE.CMP, data)
             await self._upstream_fifo.target_to_host.put(packet)
             return
 
@@ -218,7 +218,7 @@ class CxlMemDcoh(PacketProcessor):
         if m2srwd_packet.m2srwd_header.meta_field == CXL_MEM_META_FIELD.NO_OP:
             await self._memory_device_component.write_mem(addr, m2srwd_packet.data)
 
-            packet, dummy = self._create_mem_rsp_packet(
+            packet, _ = self._create_mem_rsp_packet(
                 CXL_MEM_S2MNDR_OPCODE.CMP, m2srwd_packet.data
             )
             await self._upstream_fifo.target_to_host.put(packet)
@@ -246,7 +246,7 @@ class CxlMemDcoh(PacketProcessor):
 
             packet = await self._coh_agent_to_cache_fifo.response.get()
             if packet.status == CACHE_RESPONSE_STATUS.RSP_MISS:
-                ndr_packet, dummy = self._create_mem_rsp_packet(rsp_code)
+                ndr_packet, _ = self._create_mem_rsp_packet(rsp_code)
                 await self._upstream_fifo.target_to_host.put(ndr_packet)
                 return
 
@@ -256,7 +256,7 @@ class CxlMemDcoh(PacketProcessor):
         if data_flush is True:
             await self._memory_device_component.write_mem(addr, m2srwd_packet.data)
 
-        ndr_packet, dummy = self._create_mem_rsp_packet(rsp_code)
+        ndr_packet, _ = self._create_mem_rsp_packet(rsp_code)
         await self._upstream_fifo.target_to_host.put(ndr_packet)
 
     async def _process_host_to_target(self):
