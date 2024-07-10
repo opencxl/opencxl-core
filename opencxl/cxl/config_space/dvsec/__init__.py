@@ -18,7 +18,7 @@ from opencxl.util.unaligned_bit_structure import (
     BitMaskedBitStructure,
     StructureField,
 )
-from .cxl_devices import DvsecCxlDevices, DvsecCxlDevicesOptions
+from .cxl_devices import DvsecCxlCapabilityOptions, DvsecCxlDevices, DvsecCxlDevicesOptions
 from .flex_bus_port import DvsecFlexBusPortCapability, DvsecFlexBusPortCapabilityOptions
 from .register_locator import DvsecRegisterLocator, DvsecRegisterLocatorOptions
 
@@ -37,6 +37,7 @@ class DvsecConfigSpaceOptions(TypedDict):
     next: int
     register_locator: DvsecRegisterLocatorOptions
     memory_device_component: Optional[CxlMemoryDeviceComponent]
+    capability_options: Optional[DvsecCxlCapabilityOptions]
 
 
 class DvsecConfigSpace(BitMaskedBitStructure):
@@ -55,11 +56,12 @@ class DvsecConfigSpace(BitMaskedBitStructure):
         self._register_locator_options = options["register_locator"]
         next_offset = options["next"]
         memory_device_component = options.get("memory_device_component")
+        capability_options = options.get("capability_options")
 
         self._fields = []
 
         start = 0
-        start = self._add_cxl_devices_dvsec(start, memory_device_component)
+        start = self._add_cxl_devices_dvsec(start, memory_device_component, capability_options)
         start = self._add_cxl_extension_dvsec_for_ports(start)
         start = self._add_pcie_dvsec_for_flex_bus_ports(start)
         start = self._add_register_locator_dvsec(start)
@@ -69,13 +71,18 @@ class DvsecConfigSpace(BitMaskedBitStructure):
         super().__init__(data, parent_name)
 
     def _add_cxl_devices_dvsec(
-        self, start: int, memory_device_component: Optional[DvsecConfigSpaceOptions] = None
+        self,
+        start: int,
+        memory_device_component: Optional[DvsecConfigSpaceOptions] = None,
+        capability_options: Optional[DvsecCxlCapabilityOptions] = None,
     ) -> int:
         if self._device_type not in (CXL_DEVICE_TYPE.LD, CXL_DEVICE_TYPE.ACCEL_T2):
             return start
 
         if not memory_device_component:
             raise Exception("memory_device_component is required")
+        if not capability_options:
+            raise Exception("capability_options is required")
 
         dvsec_size = DvsecCxlDevices.get_size()
         end = start + dvsec_size - 1
@@ -83,6 +90,7 @@ class DvsecConfigSpace(BitMaskedBitStructure):
         dvsec_options: DvsecCxlDevicesOptions = {
             "header": {"next_capability_offset": next},
             "memory_device_component": memory_device_component,
+            "capability_options": capability_options,
         }
         self._last_offset_header = dvsec_options["header"]
         self._fields.append(
