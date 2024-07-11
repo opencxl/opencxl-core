@@ -1459,7 +1459,7 @@ class CxlMemS2MBISnpHeader(UnalignedBitStructure):
         BitField("bi_id", 5, 16),
         BitField("bi_tag", 17, 28),
         BitField("addr", 29, 74),
-        BitField("rsvd", 75, 83),
+        BitField("rsvd", 75, 79),
     ]
 
 
