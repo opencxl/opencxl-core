@@ -8,7 +8,7 @@
 from dataclasses import dataclass
 from asyncio import create_task, gather
 from opencxl.util.component import RunnableComponent
-from opencxl.cxl.component.root_complex.memory_fifo import (
+from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
     MEMORY_REQUEST_TYPE,
     MemoryResponse,

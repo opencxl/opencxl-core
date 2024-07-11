@@ -8,7 +8,7 @@
 # pylint: disable=duplicate-code
 from enum import IntEnum
 from typing import TypedDict, Optional
-from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.unaligned_bit_structure import (
     BitMaskedBitStructure,
     BitField,
@@ -310,12 +310,15 @@ class CxlBIDecoderControlRegister(BitMaskedBitStructure):
     ):
 
         device_type = options["device_type"]
-
-        explicit_bi_decoder_commit_required = options["capability_options"][
-            "explicit_bi_decoder_commit_required"
-        ]
+        explicit_bi_decoder_commit_required = 0
+        if device_type not in (CXL_COMPONENT_TYPE.D2, CXL_COMPONENT_TYPE.R):
+            explicit_bi_decoder_commit_required = options["capability_options"][
+                "explicit_bi_decoder_commit_required"
+            ]
         options = options["control_options"]
-        bi_forward = options["bi_forward"]
+        bi_forward = 0
+        if device_type != CXL_COMPONENT_TYPE.D2:
+            bi_forward = options["bi_forward"]
         bi_enable = options["bi_enable"]
         bi_decoder_commit = options["bi_decoder_commit"]
 

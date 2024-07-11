@@ -26,7 +26,7 @@ from opencxl.cxl.component.cxl_component import (
     PortConfig,
     PORT_TYPE,
 )
-from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.component import RunnableComponent
 from opencxl.util.logger import logger
 

@@ -33,7 +33,7 @@ from opencxl.cxl.component.bi_decoder import (
     CxlBIRTCapabilityStructure,
     CxlBITimeoutScale,
 )
-from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import (
     HdmDecoderCapabilities,
     DecoderInfo,
@@ -247,7 +247,7 @@ def test_cachemem_register_with_options_bi_decoder_only():
         hdm_d_compatible=0, explicit_bi_decoder_commit_required=1
     )
     options["bi_decoder"]["control_options"] = CxlBIDecoderControlRegisterOptions(
-        bi_forward=1, bi_enable=1, bi_decoder_commit=0
+        bi_forward=1, bi_enable=0, bi_decoder_commit=0
     )
     options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
         bi_decoder_committed=0,
@@ -299,7 +299,7 @@ def test_cachemem_register_with_options_bi_only():
         hdm_d_compatible=0, explicit_bi_decoder_commit_required=1
     )
     options["bi_decoder"]["control_options"] = CxlBIDecoderControlRegisterOptions(
-        bi_forward=1, bi_enable=1, bi_decoder_commit=0
+        bi_forward=1, bi_enable=0, bi_decoder_commit=0
     )
     options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
         bi_decoder_committed=0,
@@ -374,7 +374,7 @@ def test_cachemem_register_with_options_all():
         hdm_d_compatible=0, explicit_bi_decoder_commit_required=1
     )
     options["bi_decoder"]["control_options"] = CxlBIDecoderControlRegisterOptions(
-        bi_forward=1, bi_enable=1, bi_decoder_commit=0
+        bi_forward=1, bi_enable=0, bi_decoder_commit=0
     )
     options["bi_decoder"]["status_options"] = CxlBIDecoderStatusRegisterOptions(
         bi_decoder_committed=0,

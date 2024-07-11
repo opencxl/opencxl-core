@@ -8,16 +8,42 @@
 from dataclasses import dataclass
 from asyncio import create_task, gather
 from enum import Enum, auto
-from typing import List
+from typing import List, cast
+
+from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.pci.component.fifo_pair import FifoPair
-from opencxl.cxl.component.root_complex.memory_fifo import (
+from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
+    MemoryRequest,
     MEMORY_REQUEST_TYPE,
     MemoryResponse,
     MEMORY_RESPONSE_STATUS,
 )
-from opencxl.util.logger import logger
+from opencxl.cxl.transport.cache_fifo import (
+    CacheFifoPair,
+    CacheRequest,
+    CACHE_REQUEST_TYPE,
+    CacheResponse,
+    CACHE_RESPONSE_STATUS,
+)
+from opencxl.cxl.transport.transaction import (
+    CxlMemBasePacket,
+    CxlMemMemRdPacket,
+    CxlMemMemWrPacket,
+    CxlMemBIRspPacket,
+    CxlMemS2MNDRPacket,
+    CxlMemS2MDRSPacket,
+    CxlMemS2MBISnpPacket,
+    CXL_MEM_M2SREQ_OPCODE,
+    CXL_MEM_M2SRWD_OPCODE,
+    CXL_MEM_M2SBIRSP_OPCODE,
+    CXL_MEM_S2MNDR_OPCODE,
+    CXL_MEM_S2MBISNP_OPCODE,
+    CXL_MEM_META_FIELD,
+    CXL_MEM_META_VALUE,
+    CXL_MEM_M2S_SNP_TYPE,
+)
 
 
 class MEMORY_RANGE_TYPE(Enum):
@@ -35,26 +61,48 @@ class MemoryRange:
 
 @dataclass
 class HomeAgentConfig:
-    upstream_cxl_mem_fifos: FifoPair
-    downstream_cxl_mem_fifos: FifoPair
+    host_name: str
+    memory_ranges: List[MemoryRange]
     memory_consumer_io_fifos: MemoryFifoPair
     memory_consumer_coh_fifos: MemoryFifoPair
     memory_producer_fifos: MemoryFifoPair
-    host_name: str
-    memory_ranges: List[MemoryRange]
-
-
-# pylint: disable=duplicate-code
+    upstream_cache_to_home_agent_fifo: CacheFifoPair
+    upstream_home_agent_to_cache_fifo: CacheFifoPair
+    downstream_cxl_mem_fifos: FifoPair
 
 
 class HomeAgent(RunnableComponent):
     def __init__(self, config: HomeAgentConfig):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+
         self._memory_ranges = config.memory_ranges
         self._memory_consumer_io_fifos = config.memory_consumer_io_fifos
         self._memory_consumer_coh_fifos = config.memory_consumer_coh_fifos
-        self._upstream_cxl_mem_fifos = config.upstream_cxl_mem_fifos
-        self._downstream_cxl_mem_fifos = config.upstream_cxl_mem_fifos
+        self._memory_producer_fifos = config.memory_producer_fifos
+        self._upstream_cache_to_home_agent_fifos = config.upstream_cache_to_home_agent_fifo
+        self._upstream_home_agent_to_cache_fifos = config.upstream_home_agent_to_cache_fifo
+        self._downstream_cxl_mem_fifos = config.downstream_cxl_mem_fifos
+
+    def _create_m2s_req_packet(
+        self,
+        opcode: CXL_MEM_M2SREQ_OPCODE,
+        meta_field: CXL_MEM_META_FIELD,
+        meta_value: CXL_MEM_META_VALUE,
+        snp_type: CXL_MEM_M2S_SNP_TYPE,
+        addr: int,
+    ) -> CxlMemMemRdPacket:
+        return CxlMemMemRdPacket.create(addr, opcode, meta_field, meta_value, snp_type)
+
+    def _create_m2s_rwd_packet(
+        self,
+        opcode: CXL_MEM_M2SRWD_OPCODE,
+        meta_field: CXL_MEM_META_FIELD,
+        meta_value: CXL_MEM_META_VALUE,
+        snp_type: CXL_MEM_M2S_SNP_TYPE,
+        addr: int,
+        data: int,
+    ) -> CxlMemMemWrPacket:
+        return CxlMemMemWrPacket.create(addr, data, opcode, meta_field, meta_value, snp_type)
 
     async def _get_memory_range(self, address: int, size: int) -> MemoryRange:
         for memory_range in self._memory_ranges:
@@ -64,16 +112,19 @@ class HomeAgent(RunnableComponent):
                 return memory_range
         return MemoryRange(type=MEMORY_RANGE_TYPE.OOB, base_address=0, size=0)
 
-    # pylint: disable=unused-argument
     async def _write_memory(self, address: int, size: int, value: int):
-        # TODO: Send memory request to either CXL or DRAM
-        pass
+        packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, address, size, value)
+        await self._memory_producer_fifos.request.put(packet)
+        packet = await self._memory_producer_fifos.response.get()
+
+        assert packet.status == MEMORY_RESPONSE_STATUS.OK
 
     async def _read_memory(self, address: int, size: int) -> int:
-        # TODO: Send memory request to either CXL or DRAM
-        return 0
+        packet = MemoryRequest(MEMORY_REQUEST_TYPE.READ, address, size)
+        await self._memory_producer_fifos.request.put(packet)
+        packet = await self._memory_producer_fifos.response.get()
 
-    # pylint: enable=unused-argument
+        return packet.data
 
     async def _process_memory_io_bridge_requests(self):
         while True:
@@ -84,11 +135,9 @@ class HomeAgent(RunnableComponent):
                 )
                 break
             if packet.type == MEMORY_REQUEST_TYPE.WRITE:
-                self._write_memory(packet.address, packet.size, packet.data)
-                response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
-                await self._memory_consumer_io_fifos.response.put(response)
+                await self._write_memory(packet.address, packet.size, packet.data)
             elif packet.type == MEMORY_REQUEST_TYPE.READ:
-                data = self._read_memory(packet.address, packet.size)
+                data = await self._read_memory(packet.address, packet.size)
                 response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
                 await self._memory_consumer_io_fifos.response.put(response)
 
@@ -103,38 +152,138 @@ class HomeAgent(RunnableComponent):
                 )
                 break
             if packet.type == MEMORY_REQUEST_TYPE.WRITE:
-                self._write_memory(packet.address, packet.size, packet.data)
-                response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
-                await self._memory_consumer_coh_fifos.response.put(response)
+                await self._write_memory(packet.address, packet.size, packet.data)
             elif packet.type == MEMORY_REQUEST_TYPE.READ:
-                data = self._read_memory(packet.address, packet.size)
-                data = 0
+                data = await self._read_memory(packet.address, packet.size)
                 response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
                 await self._memory_consumer_coh_fifos.response.put(response)
 
     async def _process_upstream_host_to_target_packets(self):
         while True:
-            packet = await self._upstream_cxl_mem_fifos.host_to_target.get()
-            if packet is None:
+            cache_packet = await self._upstream_cache_to_home_agent_fifos.request.get()
+            if cache_packet is None:
                 logger.debug(
                     self._create_message(
-                        "Stopped processing upstream host to target CXL.mem packets"
+                        "Stopped processing memory access requests from upstream packets"
                     )
                 )
                 break
-            # TODO: Process upstream host to target CXL.mem packets
+            meta_field = CXL_MEM_META_FIELD.NO_OP
+            meta_value = CXL_MEM_META_VALUE.INVALID
+            snp_type = CXL_MEM_M2S_SNP_TYPE.NO_OP
+            addr = cache_packet.address
+
+            if cache_packet.type in (CACHE_REQUEST_TYPE.WRITE, CACHE_REQUEST_TYPE.WRITE_BACK):
+                opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR
+                data = cache_packet.data
+
+                # HDM-H Normal Write
+                if cache_packet.type == CACHE_REQUEST_TYPE.WRITE:
+                    meta_value = CXL_MEM_META_VALUE.ANY
+                # HDM-DB Flush Write (Cmp: I/I)
+                elif cache_packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
+                    meta_field = CXL_MEM_META_FIELD.META0_STATE
+                    meta_value = CXL_MEM_META_VALUE.INVALID
+
+                cxl_packet = self._create_m2s_rwd_packet(
+                    opcode, meta_field, meta_value, snp_type, addr, data
+                )
+            else:
+                # HDM-H Normal Read
+                if cache_packet.type == CACHE_REQUEST_TYPE.READ:
+                    opcode = CXL_MEM_M2SREQ_OPCODE.MEM_RD
+                    meta_value = CXL_MEM_META_VALUE.ANY
+                # HDM-DB Device Shared Read (Cmp-S: S/S, Cmp-E: A/I)
+                elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
+                    opcode = CXL_MEM_M2SREQ_OPCODE.MEM_RD
+                    meta_field = CXL_MEM_META_FIELD.META0_STATE
+                    meta_value = CXL_MEM_META_VALUE.SHARED
+                    snp_type = CXL_MEM_M2S_SNP_TYPE.SNP_DATA
+                # HDM-DB Non-Data, Host Ownership Device Invalidation (Cmp-E: A/I)
+                elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_INV:
+                    opcode = CXL_MEM_M2SREQ_OPCODE.MEM_INV
+                    meta_field = CXL_MEM_META_FIELD.META0_STATE
+                    meta_value = CXL_MEM_META_VALUE.ANY
+                    snp_type = CXL_MEM_M2S_SNP_TYPE.SNP_INV
+                # HDM-DB Non-Cacheable Read, Leaving Device Cache (Cmp: I/A)
+                elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_CUR:
+                    opcode = CXL_MEM_M2SREQ_OPCODE.MEM_RD
+                    meta_field = CXL_MEM_META_FIELD.META0_STATE
+                    snp_type = CXL_MEM_M2S_SNP_TYPE.SNP_CUR
+                else:
+                    logger.debug(self._create_message("Invalid M2S RwD Command"))
+                    break
+
+                cxl_packet = self._create_m2s_req_packet(
+                    opcode, meta_field, meta_value, snp_type, addr
+                )
+            await self._downstream_cxl_mem_fifos.host_to_target.put(cxl_packet)
 
     async def _process_downstream_target_to_host_packets(self):
         while True:
-            packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
-            if packet is None:
+            cxl_packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
+            if cxl_packet is None:
                 logger.debug(
                     self._create_message(
-                        "Stopped processing downstream target to host CXL.mem packets"
+                        "Stopped processing memory access requests from downstream packets"
                     )
                 )
                 break
-            # TODO: Process downstream target to host CXL.mem packets
+            base_packet = cast(CxlMemBasePacket, cxl_packet)
+
+            if base_packet.is_s2mndr():
+                packet = cast(CxlMemS2MNDRPacket, cxl_packet)
+                if packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_S:
+                    status = CACHE_RESPONSE_STATUS.RSP_S
+                elif packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_E:
+                    status = CACHE_RESPONSE_STATUS.RSP_I
+                elif packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_M:
+                    pass
+                else:
+                    continue
+
+                if not self._downstream_cxl_mem_fifos.target_to_host.empty():
+                    cxl_packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
+                    base_packet = cast(CxlMemBasePacket, cxl_packet)
+                    if base_packet.is_s2mbisnp():
+                        await self._downstream_cxl_mem_fifos.target_to_host.put(cxl_packet)
+                        cache_packet = CacheResponse(status)
+                    else:
+                        assert base_packet.is_s2mdrs()
+                        packet = cast(CxlMemS2MDRSPacket, cxl_packet)
+                        cache_packet = CacheResponse(status, packet.data)
+                else:
+                    cache_packet = CacheResponse(status)
+                await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
+
+            elif base_packet.is_s2mdrs():
+                packet = cast(CxlMemS2MDRSPacket, cxl_packet)
+                cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, packet.data)
+                await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
+
+            elif base_packet.is_s2mbisnp():
+                packet = cast(CxlMemS2MBISnpPacket, cxl_packet)
+                addr = packet.get_address()
+
+                if packet.s2mbisnp_header.opcode == CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA:
+                    cache_packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, addr)
+                elif packet.s2mbisnp_header.opcode == CXL_MEM_S2MBISNP_OPCODE.BISNP_INV:
+                    cache_packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, addr)
+                await self._upstream_home_agent_to_cache_fifos.request.put(cache_packet)
+                bi_id = packet.s2mbisnp_header.bi_id
+                bi_tag = packet.s2mbisnp_header.bi_tag
+
+                packet = await self._upstream_home_agent_to_cache_fifos.response.get()
+                if packet.status == CACHE_RESPONSE_STATUS.RSP_S:
+                    rsp_state = CXL_MEM_M2SBIRSP_OPCODE.BIRSP_S
+                else:
+                    rsp_state = CXL_MEM_M2SBIRSP_OPCODE.BIRSP_I
+                cxl_packet = CxlMemBIRspPacket.create(rsp_state, bi_id=bi_id, bi_tag=bi_tag)
+                await self._downstream_cxl_mem_fifos.host_to_target.put(cxl_packet)
+
+            else:
+                logger.info(self._create_message(packet.cxl_mem_header.msg_class))
+                assert False
 
     async def _run(self):
         tasks = [
@@ -147,10 +296,7 @@ class HomeAgent(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
-        await self._memory_consumer_io_fifos.put(None)
-        await self._memory_consumer_coh_fifos.put(None)
-        await self._upstream_cxl_mem_fifos.host_to_target.put(None)
+        await self._memory_consumer_io_fifos.request.put(None)
+        await self._memory_consumer_coh_fifos.request.put(None)
+        await self._upstream_cache_to_home_agent_fifos.request.put(None)
         await self._downstream_cxl_mem_fifos.target_to_host.put(None)
-
-
-# pylint: enable=duplicate-code

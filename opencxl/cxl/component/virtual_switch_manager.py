@@ -7,7 +7,7 @@
 
 from asyncio import create_task, gather
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from opencxl.cxl.component.virtual_switch.virtual_switch import (
     CxlVirtualSwitch,
@@ -29,6 +29,8 @@ class VirtualSwitchManager(RunnableComponent):
         self,
         switch_configs: List[VirtualSwitchConfig],
         physical_port_manager: PhysicalPortManager,
+        bi_enable_override_for_test: Optional[int] = None,
+        bi_forward_override_for_test: Optional[int] = None,
     ):
         super().__init__()
         self._physical_port_manager = physical_port_manager
@@ -39,6 +41,8 @@ class VirtualSwitchManager(RunnableComponent):
                 upstream_port_index=switch_config.upstream_port_index,
                 vppb_counts=switch_config.vppb_counts,
                 initial_bounds=switch_config.initial_bounds,
+                bi_enable_override_for_test=bi_enable_override_for_test,
+                bi_forward_override_for_test=bi_forward_override_for_test,
                 physical_ports=physical_port_manager.get_port_devices(),
             )
             self._virtual_switches.append(virtual_switch)

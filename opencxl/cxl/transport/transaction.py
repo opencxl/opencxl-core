@@ -826,7 +826,7 @@ class CxlCacheD2HReqHeader(UnalignedBitStructure):
         BitField("nt", 18, 18),
         BitField("cache_id", 19, 22),
         BitField("addr", 23, 68),
-        BitField("rsvd", 69, 75),
+        BitField("rsvd", 69, 71),
     ]
 
 
@@ -1156,13 +1156,16 @@ class CxlCacheCacheH2DReqPacket(CxlCacheH2DReqPacket):
 class CxlCacheCacheH2DRspPacket(CxlCacheH2DRspPacket):
     @staticmethod
     # read length is assumed to be 64 for now
-    def create(opcode: CXL_CACHE_H2DRSP_OPCODE) -> "CxlCacheCacheH2DRspPacket":
+    def create(
+        opcode: CXL_CACHE_H2DRSP_OPCODE, rsp_data: CXL_CACHE_H2DRSP_CACHE_STATE
+    ) -> "CxlCacheCacheH2DRspPacket":
         packet = CxlCacheCacheH2DRspPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_RSP
         packet.h2drsp_header.valid = 0b1
         packet.h2drsp_header.cache_opcode = opcode
+        packet.h2drsp_header.rsp_data = rsp_data
         return packet
 
 
@@ -1313,6 +1316,9 @@ class CxlMemM2SReqPacket(CxlMemBasePacket):
     def is_mem_rd(self) -> bool:
         return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_RD
 
+    def is_mem_inv(self) -> bool:
+        return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_INV
+
     def get_address(self) -> int:
         return self.m2sreq_header.addr << 6
 
@@ -1445,7 +1451,7 @@ class CxlMemS2MBISnpHeader(UnalignedBitStructure):
     opcode: CXL_MEM_S2MBISNP_OPCODE
     bi_id: int
     bi_tag: int
-    low_addr: int
+    addr: int
     rsvd: int
     _fields = [
         BitField("valid", 0, 0),
@@ -1453,7 +1459,7 @@ class CxlMemS2MBISnpHeader(UnalignedBitStructure):
         BitField("bi_id", 5, 16),
         BitField("bi_tag", 17, 28),
         BitField("addr", 29, 74),
-        BitField("rsvd", 75, 83),
+        BitField("rsvd", 75, 79),
     ]
 
 
@@ -1473,12 +1479,16 @@ class CxlMemS2MBISnpPacket(CxlMemBasePacket):
         ),
     ]
 
+    def get_address(self) -> int:
+        return self.s2mbisnp_header.addr << 6
+
 
 # CXL.mem S2M No Data Response (NDR)
 class CXL_MEM_S2MNDR_OPCODE(IntEnum):
     CMP = 0b000
     CMP_S = 0b001
     CMP_E = 0b010
+    CMP_M = 0b011
     BI_CONFLICT_ACK = 0b100
 
 
@@ -1572,13 +1582,22 @@ class CxlMemS2MDRSPacket(CxlMemBasePacket):
 class CxlMemMemRdPacket(CxlMemM2SReqPacket):
     @staticmethod
     # read length is assumed to be 64 for now
-    def create(addr: int) -> "CxlMemMemRdPacket":
+    def create(
+        addr: int,
+        opcode: Optional[CXL_MEM_M2SREQ_OPCODE] = CXL_MEM_M2SREQ_OPCODE.MEM_RD,
+        meta_field: Optional[CXL_MEM_META_FIELD] = CXL_MEM_META_FIELD.NO_OP,
+        meta_value: Optional[CXL_MEM_META_VALUE] = CXL_MEM_META_VALUE.ANY,
+        snp_type: Optional[CXL_MEM_M2S_SNP_TYPE] = CXL_MEM_M2S_SNP_TYPE.NO_OP,
+    ) -> "CxlMemMemRdPacket":
         packet = CxlMemMemRdPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_REQ
         packet.m2sreq_header.valid = 0b1
-        packet.m2sreq_header.mem_opcode = CXL_MEM_M2SREQ_OPCODE.MEM_RD
+        packet.m2sreq_header.mem_opcode = opcode
+        packet.m2sreq_header.meta_field = meta_field
+        packet.m2sreq_header.meta_value = meta_value
+        packet.m2sreq_header.snp_type = snp_type
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         packet.m2sreq_header.addr = addr >> 6
@@ -1587,13 +1606,23 @@ class CxlMemMemRdPacket(CxlMemM2SReqPacket):
 
 class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
     @staticmethod
-    def create(addr: int, data: int) -> "CxlMemMemWrPacket":
+    def create(
+        addr: int,
+        data: int,
+        opcode: Optional[CXL_MEM_M2SRWD_OPCODE] = CXL_MEM_M2SRWD_OPCODE.MEM_WR,
+        meta_field: Optional[CXL_MEM_META_FIELD] = CXL_MEM_META_FIELD.NO_OP,
+        meta_value: Optional[CXL_MEM_META_VALUE] = CXL_MEM_META_VALUE.ANY,
+        snp_type: Optional[CXL_MEM_M2S_SNP_TYPE] = CXL_MEM_M2S_SNP_TYPE.NO_OP,
+    ) -> "CxlMemMemWrPacket":
         packet = CxlMemMemWrPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_RWD
         packet.m2srwd_header.valid = 0b1
-        packet.m2srwd_header.mem_opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR
+        packet.m2srwd_header.mem_opcode = opcode
+        packet.m2srwd_header.meta_field = meta_field
+        packet.m2srwd_header.meta_value = meta_value
+        packet.m2srwd_header.snp_type = snp_type
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         packet.m2srwd_header.addr = addr >> 6
@@ -1601,27 +1630,82 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         return packet
 
 
+class CxlMemBIRspPacket(CxlMemM2SBIRspPacket):
+    @staticmethod
+    def create(
+        opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
+    ) -> "CxlMemBIRspPacket":
+        packet = CxlMemBIRspPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_length = len(packet)
+        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_BIRSP
+        packet.m2sbirsp_header.valid = 0b1
+        packet.m2sbirsp_header.opcode = opcode
+        packet.m2sbirsp_header.low_addr = 0b0
+        packet.m2sbirsp_header.bi_tag = bi_tag
+        packet.m2sbirsp_header.bi_id = bi_id
+        return packet
+
+
+class CxlMemBISnpPacket(CxlMemS2MBISnpPacket):
+    tag: int = 0
+
+    @staticmethod
+    def get_tag():
+        old_tag = CxlMemBISnpPacket.tag
+        CxlMemBISnpPacket.tag += 1
+        CxlMemBISnpPacket.tag %= 4096
+        return old_tag
+
+    @staticmethod
+    def create(addr: int, opcode: CXL_MEM_S2MBISNP_OPCODE) -> "CxlMemBISnpPacket":
+        packet = CxlMemBISnpPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_length = len(packet)
+        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_BISNP
+        packet.s2mbisnp_header.valid = 0b1
+        packet.s2mbisnp_header.opcode = opcode
+        if addr % 0x40:
+            raise Exception("Address must be a multiple of 0x40")
+        packet.s2mbisnp_header.addr = addr >> 6
+        packet.s2mbisnp_header.bi_tag = CxlMemBISnpPacket.get_tag()
+        return packet
+
+
 class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
     @staticmethod
-    def create(data: int) -> "CxlMemMemDataPacket":
+    def create(
+        data: int,
+        drs_opcode: Optional[CXL_MEM_S2MDRS_OPCODE] = CXL_MEM_S2MDRS_OPCODE.MEM_DATA,
+        meta_field: Optional[CXL_MEM_META_FIELD] = CXL_MEM_META_FIELD.NO_OP,
+        meta_value: Optional[CXL_MEM_META_VALUE] = CXL_MEM_META_VALUE.ANY,
+    ) -> "CxlMemMemDataPacket":
         packet = CxlMemMemDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_DRS
-        packet.s2mdrs_header.opcode = CXL_MEM_S2MDRS_OPCODE.MEM_DATA
+        packet.s2mdrs_header.opcode = drs_opcode
+        packet.s2mdrs_header.meta_field = meta_field
+        packet.s2mdrs_header.meta_value = meta_value
         packet.data = data
         return packet
 
 
 class CxlMemCmpPacket(CxlMemS2MNDRPacket):
     @staticmethod
-    def create() -> "CxlMemCmpPacket":
+    def create(
+        ndr_opcode: Optional[CXL_MEM_S2MNDR_OPCODE] = CXL_MEM_S2MNDR_OPCODE.CMP,
+        meta_field: Optional[CXL_MEM_META_FIELD] = CXL_MEM_META_FIELD.NO_OP,
+        meta_value: Optional[CXL_MEM_META_VALUE] = CXL_MEM_META_VALUE.ANY,
+    ) -> "CxlMemCmpPacket":
         packet = CxlMemCmpPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_NDR
         packet.s2mndr_header.valid = 0b1
-        packet.s2mndr_header.opcode = CXL_MEM_S2MNDR_OPCODE.CMP
+        packet.s2mndr_header.opcode = ndr_opcode
+        packet.s2mndr_header.meta_field = meta_field
+        packet.s2mndr_header.meta_value = meta_value
         return packet
 
 
@@ -1643,6 +1727,13 @@ def is_cxl_mem_completion(packet: BasePacket) -> bool:
         cxl_mem_packet.is_s2mndr()
         and cxl_mem_packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP
     )
+
+
+def is_cxl_mem_birsp(packet: BasePacket) -> bool:
+    if not packet.is_cxl_mem():
+        return False
+    cxl_mem_packet = cast(CxlMemBIRspPacket, packet)
+    return cxl_mem_packet.is_m2sbirsp()
 
 
 class CCI_MCTP_MESSAGE_CATEGORY(IntEnum):

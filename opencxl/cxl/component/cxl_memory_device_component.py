@@ -44,7 +44,7 @@ from opencxl.cxl.component.cxl_component import (
     CxlDeviceComponent,
     CXL_DEVICE_CAPABILITY_TYPE,
 )
-from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import (
     DeviceHdmDecoderManager,
     HdmDecoderManagerBase,
@@ -252,6 +252,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             bi_decoder_commit_timeout_scale=1,
         )
         options["device_type"] = self.get_component_type()
+        return options
 
     def get_cdat_entries(self) -> List[CDAT_ENTRY]:
         dsmas = DeviceScopedMemoryAffinity()

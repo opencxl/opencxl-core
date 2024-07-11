@@ -9,6 +9,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Optional, List, cast
 
+from opencxl.cxl.mmio.component_register.memcache_register.capability import CxlCapabilityIDToName
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
@@ -30,6 +31,7 @@ from opencxl.util.pci import (
     generate_bdfs_for_bus,
 )
 from opencxl.cxl.transport.transaction import (
+    CXL_MEM_M2SBIRSP_OPCODE,
     BasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
@@ -37,6 +39,7 @@ from opencxl.cxl.transport.transaction import (
     CxlIoCompletionWithDataPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
+    CxlMemBIRspPacket,
     CxlMemMemWrPacket,
     CxlMemMemRdPacket,
     CxlMemMemDataPacket,
@@ -321,6 +324,14 @@ class CxlRootPortDevice(RunnableComponent):
         except asyncio.exceptions.TimeoutError:
             logger.error(self._create_message("CXL.mem Write: Timed-out"))
             return None
+
+    async def cxl_mem_birsp(
+        self, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
+    ) -> int:
+        logger.info(self._create_message(f"CXL.mem BIRsp: opcode:0x{opcode:x}"))
+        packet = CxlMemBIRspPacket.create(opcode, bi_id, bi_tag)
+        await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
+        return 0
 
     """
     Helper functions for PCI Config Space access
@@ -616,12 +627,12 @@ class CxlRootPortDevice(RunnableComponent):
             cxl_capability_id = header_info & 0xFFFF
             cxl_capability_version = (header_info >> 16) & 0xF
             offset = (header_info >> 20) & 0xFFF
-            if cxl_capability_id == 0x0002:
-                logger.info(self._create_message("Found RAS Capability Header"))
-            elif cxl_capability_id == 0x0004:
-                logger.info(self._create_message("Found Link Capability Header"))
-            elif cxl_capability_id == 0x0005:
-                logger.info(self._create_message("Found HDM Decoder Capability Header"))
+            logger.info(
+                self._create_message(
+                    f"Found {CxlCapabilityIDToName.get(cxl_capability_id)} Capability Header"
+                )
+            )
+            if cxl_capability_id == 0x0005:
                 hdm_decoder_offset = cxl_cachemem_offset + offset
                 info.component_registers.hdm_decoder = hdm_decoder_offset
                 logger.info(
@@ -629,12 +640,6 @@ class CxlRootPortDevice(RunnableComponent):
                         f"HDM Decoder Capability Offset: 0x{hdm_decoder_offset:08x}"
                     )
                 )
-            elif cxl_capability_id == 0x000B:
-                logger.info(self._create_message("Found BI Route Table Capability Header"))
-            elif cxl_capability_id == 0x000B:
-                logger.info(self._create_message("Found BI RT Capability Header"))
-            elif cxl_capability_id == 0x000C:
-                logger.info(self._create_message("Found BI Decoder Capability Header"))
 
     async def scan_bus(
         self, bus: int, parent: Optional[DeviceEnumerationInfo] = None

@@ -12,6 +12,7 @@ import websockets
 from websockets import WebSocketClientProtocol
 
 
+from opencxl.cxl.transport.transaction import CXL_MEM_M2SBIRSP_OPCODE
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.device.root_port_device import CxlRootPortDevice
@@ -22,7 +23,7 @@ from opencxl.cxl.component.host_manager_conn import (
     UtilConnServer,
     Result,
 )
-from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 
 
 class CxlHost(RunnableComponent):
@@ -45,6 +46,7 @@ class CxlHost(RunnableComponent):
         self._methods = {
             "HOST_CXL_MEM_READ": self._cxl_mem_read,
             "HOST_CXL_MEM_WRITE": self._cxl_mem_write,
+            "HOST_CXL_MEM_BIRSP": self._cxl_mem_birsp,
             "HOST_REINIT": self._reinit,
         }
         if hm_mode:
@@ -88,6 +90,13 @@ class CxlHost(RunnableComponent):
             return Result(f"Invalid Params: 0x{addr:x} is not a valid address")
         op_addr = addr + self._root_port_device.get_hpa_base()
         res = await self._root_port_device.cxl_mem_write(op_addr, data)
+        return Result(res)
+
+    async def _cxl_mem_birsp(
+        self, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
+    ) -> Result:
+        logger.info(self._create_message(f"CXL.mem BI-RSP: opcode=0x{opcode:x}"))
+        res = await self._root_port_device.cxl_mem_birsp(opcode, bi_id, bi_tag)
         return Result(res)
 
     async def _reinit(self, hpa_base: int = None) -> Result:
@@ -181,6 +190,19 @@ class CxlHostUtilClient:
     async def cxl_mem_read(self, port: int, addr: int) -> str:
         logger.info(f"CXL-Host[Port{port}]: Start CXL.mem Read: addr=0x{addr:x}")
         cmd = request_json("UTIL_CXL_MEM_READ", params={"port": port, "addr": addr})
+        return await self._process_cmd(cmd)
+
+    async def cxl_mem_birsp(
+        self, port: int, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
+    ) -> str:
+        logger.info(
+            f"CXL-Host[Port{port}]: Start CXL.mem BIRsp: opcode: 0x{opcode:x}"
+            f" id: {bi_id}, tag: {bi_tag}"
+        )
+        cmd = request_json(
+            "UTIL_CXL_MEM_BIRSP",
+            params={"port": port, "opcode": opcode, "bi_id": bi_id, "bi_tag": bi_tag},
+        )
         return await self._process_cmd(cmd)
 
     async def reinit(self, port: int, hpa_base: int = None) -> str:

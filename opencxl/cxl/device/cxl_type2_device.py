@@ -7,7 +7,7 @@
 
 # pylint: disable=duplicate-code
 from asyncio import create_task, gather
-from typing import Optional
+from dataclasses import dataclass
 
 from opencxl.cxl.config_space.dvsec.cxl_devices import (
     DvsecCxlCacheableRangeOptions,
@@ -16,8 +16,6 @@ from opencxl.cxl.config_space.dvsec.cxl_devices import (
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
-from opencxl.cxl.component.cxl_mem_manager import CxlMemManager
-from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 from opencxl.cxl.component.cxl_io_manager import CxlIoManager
 from opencxl.cxl.mmio import CombinedMmioRegister, CombinedMmioRegiterOptions
 from opencxl.cxl.config_space.dvsec import (
@@ -48,23 +46,42 @@ from opencxl.pci.component.config_space_manager import (
     ConfigSpaceManager,
     PCI_DEVICE_TYPE,
 )
+from opencxl.cxl.component.cache_controller import (
+    CacheController,
+    CacheControllerConfig,
+)
+from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
+from opencxl.cxl.transport.cache_fifo import CacheFifoPair
+from opencxl.cxl.component.device_llc_iogen import (
+    DeviceLlcIoGen,
+    DeviceLlcIoGenConfig,
+)
+from opencxl.cxl.component.cxl_mem_dcoh import CxlMemDcoh
+
+
+@dataclass
+class CxlType2DeviceConfig:
+    device_name: str
+    transport_connection: CxlConnection
+    memory_size: int
+    memory_file: str
+    decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_4
 
 
 class CxlType2Device(RunnableComponent):
-    def __init__(
-        self,
-        transport_connection: CxlConnection,
-        memory_size: int,
-        memory_file: str,
-        decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_4,
-        label: Optional[str] = None,
-    ):
-        super().__init__(label)
-        self._memory_size = memory_size
-        self._memory_file = memory_file
-        self._decoder_count = decoder_count
+    def __init__(self, config: CxlType2DeviceConfig):
+        self._label = lambda class_name: f"{config.device_name}:{class_name}"
+        super().__init__(self._label)
+
+        processor_to_cache_fifo = MemoryFifoPair()
+        cache_to_coh_agent_fifo = CacheFifoPair()
+        coh_agent_to_cache_fifo = CacheFifoPair()
+
+        self._memory_size = config.memory_size
+        self._memory_file = config.memory_file
+        self._decoder_count = config.decoder_count
         self._cxl_memory_device_component = None
-        self._upstream_connection = transport_connection
+        self._upstream_connection = config.transport_connection
 
         self._cxl_io_manager = CxlIoManager(
             self._upstream_connection.mmio_fifo,
@@ -75,17 +92,30 @@ class CxlType2Device(RunnableComponent):
             init_callback=self._init_device,
             label=self._label,
         )
-        self._cxl_mem_manager = CxlMemManager(
+        self._cxl_mem_dcoh = CxlMemDcoh(
+            cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
+            coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
             upstream_fifo=self._upstream_connection.cxl_mem_fifo,
-            label=self._label,
-        )
-        self._cxl_cache_manager = CxlCacheManager(
-            upstream_fifo=self._upstream_connection.cxl_cache_fifo,
             label=self._label,
         )
 
         # Update CxlMemManager with a CxlMemoryDeviceComponent
-        self._cxl_mem_manager.set_memory_device_component(self._cxl_memory_device_component)
+        self._cxl_mem_dcoh.set_memory_device_component(self._cxl_memory_device_component)
+
+        cache_controller_config = CacheControllerConfig(
+            component_name=config.device_name,
+            processor_to_cache_fifo=processor_to_cache_fifo,
+            cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
+            coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
+            cache_num_assoc=4,
+            cache_num_set=8,
+        )
+        self._cache_controller = CacheController(cache_controller_config)
+
+        device_processor_config = DeviceLlcIoGenConfig(
+            device_name=config.device_name, processor_to_cache_fifo=processor_to_cache_fifo
+        )
+        self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
 
     def _init_device(
         self,
@@ -164,13 +194,15 @@ class CxlType2Device(RunnableComponent):
         # pylint: disable=duplicate-code
         run_tasks = [
             create_task(self._cxl_io_manager.run()),
-            create_task(self._cxl_cache_manager.run()),
-            create_task(self._cxl_mem_manager.run()),
+            create_task(self._cxl_mem_dcoh.run()),
+            create_task(self._cache_controller.run()),
+            create_task(self._device_simple_processor.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
-            create_task(self._cxl_cache_manager.wait_for_ready()),
-            create_task(self._cxl_mem_manager.wait_for_ready()),
+            create_task(self._cxl_mem_dcoh.wait_for_ready()),
+            create_task(self._cache_controller.wait_for_ready()),
+            create_task(self._device_simple_processor.wait_for_ready()),
         ]
         await gather(*wait_tasks)
         await self._change_status_to_running()
@@ -180,7 +212,8 @@ class CxlType2Device(RunnableComponent):
         # pylint: disable=duplicate-code
         tasks = [
             create_task(self._cxl_io_manager.stop()),
-            create_task(self._cxl_cache_manager.stop()),
-            create_task(self._cxl_mem_manager.stop()),
+            create_task(self._cxl_mem_dcoh.stop()),
+            create_task(self._cache_controller.stop()),
+            create_task(self._device_simple_processor.stop()),
         ]
         await gather(*tasks)
