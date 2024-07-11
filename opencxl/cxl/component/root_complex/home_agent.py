@@ -270,13 +270,15 @@ class HomeAgent(RunnableComponent):
                 elif packet.s2mbisnp_header.opcode == CXL_MEM_S2MBISNP_OPCODE.BISNP_INV:
                     cache_packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, addr)
                 await self._upstream_home_agent_to_cache_fifos.request.put(cache_packet)
+                bi_id = packet.s2mbisnp_header.bi_id
+                bi_tag = packet.s2mbisnp_header.bi_tag
 
                 packet = await self._upstream_home_agent_to_cache_fifos.response.get()
                 if packet.status == CACHE_RESPONSE_STATUS.RSP_S:
                     rsp_state = CXL_MEM_M2SBIRSP_OPCODE.BIRSP_S
                 else:
                     rsp_state = CXL_MEM_M2SBIRSP_OPCODE.BIRSP_I
-                cxl_packet = CxlMemBIRspPacket.create(rsp_state)
+                cxl_packet = CxlMemBIRspPacket.create(rsp_state, bi_id=bi_id, bi_tag=bi_tag)
                 await self._downstream_cxl_mem_fifos.host_to_target.put(cxl_packet)
 
             else:

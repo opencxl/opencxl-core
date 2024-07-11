@@ -15,7 +15,7 @@ from opencxl.cxl.device.cxl_type2_device import (
     CxlType2DeviceConfig,
 )
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 
 
 # Example devices based on type1 and type2 devices

@@ -171,6 +171,12 @@ class PortBinder(RunnableComponent):
             raise Exception(f"vPPB{vppb_index} is not bound")
         return self._bind_slots[vppb_index].dsp.get_port_index()
 
+    def get_bind_slots(self):
+        return self._bind_slots
+
+    def get_vppb_connections(self):
+        return self._vppb_connections
+
     async def _run(self):
         await self._change_status_to_running()
         await self._async_gatherer.wait_for_completion()

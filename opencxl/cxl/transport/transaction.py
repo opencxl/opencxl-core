@@ -262,6 +262,13 @@ class CxlIoBasePacket(BasePacket):
         )
 
     @staticmethod
+    def get_tag() -> int:
+        old_tag = CxlIoBasePacket.tag
+        CxlIoBasePacket.tag += 1
+        CxlIoBasePacket.tag %= 256
+        return old_tag
+
+    @staticmethod
     def build_transaction_id(req_id: int, tag: int) -> int:
         tid = (req_id << 8) | tag
         return tid
@@ -344,8 +351,8 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
         else:
             req_id = 0
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
+            tag = cls.get_tag()
+        tag %= 256
 
         """
         `length` field from the TLP header is measured in DWORDs.
@@ -379,8 +386,9 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         else:
             req_id = 0
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
+            tag = cls.get_tag()
+        tag %= 256
+
         """
         `length` field from the TLP header is measured in DWORDs.
         """
@@ -518,8 +526,8 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         else:
             req_id = 0
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
+            tag = cls.get_tag()
+        tag %= 256
 
         packet = CxlIoCfgRdPacket()
         packet.fill(id, cfg_addr, size, req_id, tag)
@@ -552,8 +560,8 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         else:
             req_id = 0
         if tag is None:
-            tag = cls.tag
-            cls.tag += 1
+            tag = cls.get_tag()
+        tag %= 256
 
         offset = cfg_addr % 4
         packet = CxlIoCfgWrPacket()
@@ -1624,29 +1632,43 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
 
 class CxlMemBIRspPacket(CxlMemM2SBIRspPacket):
     @staticmethod
-    def create(opc: CXL_MEM_M2SBIRSP_OPCODE) -> "CxlMemBIRspPacket":
+    def create(
+        opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
+    ) -> "CxlMemBIRspPacket":
         packet = CxlMemBIRspPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_BIRSP
         packet.m2sbirsp_header.valid = 0b1
-        packet.m2sbirsp_header.opcode = opc
+        packet.m2sbirsp_header.opcode = opcode
         packet.m2sbirsp_header.low_addr = 0b0
+        packet.m2sbirsp_header.bi_tag = bi_tag
+        packet.m2sbirsp_header.bi_id = bi_id
         return packet
 
 
 class CxlMemBISnpPacket(CxlMemS2MBISnpPacket):
+    tag: int = 0
+
     @staticmethod
-    def create(opc: CXL_MEM_S2MBISNP_OPCODE, addr: int) -> "CxlMemBISnpPacket":
+    def get_tag():
+        old_tag = CxlMemBISnpPacket.tag
+        CxlMemBISnpPacket.tag += 1
+        CxlMemBISnpPacket.tag %= 4096
+        return old_tag
+
+    @staticmethod
+    def create(addr: int, opcode: CXL_MEM_S2MBISNP_OPCODE) -> "CxlMemBISnpPacket":
         packet = CxlMemBISnpPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_BISNP
         packet.s2mbisnp_header.valid = 0b1
-        packet.s2mbisnp_header.opcode = opc
+        packet.s2mbisnp_header.opcode = opcode
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         packet.s2mbisnp_header.addr = addr >> 6
+        packet.s2mbisnp_header.bi_tag = CxlMemBISnpPacket.get_tag()
         return packet
 
 
@@ -1705,6 +1727,13 @@ def is_cxl_mem_completion(packet: BasePacket) -> bool:
         cxl_mem_packet.is_s2mndr()
         and cxl_mem_packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP
     )
+
+
+def is_cxl_mem_birsp(packet: BasePacket) -> bool:
+    if not packet.is_cxl_mem():
+        return False
+    cxl_mem_packet = cast(CxlMemBIRspPacket, packet)
+    return cxl_mem_packet.is_m2sbirsp()
 
 
 class CCI_MCTP_MESSAGE_CATEGORY(IntEnum):

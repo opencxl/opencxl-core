@@ -130,3 +130,6 @@ class PciRoutingTable(LabeledComponent):
             if mmio_entry.base <= memory_addr <= mmio_entry.limit:
                 return port_number
         return None
+
+    def get_secondary_bus_number(self, port_number: int) -> int:
+        return self._config_space_table[port_number].secondary_bus
