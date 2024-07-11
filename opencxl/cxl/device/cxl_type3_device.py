@@ -10,6 +10,10 @@ from enum import Enum, auto
 from typing import Optional
 
 
+from opencxl.cxl.config_space.dvsec.cxl_devices import (
+    DvsecCxlCacheableRangeOptions,
+    DvsecCxlCapabilityOptions,
+)
 from opencxl.cxl.transport.transaction import (
     CXL_MEM_S2MBISNP_OPCODE,
     CxlMemBISnpPacket,
