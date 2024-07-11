@@ -226,6 +226,8 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             self._memory_accessor = CharDriverAccessor(
                 memory_file, self._identity.get_total_capacity()
             )
+        elif memory_file == "":
+            self._memory_accessor = None
         else:
             self._memory_accessor = FileAccessor(memory_file, self._identity.get_total_capacity())
 
