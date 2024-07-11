@@ -33,7 +33,7 @@ from opencxl.cxl.component.bi_decoder import (
     CxlBIRTCapabilityStructure,
     CxlBITimeoutScale,
 )
-from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import (
     HdmDecoderCapabilities,
     DecoderInfo,

@@ -8,7 +8,7 @@
 from typing import Optional
 
 from opencxl.cxl.component.cxl_component import CxlComponent
-from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.bi_decoder import (
     CxlBIDecoderCapabilityStructureOptions,
     CxlBIDecoderCapabilityRegisterOptions,

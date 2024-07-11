@@ -44,7 +44,7 @@ from opencxl.cxl.component.cxl_component import (
     CxlDeviceComponent,
     CXL_DEVICE_CAPABILITY_TYPE,
 )
-from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import (
     DeviceHdmDecoderManager,
     HdmDecoderManagerBase,

@@ -8,7 +8,7 @@
 # pylint: disable=duplicate-code
 from enum import IntEnum
 from typing import TypedDict, Optional
-from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.unaligned_bit_structure import (
     BitMaskedBitStructure,
     BitField,

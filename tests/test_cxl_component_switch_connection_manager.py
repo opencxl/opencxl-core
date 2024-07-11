@@ -21,7 +21,7 @@ from opencxl.cxl.component.cxl_component import (
     PortConfig,
     PORT_TYPE,
 )
-from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.pci import create_bdf
 from opencxl.cxl.transport.transaction import (
     CxlIoCfgRdPacket,

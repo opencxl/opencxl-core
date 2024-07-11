@@ -23,7 +23,7 @@ from opencxl.cxl.component.cxl_component import (
     CxlComponent,
     CxlDeviceComponent,
 )
-from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.config_space.dvsec.register_locator import (
     RegisterOffsetOptions,
     BLOCK_IDENTIFIER,
