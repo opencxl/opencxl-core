@@ -10,7 +10,10 @@ from asyncio import gather, create_task
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.device.cxl_type1_device import CxlType1Device
-from opencxl.cxl.device.cxl_type2_device import CxlType2Device
+from opencxl.cxl.device.cxl_type2_device import (
+    CxlType2Device,
+    CxlType2DeviceConfig,
+)
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
 from opencxl.cxl.component.cxl_component_type import CXL_COMPONENT_TYPE
 
@@ -73,12 +76,14 @@ class MyType2Accelerator(RunnableComponent):
         self._sw_conn_client = SwitchConnectionClient(
             port_index, CXL_COMPONENT_TYPE.T2, host=host, port=port
         )
-        self._cxl_type2_device = CxlType2Device(
+
+        device_config = CxlType2DeviceConfig(
+            device_name=label,
             transport_connection=self._sw_conn_client.get_cxl_connection(),
             memory_size=memory_size,
             memory_file=memory_file,
-            label=label,
         )
+        self._cxl_type2_device = CxlType2Device(device_config)
 
     async def _run_app(self, *args):
         # example app: prints the arguments
