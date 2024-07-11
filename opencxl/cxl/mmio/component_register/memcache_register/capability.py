@@ -120,6 +120,17 @@ CAPABILITY_NAME_TO_CAPABILITY_INFO_MAP = {
 }
 
 
+class CxlCapabilityIDToName:
+    map: dict[int, str] = {
+        v["id"]: k.replace("_", " ").title()
+        for k, v in CAPABILITY_NAME_TO_CAPABILITY_INFO_MAP.items()
+    }
+
+    @staticmethod
+    def get(v: int) -> str:
+        return CxlCapabilityIDToName.map[v]
+
+
 class CxlCapabilityHeaderStructure(BitMaskedBitStructure):
     header: CxlCapabilityHeaderRegister
 

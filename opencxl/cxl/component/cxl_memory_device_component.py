@@ -33,11 +33,18 @@ from opencxl.cxl.cci.generic.logs import GetLog, GetSupportedLogs
 from opencxl.cxl.cci.memory_device.identify_memory_device import (
     IdentifyMemoryDevice,
 )
+from opencxl.cxl.component.bi_decoder import (
+    CxlBIDecoderCapabilityStructureOptions,
+    CxlBIDecoderCapabilityRegisterOptions,
+    CxlBIDecoderControlRegisterOptions,
+    CxlBIDecoderStatusRegisterOptions,
+    CxlBITimeoutScale,
+)
 from opencxl.cxl.component.cxl_component import (
     CxlDeviceComponent,
-    CXL_COMPONENT_TYPE,
     CXL_DEVICE_CAPABILITY_TYPE,
 )
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import (
     DeviceHdmDecoderManager,
     HdmDecoderManagerBase,
@@ -212,6 +219,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             uio_capable=0,
             uio_capable_decoder_count=0,
             mem_data_nxm_capable=0,
+            bi_capable=True,
         )
         self._hdm_decoder_manager = DeviceHdmDecoderManager(hdm_decoder_capabilities, label=label)
         if "/dev" in memory_file:
@@ -226,6 +234,23 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
 
     def get_hdm_decoder_manager(self) -> Optional[HdmDecoderManagerBase]:
         return self._hdm_decoder_manager
+
+    def get_bi_decoder_options(self) -> Optional[CxlBIDecoderCapabilityStructureOptions]:
+        # pylint: disable=duplicate-code
+        options = CxlBIDecoderCapabilityStructureOptions()
+        options["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(hdm_d_compatible=0)
+        options["control_options"] = CxlBIDecoderControlRegisterOptions(
+            bi_enable=1,
+            bi_decoder_commit=0,
+        )
+        options["status_options"] = CxlBIDecoderStatusRegisterOptions(
+            bi_decoder_committed=0,
+            bi_decoder_error_not_committed=0,
+            bi_decoder_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
+            bi_decoder_commit_timeout_scale=1,
+        )
+        options["device_type"] = self.get_component_type()
+        return options
 
     def get_cdat_entries(self) -> List[CDAT_ENTRY]:
         dsmas = DeviceScopedMemoryAffinity()

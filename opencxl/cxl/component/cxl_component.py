@@ -14,24 +14,13 @@ from opencxl.cxl.config_space.doe.cdat import CDAT_ENTRY
 from opencxl.cxl.features.mailbox import CxlMailbox
 from opencxl.cxl.features.event_manager import EventManager
 from opencxl.cxl.features.log_manager import LogManager
+from opencxl.cxl.component.bi_decoder import (
+    CxlBIDecoderCapabilityStructureOptions,
+    CxlBIRTCapabilityStructureOptions,
+)
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import HdmDecoderManagerBase
 from opencxl.util.component import LabeledComponent
-
-
-class CXL_COMPONENT_TYPE(Enum):
-    P = auto()
-    D1 = auto()
-    D2 = auto()  # SLD
-    LD = auto()  # LDs within MLD
-    FMLD = auto()
-    UP1 = auto()
-    DP1 = auto()
-    R = auto()
-    RC = auto()
-    USP = auto()
-    DSP = auto()
-    T1 = auto()  # reserved for type 1
-    T2 = auto()  # reserved for type 2
 
 
 class PORT_TYPE(Enum):
@@ -52,6 +41,12 @@ class CxlComponent(LabeledComponent):
         return None
 
     def get_hdm_decoder_manager(self) -> Optional[HdmDecoderManagerBase]:
+        return None
+
+    def get_bi_decoder_options(self) -> Optional[CxlBIDecoderCapabilityStructureOptions]:
+        return None
+
+    def get_bi_rt_options(self) -> Optional[CxlBIRTCapabilityStructureOptions]:
         return None
 
     def get_cdat_entries(self) -> List[CDAT_ENTRY]:
