@@ -170,6 +170,7 @@ class CxlType2Device(RunnableComponent):
                     cache_size_unit=0b1,
                     cache_size=1,
                 ),
+                # TODO: Use a real range instead of the placeholder range
                 cacheable_address_range=DvsecCxlCacheableRangeOptions(0x0, 0xFFFFFFFF0000),
             ),
             doe=CxlDoeExtendedCapabilityOptions(
