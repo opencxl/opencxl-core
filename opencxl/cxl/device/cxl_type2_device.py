@@ -9,10 +9,6 @@
 from asyncio import create_task, gather
 from dataclasses import dataclass
 
-from opencxl.cxl.config_space.dvsec.cxl_devices import (
-    DvsecCxlCacheableRangeOptions,
-    DvsecCxlCapabilityOptions,
-)
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
@@ -162,16 +158,6 @@ class CxlType2Device(RunnableComponent):
                 ),
                 device_type=CXL_DEVICE_TYPE.ACCEL_T2,
                 memory_device_component=self._cxl_memory_device_component,
-                capability_options=DvsecCxlCapabilityOptions(
-                    cache_capable=1,
-                    mem_capable=1,
-                    hdm_count=1,
-                    cache_writeback_and_invalidate_capable=1,
-                    cache_size_unit=0b1,
-                    cache_size=1,
-                ),
-                # TODO: Use a real range instead of the placeholder range
-                cacheable_address_range=DvsecCxlCacheableRangeOptions(0x0, 0xFFFFFFFF0000),
             ),
             doe=CxlDoeExtendedCapabilityOptions(
                 cdat_entries=self._cxl_memory_device_component.get_cdat_entries()

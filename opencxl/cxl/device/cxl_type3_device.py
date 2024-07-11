@@ -9,11 +9,6 @@ from asyncio import create_task, gather
 from enum import Enum, auto
 from typing import Optional
 
-
-from opencxl.cxl.config_space.dvsec.cxl_devices import (
-    DvsecCxlCacheableRangeOptions,
-    DvsecCxlCapabilityOptions,
-)
 from opencxl.cxl.transport.transaction import (
     CXL_MEM_S2MBISNP_OPCODE,
     CxlMemBISnpPacket,
@@ -137,15 +132,6 @@ class CxlType3Device(RunnableComponent):
                 ),
                 device_type=CXL_DEVICE_TYPE.LD,
                 memory_device_component=self._cxl_memory_device_component,
-                capability_options=DvsecCxlCapabilityOptions(
-                    cache_capable=0,
-                    mem_capable=1,
-                    hdm_count=1,
-                    cache_writeback_and_invalidate_capable=0,
-                    cache_size_unit=0b0,
-                    cache_size=0,
-                ),
-                cacheable_address_range=DvsecCxlCacheableRangeOptions(0x0, 0x0),
             ),
             doe=CxlDoeExtendedCapabilityOptions(
                 cdat_entries=self._cxl_memory_device_component.get_cdat_entries()

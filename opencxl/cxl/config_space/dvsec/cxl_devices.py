@@ -5,7 +5,6 @@
  See LICENSE for details.
 """
 
-from dataclasses import dataclass
 from typing import TypedDict, List, Optional
 
 from opencxl.util.unaligned_bit_structure import (
@@ -32,47 +31,26 @@ class CxlDvsecHeader1(BitMaskedBitStructure):
     ]
 
 
-@dataclass
-class DvsecCxlCapabilityOptions:
-    cache_capable: int
-    mem_capable: int
-    hdm_count: int
-    cache_writeback_and_invalidate_capable: int
-    cache_size_unit: int
-    cache_size: int
-
-
 class DvsecCxlCapability(BitMaskedBitStructure):
-    def __init__(
-        self,
-        data: Optional[ShareableByteArray] = None,
-        parent_name: Optional[str] = None,
-        options: Optional[DvsecCxlCapabilityOptions] = None,
-    ):
-        if options is None:
-            raise Exception("options is required")
-        self._fields = [
-            BitField("cache_capable", 0, 0, FIELD_ATTR.RO, options.cache_capable),
-            BitField("io_capable", 1, 1, FIELD_ATTR.RO, 1),
-            BitField("mem_capable", 2, 2, FIELD_ATTR.RO, options.mem_capable),
-            BitField("mem_hwinit_mode", 3, 3, FIELD_ATTR.RO),
-            BitField("hdm_count", 4, 5, FIELD_ATTR.RO, options.hdm_count),
-            BitField(
-                "cache_writeback_and_invalidate_capable",
-                6,
-                6,
-                FIELD_ATTR.RO,
-                options.cache_writeback_and_invalidate_capable,
-            ),
-            BitField("cxl_reset_capable", 7, 7, FIELD_ATTR.RO),
-            BitField("cxl_reset_timeout", 8, 10, FIELD_ATTR.RO),
-            BitField("cxl_reset_mem_clr_capable", 11, 11, FIELD_ATTR.HW_INIT),
-            BitField("tsp_capable", 12, 12, FIELD_ATTR.HW_INIT),
-            BitField("multiple_logical_devices", 13, 13, FIELD_ATTR.HW_INIT),
-            BitField("viral_capable", 14, 14, FIELD_ATTR.RO),
-            BitField("pm_init_completion_reporting_capable", 15, 15, FIELD_ATTR.HW_INIT),
-        ]
-        super().__init__(data, parent_name)
+    _fields = [
+        BitField("cache_capable", 0, 0, FIELD_ATTR.RO),
+        BitField("io_capable", 1, 1, FIELD_ATTR.RO, 1),
+        BitField(
+            "mem_capable", 2, 2, FIELD_ATTR.RO, 1
+        ),  # TODO: HDM: Get this value from MemoryDevice
+        BitField("mem_hwinit_mode", 3, 3, FIELD_ATTR.RO),
+        BitField(
+            "hdm_count", 4, 5, FIELD_ATTR.RO, 1
+        ),  # TODO: HDM: Get this value from MemoryDevice
+        BitField("cache_writeback_and_invalidate_capable", 6, 6, FIELD_ATTR.RO),
+        BitField("cxl_reset_capable", 7, 7, FIELD_ATTR.RO),
+        BitField("cxl_reset_timeout", 8, 10, FIELD_ATTR.RO),
+        BitField("cxl_reset_mem_clr_capable", 11, 11, FIELD_ATTR.HW_INIT),
+        BitField("reserved1", 12, 12, FIELD_ATTR.RESERVED),
+        BitField("multiple_logical_devices", 13, 13, FIELD_ATTR.HW_INIT),
+        BitField("viral_capable", 14, 14, FIELD_ATTR.RO),
+        BitField("pm_init_completion_reporting_capable", 15, 15, FIELD_ATTR.HW_INIT),
+    ]
 
 
 class DvsecCxlControl(BitMaskedBitStructure):
@@ -81,7 +59,7 @@ class DvsecCxlControl(BitMaskedBitStructure):
         BitField("io_enable", 1, 1, FIELD_ATTR.RO, 1),
         BitField("mem_enable", 2, 2, FIELD_ATTR.RWL),
         BitField("cache_sf_coverage", 3, 7, FIELD_ATTR.RWL),
-        BitField("cache_sf_granularity", 8, 10, FIELD_ATTR.RWL),
+        BitField("cahce_sf_granularity", 8, 10, FIELD_ATTR.RWL),
         BitField("cache_clean_eviction", 11, 11, FIELD_ATTR.RWL),
         BitField("reserved1", 12, 13, FIELD_ATTR.RESERVED),
         BitField("viral_enable", 14, 14, FIELD_ATTR.RW),
@@ -130,8 +108,7 @@ class DvsecCxlCapability2(BitMaskedBitStructure):
     _fields = [
         BitField("cache_size_unit", 0, 3, FIELD_ATTR.RO),
         BitField("fallback_capability", 4, 5, FIELD_ATTR.HW_INIT),
-        BitField("modified_completion_capable", 6, 6, FIELD_ATTR.HW_INIT),
-        BitField("no_clean_writeback", 7, 7, FIELD_ATTR.HW_INIT),
+        BitField("reserved1", 6, 7, FIELD_ATTR.RESERVED),
         BitField("cache_size", 8, 15, FIELD_ATTR.RO),
     ]
 
@@ -175,29 +152,6 @@ class DvsecCxlRangeBaseLow(BitMaskedBitStructure):
     ]
 
 
-@dataclass
-class DvsecCxlCacheableRangeOptions:
-    start_addr: int
-    end_addr: int
-
-
-class DvsecCxlCacheableRange(BitMaskedBitStructure):
-    def __init__(
-        self,
-        data: Optional[ShareableByteArray] = None,
-        parent_name: Optional[str] = None,
-        options: Optional[DvsecCxlCacheableRangeOptions] = None,
-    ):
-        if options is None:
-            raise Exception("options is required")
-        self._fields = [
-            BitField("start_addr", 0, 45, FIELD_ATTR.HW_INIT, options.start_addr),
-            BitField("end_addr", 46, 91, FIELD_ATTR.HW_INIT, options.end_addr),
-            BitField("reserved", 92, 95, FIELD_ATTR.RESERVED),
-        ]
-        super().__init__(data, parent_name)
-
-
 class DvsecCxlCapability3(BitMaskedBitStructure):
     _fields = [
         BitField("default_volatile_hdm_state_after_cold_reset", 0, 0, FIELD_ATTR.HW_INIT),
@@ -216,8 +170,6 @@ class DvsecCxlCapability3(BitMaskedBitStructure):
 class DvsecCxlDevicesOptions(TypedDict):
     header: Optional[DvsecCapabilityHeaderOptions]
     memory_device_component: CxlMemoryDeviceComponent
-    capability_options: DvsecCxlCapabilityOptions
-    cacheable_address_range: DvsecCxlCacheableRangeOptions
 
 
 class DvsecCxlDevices(BitMaskedBitStructure):
@@ -232,8 +184,6 @@ class DvsecCxlDevices(BitMaskedBitStructure):
 
         header_options = options.get("header")
         memory_device_component = options["memory_device_component"]
-        capability_options = options["capability_options"]
-        cacheable_address_range = options["cacheable_address_range"]
         identity = memory_device_component.get_identity()
 
         range1_size_low_options: DvsecCxlRangeSizeLowOptions = {
@@ -252,9 +202,7 @@ class DvsecCxlDevices(BitMaskedBitStructure):
             ),
             StructureField("dvsec_header1", 4, 7, CxlDvsecHeader1),
             ByteField("dvsec_header2", 8, 9, attribute=FIELD_ATTR.RO, default=0x0000),
-            StructureField(
-                "cxl_capability", 0xA, 0xB, DvsecCxlCapability, options=capability_options
-            ),
+            StructureField("cxl_capability", 0xA, 0xB, DvsecCxlCapability),
             StructureField("cxl_control", 0xC, 0xD, DvsecCxlControl),
             StructureField("cxl_status", 0xE, 0xF, DvsecCxlStatus),
             StructureField("cxl_control2", 0x10, 0x11, DvsecCxlControl2),
@@ -283,17 +231,10 @@ class DvsecCxlDevices(BitMaskedBitStructure):
             StructureField("range2_base_low", 0x34, 0x37, DvsecCxlRangeBaseLow),
             StructureField("cxl_capability3", 0x38, 0x39, DvsecCxlCapability3),
             ByteField("reserved1", 0x3A, 0x3F),
-            StructureField(
-                "cxl_cacheable_range",
-                0x40,
-                0x4B,
-                DvsecCxlCacheableRange,
-                options=cacheable_address_range,
-            ),
         ]
 
         super().__init__(data, parent_name)
 
     @staticmethod
     def get_size(fields: List[DataField] | None = None) -> int:
-        return 0x4C
+        return 0x40

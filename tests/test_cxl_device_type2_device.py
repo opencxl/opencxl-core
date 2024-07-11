@@ -40,7 +40,7 @@ async def test_type2_device_run_stop(get_gold_std_reg_vals):
 
     # check register values after initialization
     reg_vals = str(device.get_reg_vals())
-    reg_vals_expected = get_gold_std_reg_vals("SLD_TYPE_2")
+    reg_vals_expected = get_gold_std_reg_vals("SLD")
     assert reg_vals == reg_vals_expected
 
     async def wait_and_stop():
