@@ -352,14 +352,14 @@ class CxlMemDcoh(PacketProcessor):
                     elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
                         sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
                         cxl_packet = CxlMemBISnpPacket.create(
-                            CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA, addr
+                            addr, CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA
                         )
                         await self._upstream_fifo.target_to_host.put(cxl_packet)
                     elif packet.type == CACHE_REQUEST_TYPE.SNP_INV:
                         sf_update_list.append(SF_UPDATE_TYPE.SF_HOST_OUT)
                         sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
                         cxl_packet = CxlMemBISnpPacket.create(
-                            CXL_MEM_S2MBISNP_OPCODE.BISNP_INV, addr
+                            addr, CXL_MEM_S2MBISNP_OPCODE.BISNP_INV
                         )
                         await self._upstream_fifo.target_to_host.put(cxl_packet)
 

@@ -93,12 +93,10 @@ class CxlHost(RunnableComponent):
         return Result(res)
 
     async def _cxl_mem_birsp(
-        self, low_addr: int, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0
+        self, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
     ) -> Result:
-        logger.info(
-            self._create_message(f"CXL.mem BI-RSP: low_addr=0x{low_addr:x} opcode=0x{opcode:x}")
-        )
-        res = await self._root_port_device.cxl_mem_birsp(low_addr, opcode, bi_id)
+        logger.info(self._create_message(f"CXL.mem BI-RSP: opcode=0x{opcode:x}"))
+        res = await self._root_port_device.cxl_mem_birsp(opcode, bi_id, bi_tag)
         return Result(res)
 
     async def _reinit(self, hpa_base: int = None) -> Result:
@@ -194,13 +192,16 @@ class CxlHostUtilClient:
         cmd = request_json("UTIL_CXL_MEM_READ", params={"port": port, "addr": addr})
         return await self._process_cmd(cmd)
 
-    async def cxl_mem_birsp(self, port: int, low_addr: int, opcode: CXL_MEM_M2SBIRSP_OPCODE) -> str:
+    async def cxl_mem_birsp(
+        self, port: int, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
+    ) -> str:
         logger.info(
-            f"CXL-Host[Port{port}]: Start CXL.mem BIRsp: low_addr=0x{low_addr:x},"
-            f" opcode: 0x{opcode:x}"
+            f"CXL-Host[Port{port}]: Start CXL.mem BIRsp: opcode: 0x{opcode:x}"
+            f" id: {bi_id}, tag: {bi_tag}"
         )
         cmd = request_json(
-            "UTIL_CXL_MEM_BIRSP", params={"port": port, "low_addr": low_addr, "opcode": opcode}
+            "UTIL_CXL_MEM_BIRSP",
+            params={"port": port, "opcode": opcode, "bi_id": bi_id, "bi_tag": bi_tag},
         )
         return await self._process_cmd(cmd)
 

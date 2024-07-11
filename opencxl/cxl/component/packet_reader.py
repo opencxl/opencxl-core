@@ -24,8 +24,8 @@ from opencxl.cxl.transport.transaction import (
     CxlMemBasePacket,
     CxlMemM2SReqPacket,
     CxlMemM2SRwDPacket,
-    CxlMemM2SBiRspPacket,
-    CxlMemS2MBiSnpPacket,
+    CxlMemM2SBIRspPacket,
+    CxlMemS2MBISnpPacket,
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
 )
@@ -139,9 +139,9 @@ class PacketReader(LabeledComponent):
         elif cxl_mem_base_packet.is_m2srwd():
             cxl_mem_packet = CxlMemM2SRwDPacket()
         elif cxl_mem_base_packet.is_m2sbirsp():
-            cxl_mem_packet = CxlMemM2SBiRspPacket()
+            cxl_mem_packet = CxlMemM2SBIRspPacket()
         elif cxl_mem_base_packet.is_s2mbisnp():
-            cxl_mem_packet = CxlMemS2MBiSnpPacket()
+            cxl_mem_packet = CxlMemS2MBISnpPacket()
         elif cxl_mem_base_packet.is_s2mndr():
             cxl_mem_packet = CxlMemS2MNDRPacket()
         elif cxl_mem_base_packet.is_s2mdrs():

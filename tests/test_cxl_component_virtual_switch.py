@@ -616,7 +616,7 @@ async def test_virtual_switch_manager_test_cxl_mem():
                 logger.info(f"[PyTest] CXL.mem Read: 0x{data:x} from 0x{test_address:x}")
                 test_address += cxl_device.cxl_device_size
             for cxl_device in cxl_devices:
-                await root_port_device.cxl_mem_birsp(0b11, CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E)
+                await root_port_device.cxl_mem_birsp(CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, 0x00, 0x00)
 
             # await unbind_vppbs(vcs)
             # enum_info_after_unbind = await root_port_device.scan_devices()

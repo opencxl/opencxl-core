@@ -38,7 +38,7 @@ from opencxl.cxl.transport.transaction import (
     CxlIoCompletionWithDataPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
-    CxlMemMemBiRspPacket,
+    CxlMemBIRspPacket,
     CxlMemMemWrPacket,
     CxlMemMemRdPacket,
     CxlMemMemDataPacket,
@@ -325,12 +325,10 @@ class CxlRootPortDevice(RunnableComponent):
             return None
 
     async def cxl_mem_birsp(
-        self, low_addr: int, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0
+        self, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
     ) -> int:
-        logger.info(
-            self._create_message(f"CXL.mem BIRsp: low_addr:0x{low_addr:08x} opcode:0x{opcode:x}")
-        )
-        packet = CxlMemMemBiRspPacket.create(low_addr, opcode, bi_id)
+        logger.info(self._create_message(f"CXL.mem BIRsp: opcode:0x{opcode:x}"))
+        packet = CxlMemBIRspPacket.create(opcode, bi_id, bi_tag)
         await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
         return 0
 

@@ -428,7 +428,9 @@ async def test_cxl_host_type3_ete_bi_only():
         test_tasks = [
             asyncio.create_task(sld._cxl_type3_device.init_bi_snp()),
             asyncio.create_task(
-                host._cxl_mem_birsp(0x0, CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, bi_id=DSP_2ND_BUS_NUM)
+                host._cxl_mem_birsp(
+                    CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, bi_id=DSP_2ND_BUS_NUM, bi_tag=0x00
+                )
             ),
             # Required, or otherwise the queues will be stopped before handling anything
             asyncio.create_task(asyncio.sleep(2, result="Blocker")),

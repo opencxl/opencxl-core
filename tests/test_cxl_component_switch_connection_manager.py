@@ -32,8 +32,8 @@ from opencxl.cxl.transport.transaction import (
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
     CxlMemMemDataPacket,
-    CxlMemMemBiRspPacket,
-    CxlMemMemBiSnpPacket,
+    CxlMemBIRspPacket,
+    CxlMemBISnpPacket,
     CxlMemCmpPacket,
     CXL_IO_CPL_STATUS,
     CXL_MEM_M2SBIRSP_OPCODE,
@@ -407,7 +407,7 @@ async def test_switch_connection_manager_handle_cxl_mem_packet_m2s():
         await client_connection.cxl_mem_fifo.host_to_target.put(packet)
         packet = CxlMemMemRdPacket.create(0x80)
         await client_connection.cxl_mem_fifo.host_to_target.put(packet)
-        packet = CxlMemMemBiRspPacket.create(0x0, CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E)
+        packet = CxlMemBIRspPacket.create(CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, 0, 0)
         await client_connection.cxl_mem_fifo.host_to_target.put(packet)
 
         logger.info("[PyTest] Checking CXL.mem request packets received from server")
@@ -589,7 +589,7 @@ async def test_switch_connection_manager_handle_cxl_mem_s2m():
         await server_connection.cxl_mem_fifo.target_to_host.put(sent_packet1)
         sent_packet2 = CxlMemCmpPacket.create()
         await server_connection.cxl_mem_fifo.target_to_host.put(sent_packet2)
-        sent_packet3 = CxlMemMemBiSnpPacket.create(0x0, CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA)
+        sent_packet3 = CxlMemBISnpPacket.create(0x0, CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA)
         await server_connection.cxl_mem_fifo.target_to_host.put(sent_packet3)
 
         logger.info("[PyTest] Checking CXL.mem completion packets received from client")

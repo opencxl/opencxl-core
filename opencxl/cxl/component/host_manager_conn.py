@@ -120,10 +120,10 @@ class UtilConnServer(RunnableComponent):
         return await self._process_cmd(cmd, port)
 
     async def _util_cxl_mem_birsp(
-        self, port: int, low_addr: int, opcode: CXL_MEM_M2SBIRSP_OPCODE
+        self, port: int, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
     ) -> jsonrpcserver.Result:
         cmd = jsonrpcclient.request_json(
-            "HOST_CXL_MEM_BIRSP", params={"low_addr": low_addr, "opcode": opcode}
+            "HOST_CXL_MEM_BIRSP", params={"opcode": opcode, "bi_id": bi_id, "bi_tag": bi_tag}
         )
         return await self._process_cmd(cmd, port)
 

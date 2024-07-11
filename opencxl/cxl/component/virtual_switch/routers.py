@@ -29,8 +29,8 @@ from opencxl.cxl.transport.transaction import (
     CxlMemBasePacket,
     CxlMemM2SReqPacket,
     CxlMemM2SRwDPacket,
-    CxlMemM2SBiRspPacket,
-    CxlMemS2MBiSnpPacket,
+    CxlMemM2SBIRspPacket,
+    CxlMemS2MBISnpPacket,
 )
 
 
@@ -299,8 +299,8 @@ class CxlMemRouter(CxlRouter):
                 addr = cxl_mem_packet.get_address()
                 target_port = self._routing_table.get_cxl_mem_target_port(addr)
             elif cxl_mem_base_packet.is_m2sbirsp():
-                cxl_mem_bi_packet: CxlMemM2SBiRspPacket = cast(
-                    CxlMemM2SBiRspPacket, cxl_mem_base_packet
+                cxl_mem_bi_packet: CxlMemM2SBIRspPacket = cast(
+                    CxlMemM2SBIRspPacket, cxl_mem_base_packet
                 )
                 for i, bind_slot in enumerate(self._downstream_connections):
                     dsp_device = bind_slot.dsp
@@ -345,8 +345,8 @@ class CxlMemRouter(CxlRouter):
                 if self._bi_forward_override_for_test is None:
                     bi_forward = bi_decoder_options["control_options"]["bi_forward"]
 
-                cxl_mem_bi_packet: CxlMemS2MBiSnpPacket = cast(
-                    CxlMemS2MBiSnpPacket, cxl_mem_base_packet
+                cxl_mem_bi_packet: CxlMemS2MBISnpPacket = cast(
+                    CxlMemS2MBISnpPacket, cxl_mem_base_packet
                 )
                 if bi_enable == bi_forward:
                     continue

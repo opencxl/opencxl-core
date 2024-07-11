@@ -11,7 +11,7 @@ from typing import Optional
 
 from opencxl.cxl.transport.transaction import (
     CXL_MEM_S2MBISNP_OPCODE,
-    CxlMemMemBiSnpPacket,
+    CxlMemBISnpPacket,
 )
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
@@ -154,7 +154,7 @@ class CxlType3Device(RunnableComponent):
     async def init_bi_snp(self):
         # TODO: implement real BISnp logic
         # This is only a placeholder for tests
-        packet = CxlMemMemBiSnpPacket.create(0x00, CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA)
+        packet = CxlMemBISnpPacket.create(0x00, CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA)
         await self._cxl_mem_manager.process_cxl_mem_bisnp_packet(packet)
 
     async def _run(self):
