@@ -5,8 +5,9 @@
  See LICENSE for details.
 """
 
-from asyncio import gather, create_task
+from asyncio import gather, create_task, Event
 
+import socket
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
@@ -16,15 +17,17 @@ from torchinfo import summary
 from tqdm import tqdm
 
 from opencxl.util.logger import logger
-from opencxl.util.component import RunnableComponent
+
 from opencxl.cxl.device.cxl_type1_device import CxlType1Device, CxlType1DeviceConfig
 from opencxl.cxl.device.cxl_type2_device import (
     CxlType2Device,
     CxlType2DeviceConfig,
 )
+
+from opencxl.cxl.component.irq_handler import IrqHandler
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
-
+from opencxl.util.component import RunnableComponent
 
 # Example devices based on type1 and type2 devices
 
@@ -80,6 +83,7 @@ class MyType2Accelerator(RunnableComponent):
         memory_file: str,
         host: str = "0.0.0.0",
         port: int = 8000,
+        irq_enable_port: int = 9000,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
@@ -94,6 +98,14 @@ class MyType2Accelerator(RunnableComponent):
             memory_file=memory_file,
         )
         self._cxl_type2_device = CxlType2Device(device_config)
+
+        self._start_condition = Event()
+        self.irq_handler = IrqHandler(
+            device_name=label,
+        )
+        self.irq_handler.register_interrupt_handler(
+            b"START", self._start_condition.set
+        )
 
     def _train_one_epoch(
         self, model, train_dataloader, test_dataloader, device, optimizer, loss_fn
@@ -187,8 +199,14 @@ class MyType2Accelerator(RunnableComponent):
 
     async def _run_app(self):
         # pylint: disable=unused-variable
+        logger.info(self._create_message("Beginning training"))
         model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            device = torch.device("cuda:0")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
         print(f"torch.device: {device}")
 
         # Reset the classification head and freeze params
@@ -234,7 +252,8 @@ class MyType2Accelerator(RunnableComponent):
         ]
         await self._sw_conn_client.wait_for_ready()
         await self._cxl_type2_device.wait_for_ready()
-        # tasks.append(create_task(self._run_app(1, 2, 3, 4)))
+        await self._start_condition.wait()
+        tasks.append(create_task(self._run_app()))
         await self._change_status_to_running()
         await gather(*tasks)
 
