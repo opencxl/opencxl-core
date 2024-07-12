@@ -8,6 +8,7 @@
 # pylint: disable=unused-import
 from typing import Optional, cast
 
+from opencxl.cxl.component.cxl_memory_device_component import CxlMemoryDeviceComponent
 from opencxl.util.logger import logger
 from opencxl.pci.component.fifo_pair import FifoPair
 from opencxl.cxl.transport.transaction import (
@@ -39,8 +40,12 @@ class CxlCacheManager(PacketProcessor):
     ):
         self._downstream_fifo: Optional[FifoPair]
         self._upstream_fifo: FifoPair
+        self._cache_device_component = None
 
         super().__init__(upstream_fifo, downstream_fifo, label)
+
+    def set_memory_device_component(self, cache_device_component: CxlMemoryDeviceComponent):
+        self._cache_device_component = cache_device_component
 
     async def send_d2h_req_test(self):
         # Test func 1: Sending D2H Req

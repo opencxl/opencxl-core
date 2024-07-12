@@ -86,7 +86,11 @@ class DvsecConfigSpace(BitMaskedBitStructure):
         capability_options: Optional[DvsecCxlCapabilityOptions] = None,
         cacheable_address_range: Optional[DvsecCxlCacheableRangeOptions] = None,
     ) -> int:
-        if self._device_type not in (CXL_DEVICE_TYPE.LD, CXL_DEVICE_TYPE.ACCEL_T2):
+        if self._device_type not in (
+            CXL_DEVICE_TYPE.LD,
+            CXL_DEVICE_TYPE.ACCEL_T1,
+            CXL_DEVICE_TYPE.ACCEL_T2,
+        ):
             return start
 
         if not memory_device_component:
@@ -185,7 +189,7 @@ class DvsecConfigSpace(BitMaskedBitStructure):
         size = 0
         device_type = options["device_type"]
 
-        if device_type in (CXL_DEVICE_TYPE.LD, CXL_DEVICE_TYPE.ACCEL_T2):
+        if device_type in (CXL_DEVICE_TYPE.LD, CXL_DEVICE_TYPE.ACCEL_T1, CXL_DEVICE_TYPE.ACCEL_T2):
             size += DvsecCxlDevices.get_size()
         elif device_type in (CXL_DEVICE_TYPE.USP, CXL_DEVICE_TYPE.DSP):
             size += CxlExtensionDvsecForPorts.get_size()
