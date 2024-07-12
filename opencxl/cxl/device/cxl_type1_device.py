@@ -167,7 +167,7 @@ class CxlType1Device(RunnableComponent):
                     cache_size=1,
                 ),
                 # TODO: Use a real range instead of the placeholder range
-                cacheable_address_range=DvsecCxlCacheableRangeOptions(0x0, 0x0000),
+                cacheable_address_range=DvsecCxlCacheableRangeOptions(0x0, 0xFFFFFFFF0000),
             ),
             doe=CxlDoeExtendedCapabilityOptions(
                 cdat_entries=self._cxl_memory_device_component.get_cdat_entries()
