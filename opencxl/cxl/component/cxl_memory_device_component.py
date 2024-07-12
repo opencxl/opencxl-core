@@ -5,8 +5,10 @@
  See LICENSE for details.
 """
 
+from dataclasses import dataclass
 from enum import IntEnum
 import os
+import time
 from typing import TypedDict, List, Optional
 
 from opencxl.util.logger import logger
@@ -175,6 +177,21 @@ class MemoryDeviceStatus(TypedDict):
     reset_needed: RESET_REQUEST
 
 
+@dataclass
+class CXLCacheCacheLineInfo:
+    cache_id: int
+    last_access_time: float
+    state: int = 0
+    dirty: bool = False
+    data: int = 0
+
+    def write(self, data: int):
+        self.data = data
+
+    def read(self) -> int:
+        return self.data
+
+
 class CxlMemoryDeviceComponent(CxlDeviceComponent):
     def __init__(
         self,
@@ -182,6 +199,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_1,
         memory_file: str = "mem.bin",
         label: Optional[str] = None,
+        cache_lines=0,
     ):
         super().__init__(label)
         self._event_manager = EventManager()
@@ -230,6 +248,16 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             self._memory_accessor = None
         else:
             self._memory_accessor = FileAccessor(memory_file, self._identity.get_total_capacity())
+
+        self._cache_info: List[CXLCacheCacheLineInfo] = []
+        self._cache_lines = cache_lines
+        for i in range(self._cache_lines):
+            self._cache_info.append(
+                CXLCacheCacheLineInfo(
+                    cache_id=i,
+                    last_access_time=time.time(),
+                )
+            )
 
     def get_primary_mailbox(self) -> Optional[CxlMailbox]:
         return self._primary_mailbox
@@ -326,3 +354,9 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             logger.warning(self._create_message("HPA 0x{hpa} is not decodable"))
             return 0
         return await self._memory_accessor.read(dpa, size)
+
+    async def write_cache(self, cache_id: int, data: int):
+        self._cache_info[cache_id].write(data)
+
+    async def read_cache(self, cache_id: int) -> int:
+        return self._cache_info[cache_id].read()

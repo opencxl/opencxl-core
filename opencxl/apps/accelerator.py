@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
-from opencxl.cxl.device.cxl_type1_device import CxlType1Device
+from opencxl.cxl.device.cxl_type1_device import CxlType1Device, CxlType1DeviceConfig
 from opencxl.cxl.device.cxl_type2_device import (
     CxlType2Device,
     CxlType2DeviceConfig,
@@ -42,8 +42,10 @@ class MyType1Accelerator(RunnableComponent):
             port_index, CXL_COMPONENT_TYPE.T1, host=host, port=port
         )
         self._cxl_type1_device = CxlType1Device(
-            transport_connection=self._sw_conn_client.get_cxl_connection(),
-            label=label,
+            CxlType1DeviceConfig(
+                transport_connection=self._sw_conn_client.get_cxl_connection(),
+                device_name=label,
+            )
         )
 
     async def _run_app(self, *args):

@@ -66,6 +66,7 @@ class CxlType2DeviceConfig:
     memory_size: int
     memory_file: str
     decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_4
+    cache_line_count: int = 64
 
 
 class CxlType2Device(RunnableComponent):
@@ -82,6 +83,7 @@ class CxlType2Device(RunnableComponent):
         self._decoder_count = config.decoder_count
         self._cxl_memory_device_component = None
         self._upstream_connection = config.transport_connection
+        self._cache_line_count = config.cache_line_count
 
         self._cxl_io_manager = CxlIoManager(
             self._upstream_connection.mmio_fifo,
@@ -143,6 +145,7 @@ class CxlType2Device(RunnableComponent):
             decoder_count=self._decoder_count,
             memory_file=self._memory_file,
             label=self._label,
+            cache_lines=self._cache_line_count,
         )
 
         # Create CombinedMmioRegister
