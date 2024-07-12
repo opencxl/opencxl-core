@@ -57,6 +57,7 @@ from opencxl.cxl.component.device_llc_iogen import (
     DeviceLlcIoGenConfig,
 )
 from opencxl.cxl.component.cxl_mem_dcoh import CxlMemDcoh
+from opencxl.util.number_const import KB, MB
 
 
 @dataclass
@@ -66,7 +67,8 @@ class CxlType2DeviceConfig:
     memory_size: int
     memory_file: str
     decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_4
-    cache_line_count: int = 64
+    cache_line_count: int = 32
+    cache_line_size: int = 64 * KB
 
 
 class CxlType2Device(RunnableComponent):
@@ -84,6 +86,7 @@ class CxlType2Device(RunnableComponent):
         self._cxl_memory_device_component = None
         self._upstream_connection = config.transport_connection
         self._cache_line_count = config.cache_line_count
+        self._cache_line_size = config.cache_line_size
 
         self._cxl_io_manager = CxlIoManager(
             self._upstream_connection.mmio_fifo,
@@ -103,14 +106,14 @@ class CxlType2Device(RunnableComponent):
 
         # Update CxlMemManager with a CxlMemoryDeviceComponent
         self._cxl_mem_dcoh.set_memory_device_component(self._cxl_memory_device_component)
-
+        cache_num_assoc = 4
         cache_controller_config = CacheControllerConfig(
             component_name=config.device_name,
             processor_to_cache_fifo=processor_to_cache_fifo,
             cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
-            cache_num_assoc=4,
-            cache_num_set=8,
+            cache_num_assoc=cache_num_assoc,
+            cache_num_set=self._cache_line_count // cache_num_assoc,
         )
         self._cache_controller = CacheController(cache_controller_config)
 
@@ -154,7 +157,13 @@ class CxlType2Device(RunnableComponent):
 
         # Update MmioManager with new bar entires
         mmio_manager.set_bar_entries([BarEntry(register=mmio_register)])
-
+        cache_size_unit = 0
+        if self._cache_line_size == 64 * KB:
+            cache_size_unit = 0x1
+        elif self._cache_line_size == 1 * MB:
+            cache_size_unit = 0x2
+        else:
+            raise Exception("cache_line_size should either be 64KiB or 1MiB")
         # The options can be reused from Type3
         # But maybe we should change its name in the future
         config_space_register_options = CxlType3SldConfigSpaceOptions(
@@ -170,8 +179,8 @@ class CxlType2Device(RunnableComponent):
                     mem_capable=1,
                     hdm_count=1,
                     cache_writeback_and_invalidate_capable=1,
-                    cache_size_unit=0b1,
-                    cache_size=1,
+                    cache_size_unit=cache_size_unit,
+                    cache_size=self._cache_line_count,
                 ),
                 # TODO: Use a real range instead of the placeholder range
                 cacheable_address_range=DvsecCxlCacheableRangeOptions(0x0, 0xFFFFFFFF0000),

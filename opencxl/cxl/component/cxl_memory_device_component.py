@@ -12,6 +12,7 @@ import time
 from typing import TypedDict, List, Optional
 
 from opencxl.util.logger import logger
+from opencxl.util.number_const import KB
 from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
     ByteField,
@@ -199,7 +200,8 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_1,
         memory_file: str = "mem.bin",
         label: Optional[str] = None,
-        cache_lines=0,
+        cache_lines: int = 0,
+        cache_line_size: int = 64 * KB,
     ):
         super().__init__(label)
         self._event_manager = EventManager()
@@ -251,6 +253,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
 
         self._cache_info: List[CXLCacheCacheLineInfo] = []
         self._cache_lines = cache_lines
+        self._cache_line_size = cache_line_size
         for i in range(self._cache_lines):
             self._cache_info.append(
                 CXLCacheCacheLineInfo(
@@ -355,6 +358,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             return 0
         return await self._memory_accessor.read(dpa, size)
 
+    # TODO: check OOB write for cache (should <= self._cache_line_size)
     async def write_cache(self, cache_id: int, data: int):
         self._cache_info[cache_id].write(data)
 
