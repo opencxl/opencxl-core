@@ -203,6 +203,22 @@ class CxlType2Device(RunnableComponent):
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
 
+    async def read_mem(self, hpa: int, size: int = 64) -> int:
+        if not self._cxl_memory_device_component:
+            raise RuntimeError(self._create_message("Memory device not yet initialized"))
+        return await self._cxl_memory_device_component.read_mem(hpa, size)
+
+    async def write_mem(self, hpa: int, data: int, size: int = 64):
+        if not self._cxl_memory_device_component:
+            raise RuntimeError(self._create_message("Memory device not yet initialized"))
+        await self._cxl_memory_device_component.write_mem(hpa, data, size)
+
+    async def read_mem_dpa(self, dpa: int, size: int = 64) -> int:
+        return await self._cxl_memory_device_component.read_mem_dpa(dpa, size)
+
+    async def write_mem_dpa(self, dpa: int, data: int, size: int = 64):
+        await self._cxl_memory_device_component.write_mem_dpa(dpa, data, size)
+
     async def _run(self):
         # pylint: disable=duplicate-code
         run_tasks = [

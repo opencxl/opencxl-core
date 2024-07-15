@@ -24,7 +24,7 @@ from opencxl.cxl.device.cxl_type2_device import (
     CxlType2DeviceConfig,
 )
 
-from opencxl.cxl.component.irq_handler import IrqHandler
+from opencxl.cxl.component.irq_handler import Irq, IrqHandler
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.component import RunnableComponent
@@ -99,12 +99,12 @@ class MyType2Accelerator(RunnableComponent):
         )
         self._cxl_type2_device = CxlType2Device(device_config)
 
-        self._start_condition = Event()
-        self.irq_handler = IrqHandler(
+        self._irq_handler = IrqHandler(
             device_name=label,
         )
-        self.irq_handler.register_interrupt_handler(
-            b"START", self._start_condition.set
+
+        self._irq_handler.register_interrupt_handler(
+            Irq.HOST_READY, self._run_app
         )
 
     def _train_one_epoch(
@@ -197,6 +197,21 @@ class MyType2Accelerator(RunnableComponent):
         test_dataset = datasets.ImageFolder(root="imagenette2-160/val", transform=my_transform)
         test_dataloader = DataLoader(test_dataset, batch_size=10, shuffle=True, num_workers=4)
 
+    async def _download_metadata(self):
+        # When downloading the metadata, the device does not know ahead of time where
+        # the metadata is located, nor the size of the metadata. The host relays this
+        # information by writing to hardcoded DPAs using CXL.mem. Once the accelerator
+        # receives the HOST_READY interrupt, it will read the address and size of the
+        # metadata from its own memory, then use CXL.cache to appropriately request
+        # the data from the host, one cacheline at a time.
+
+        METADATA_ADDR_DPA = 0x40
+        METADATA_SIZE_DPA = 0x48
+
+        metadata_addr = await self._cxl_type2_device.read_mem_dpa(METADATA_ADDR_DPA, 8)
+        metadata_size = await self._cxl_type2_device.read_mem_dpa(METADATA_SIZE_DPA, 8)
+
+
     async def _run_app(self):
         # pylint: disable=unused-variable
         logger.info(self._create_message("Beginning training"))
@@ -221,6 +236,10 @@ class MyType2Accelerator(RunnableComponent):
                 transforms.ToTensor(),
             ]
         )
+
+        # Uses CXL.cache to copy metadata from host cached memory into device local memory
+        await self._download_metadata()
+
         train_dataset = datasets.ImageFolder(root="imagenette2-160/train", transform=my_transform)
         train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
 
@@ -249,11 +268,11 @@ class MyType2Accelerator(RunnableComponent):
         tasks = [
             create_task(self._sw_conn_client.run()),
             create_task(self._cxl_type2_device.run()),
+            create_task(self._irq_handler.run()),
         ]
         await self._sw_conn_client.wait_for_ready()
         await self._cxl_type2_device.wait_for_ready()
-        await self._start_condition.wait()
-        tasks.append(create_task(self._run_app()))
+        await self._irq_handler.wait_for_ready()
         await self._change_status_to_running()
         await gather(*tasks)
 
@@ -261,5 +280,6 @@ class MyType2Accelerator(RunnableComponent):
         tasks = [
             create_task(self._sw_conn_client.stop()),
             create_task(self._cxl_type2_device.stop()),
+            create_task(self._irq_handler.stop()),
         ]
         await gather(*tasks)

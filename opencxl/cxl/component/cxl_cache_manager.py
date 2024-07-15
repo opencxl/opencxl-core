@@ -57,6 +57,11 @@ class CxlCacheManager(PacketProcessor):
         )
         await self._upstream_fifo.target_to_host.put(packet)
 
+    async def send_d2h_req_rdonly(self, addr: int) -> int:
+        packet = CxlCacheCacheD2HReqPacket.create(
+            addr=addr, cache_id=0, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_CURR
+        )
+
     async def send_d2h_rsp_test(self):
         # Test func 2: Sending D2H Rsp
         # uqid is 12-bit
