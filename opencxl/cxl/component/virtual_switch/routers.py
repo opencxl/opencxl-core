@@ -13,7 +13,7 @@ from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.util.pci import bdf_to_string
 from opencxl.util.number import tlptoh16
-from opencxl.cxl.component.cxl_connection import FifoPair
+from opencxl.cxl.component.cxl_connection import CxlConnection, FifoPair
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BindSlot
@@ -367,6 +367,7 @@ class CxlMemRouter(CxlRouter):
             else:
                 await self._upstream_connection_fifo.target_to_host.put(packet)
 
+
 class CxlCacheRouter(CxlRouter):
     def __init__(
         self,
@@ -408,7 +409,9 @@ class CxlCacheRouter(CxlRouter):
             if target_port >= len(self._downstream_connections):
                 raise Exception("target_port is out of bound")
 
-            downstream_connection = self._downstream_connections[target_port].vppb_connection.cxl_cache_fifo
+            downstream_connection = self._downstream_connections[
+                target_port
+            ].vppb_connection.cxl_cache_fifo
             await downstream_connection.host_to_target.put(packet)
 
     async def _process_target_to_host_packets(self, downstream_connection_bind_slot: BindSlot):

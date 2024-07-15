@@ -31,7 +31,7 @@ class CacheRouteTableBase(LabeledComponent):
         self._capabilities = capabilities
         self._target_count = capabilities["cache_id_target_count"]
         self._cache_id_to_port_mapping = [0] * self._target_count
-        self._port_to_cache_id_mapping = dict()
+        self._port_to_cache_id_mapping = {}
 
     def get_target(self, cache_id) -> int:
         return self._cache_id_to_port_mapping[cache_id]
