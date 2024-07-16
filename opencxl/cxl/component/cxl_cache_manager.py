@@ -47,6 +47,9 @@ class CxlCacheManager(PacketProcessor):
     def set_memory_device_component(self, cache_device_component: CxlMemoryDeviceComponent):
         self._cache_device_component = cache_device_component
 
+    async def _process_cxl_cache_h2d_data_packet(self, cache_data_packet: CxlCacheH2DDataPacket):
+        await self._upstream_fifo.host_to_target.put(cache_data_packet)
+
     async def send_d2h_req_test(self):
         # Test func 1: Sending D2H Req
         # Addr must be aligned to 0x40
@@ -57,10 +60,12 @@ class CxlCacheManager(PacketProcessor):
         )
         await self._upstream_fifo.target_to_host.put(packet)
 
-    async def send_d2h_req_rdonly(self, addr: int) -> int:
+    async def send_d2h_req_rdonly(self, addr: int):
+        # Cache ID is "filled in" by the switch
         packet = CxlCacheCacheD2HReqPacket.create(
             addr=addr, cache_id=0, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_CURR
         )
+        await self._upstream_fifo.target_to_host.put(packet)
 
     async def send_d2h_rsp_test(self):
         # Test func 2: Sending D2H Rsp
@@ -111,7 +116,6 @@ class CxlCacheManager(PacketProcessor):
                 h2drsp_packet.get_pretty_string()
             elif cxl_cache_packet.is_h2ddata():
                 h2ddata_packet = cast(CxlCacheCacheH2DDataPacket, packet)
-                print("Received h2ddata_packet:")
-                h2ddata_packet.get_pretty_string()
+                await self._process_cxl_cache_h2d_data_packet(h2ddata_packet)
             else:
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")

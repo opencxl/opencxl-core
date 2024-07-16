@@ -6,8 +6,10 @@
 """
 
 # pylint: disable=duplicate-code
-from asyncio import create_task, gather
+from asyncio import create_task, gather, timeout
+from asyncio.exceptions import TimeoutError
 from dataclasses import dataclass
+from typing import Optional, cast
 
 from opencxl.cxl.config_space.dvsec.cxl_devices import (
     DvsecCxlCacheableRangeOptions,
@@ -17,6 +19,7 @@ from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.cxl_io_manager import CxlIoManager
+from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 from opencxl.cxl.mmio import CombinedMmioRegister, CombinedMmioRegiterOptions
 from opencxl.cxl.config_space.dvsec import (
     CXL_DEVICE_TYPE,
@@ -52,6 +55,10 @@ from opencxl.cxl.component.cache_controller import (
 )
 from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
+from opencxl.cxl.transport.transaction import (
+    CxlCacheH2DDataPacket,
+    is_cxl_cache_h2d_data,
+)
 from opencxl.cxl.component.device_llc_iogen import (
     DeviceLlcIoGen,
     DeviceLlcIoGenConfig,
@@ -97,6 +104,12 @@ class CxlType2Device(RunnableComponent):
             init_callback=self._init_device,
             label=self._label,
         )
+
+        self._cxl_cache_manager = CxlCacheManager(
+            upstream_fifo=self._upstream_connection.cxl_cache_fifo,
+            label=self._label,
+        )
+
         self._cxl_mem_dcoh = CxlMemDcoh(
             cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
@@ -203,20 +216,29 @@ class CxlType2Device(RunnableComponent):
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
 
-    async def read_mem(self, hpa: int, size: int = 64) -> int:
-        if not self._cxl_memory_device_component:
-            raise RuntimeError(self._create_message("Memory device not yet initialized"))
-        return await self._cxl_memory_device_component.read_mem(hpa, size)
+    async def cxl_cache_readline(self, hpa: int) -> Optional[int]:
+        await self._cxl_cache_manager.send_d2h_req_rdonly(hpa)
+        try:
+            async with timeout(3):
+                packet = await self._upstream_connection.cxl_cache_fifo.target_to_host.get()
+            assert is_cxl_cache_h2d_data(packet)
+            cache_data_packet = cast(CxlCacheH2DDataPacket, packet)
+            return cache_data_packet.data
+        except TimeoutError:
+            logger.error(self._create_message("CXL.mem Read: Timed-out"))
+            return None
 
-    async def write_mem(self, hpa: int, data: int, size: int = 64):
-        if not self._cxl_memory_device_component:
-            raise RuntimeError(self._create_message("Memory device not yet initialized"))
-        await self._cxl_memory_device_component.write_mem(hpa, data, size)
+    async def cxl_cache_writeline(self, hpa: int, data: int):
+        raise NotImplementedError()
 
     async def read_mem_dpa(self, dpa: int, size: int = 64) -> int:
+        if not self._cxl_memory_device_component:
+            raise RuntimeError(self._create_message("Memory device not yet initialized"))
         return await self._cxl_memory_device_component.read_mem_dpa(dpa, size)
 
     async def write_mem_dpa(self, dpa: int, data: int, size: int = 64):
+        if not self._cxl_memory_device_component:
+            raise RuntimeError(self._create_message("Memory device not yet initialized"))
         await self._cxl_memory_device_component.write_mem_dpa(dpa, data, size)
 
     async def _run(self):
