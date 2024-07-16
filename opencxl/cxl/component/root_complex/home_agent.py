@@ -7,6 +7,7 @@
 
 from dataclasses import dataclass
 from asyncio import create_task, gather
+import asyncio
 from enum import Enum, auto
 from typing import List, cast
 
@@ -29,6 +30,7 @@ from opencxl.cxl.transport.cache_fifo import (
 )
 from opencxl.cxl.transport.transaction import (
     CxlMemBasePacket,
+    CxlMemMemDataPacket,
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
     CxlMemBIRspPacket,
@@ -43,6 +45,7 @@ from opencxl.cxl.transport.transaction import (
     CXL_MEM_META_FIELD,
     CXL_MEM_META_VALUE,
     CXL_MEM_M2S_SNP_TYPE,
+    is_cxl_mem_data,
 )
 
 
@@ -125,6 +128,46 @@ class HomeAgent(RunnableComponent):
         packet = await self._memory_producer_fifos.response.get()
 
         return packet.data
+
+    async def write_cxl_mem(self, address: int, size: int, value: int):
+        chunk_count = 0
+        if size % 8 != 0:
+            value <<= 8 * (8 - (size % 8))
+        while size > 0:
+            message = self._create_message(f"CXL.mem: Writing 0x{value:08x} to 0x{address:08x}")
+            logger.debug(message)
+            low_8_byte = value & 0xFFFFFFFFFFFFFFFF
+            packet = CxlMemMemWrPacket.create(address + (chunk_count * 8), low_8_byte)
+            await self._downstream_cxl_mem_fifos.host_to_target.put(packet)
+            size -= 8
+            chunk_count += 1
+            value >>= 64
+
+    async def read_cxl_mem(self, address: int, size: int) -> int:
+        diff = 0
+        if size % 8 != 0:
+            diff = 8 - (size % 8)
+            size = size // 8 + 8
+        result = 0
+        while size > 0:
+            message = self._create_message(f"CXL.mem: Reading data from 0x{address:08x}")
+            logger.debug(message)
+            packet = CxlMemMemRdPacket.create(address + (size - 8))
+            await self._downstream_cxl_mem_fifos.host_to_target.put(packet)
+
+            try:
+                async with asyncio.timeout(3):
+                    packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
+                assert is_cxl_mem_data(packet)
+                mem_data_packet = cast(CxlMemMemDataPacket, packet)
+                size -= 8
+                result |= mem_data_packet.data
+                result <<= 64
+            except asyncio.exceptions.TimeoutError:
+                logger.error(self._create_message("CXL.mem Read: Timed-out"))
+                return None
+
+        return result >> (diff * 8)
 
     async def _process_memory_io_bridge_requests(self):
         while True:

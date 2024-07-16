@@ -96,7 +96,13 @@ class MyType2Accelerator(RunnableComponent):
         self._cxl_type2_device = CxlType2Device(device_config)
 
     def _train_one_epoch(
-        self, model, train_dataloader, test_dataloader, device, optimizer, loss_fn
+        self,
+        model,
+        train_dataloader: DataLoader,
+        test_dataloader: DataLoader,
+        device,
+        optimizer,
+        loss_fn,
     ):
         # pylint: disable=unused-variable
         model.train()
