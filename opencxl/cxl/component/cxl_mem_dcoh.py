@@ -58,6 +58,7 @@ class CxlMemDcoh(PacketProcessor):
         downstream_fifo: Optional[FifoPair] = None,
         label: Optional[str] = None,
     ):
+        # pylint: disable=duplicate-code
         self._downstream_fifo: Optional[FifoPair]
         self._upstream_fifo: FifoPair
 
@@ -80,11 +81,11 @@ class CxlMemDcoh(PacketProcessor):
             if sf_type == SF_UPDATE_TYPE.SF_HOST_IN:
                 self._sf_host.add(addr)
             elif sf_type == SF_UPDATE_TYPE.SF_HOST_OUT:
-                self._sf_host.remove(addr)
+                self._sf_host.discard(addr)
             elif sf_type == SF_UPDATE_TYPE.SF_DEVICE_IN:
                 self._sf_device.add(addr)
             elif sf_type == SF_UPDATE_TYPE.SF_DEVICE_OUT:
-                self._sf_device.remove(addr)
+                self._sf_device.discard(addr)
 
     def _sf_host_is_hit(self, addr) -> bool:
         return addr in self._sf_host
@@ -257,7 +258,9 @@ class CxlMemDcoh(PacketProcessor):
         ndr_packet, _ = self._create_mem_rsp_packet(rsp_code)
         await self._upstream_fifo.target_to_host.put(ndr_packet)
 
+    # .mem m2s host packet handler
     async def _process_host_to_target(self):
+        # pylint: disable=duplicate-code
         logger.debug(self._create_message("Started processing incoming fifo from host"))
         while True:
             packet = await self._upstream_fifo.host_to_target.get()
@@ -303,8 +306,9 @@ class CxlMemDcoh(PacketProcessor):
             else:
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
 
-    # .mem s2m bisnp handler
+    # .mem s2m device req handler
     async def _process_cache_to_dcoh(self):
+        # pylint: disable=duplicate-code
         logger.debug(self._create_message("Started processing incoming fifo from device cache"))
         while True:
             packet = await self._cache_to_coh_agent_fifo.request.get()
@@ -334,14 +338,16 @@ class CxlMemDcoh(PacketProcessor):
                     if packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
                         sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_OUT)
                         await self._memory_device_component.write_mem(addr, packet.data)
-                    elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
-                        sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
-                        data = await self._memory_device_component.read_mem(addr)
-                        packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data)
-                        await self._cache_to_coh_agent_fifo.response.put(packet)
-                    elif packet.type == CACHE_REQUEST_TYPE.SNP_INV:
-                        sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
-                        packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I)
+                    else:
+                        if packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
+                            sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
+                            data = await self._memory_device_component.read_mem(addr)
+                            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data)
+                        elif packet.type == CACHE_REQUEST_TYPE.SNP_INV:
+                            sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
+                            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I)
+                        elif packet.type == CACHE_REQUEST_TYPE.SNP_CUR:
+                            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V)
                         await self._cache_to_coh_agent_fifo.response.put(packet)
                 # host cache snoop filter hit
                 else:
@@ -349,23 +355,23 @@ class CxlMemDcoh(PacketProcessor):
                     if packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
                         sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_OUT)
                         await self._memory_device_component.write_mem(addr, packet.data)
-                    elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
-                        sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
-                        cxl_packet = CxlMemBISnpPacket.create(
-                            addr, CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA
-                        )
-                        await self._upstream_fifo.target_to_host.put(cxl_packet)
-                    elif packet.type == CACHE_REQUEST_TYPE.SNP_INV:
-                        sf_update_list.append(SF_UPDATE_TYPE.SF_HOST_OUT)
-                        sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
-                        cxl_packet = CxlMemBISnpPacket.create(
-                            addr, CXL_MEM_S2MBISNP_OPCODE.BISNP_INV
-                        )
+                    else:
+                        if packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
+                            sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
+                            bi_opcode = CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA
+                        elif packet.type == CACHE_REQUEST_TYPE.SNP_INV:
+                            sf_update_list.append(SF_UPDATE_TYPE.SF_HOST_OUT)
+                            sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
+                            bi_opcode = CXL_MEM_S2MBISNP_OPCODE.BISNP_INV
+                        elif packet.type == CACHE_REQUEST_TYPE.SNP_CUR:
+                            bi_opcode = CXL_MEM_S2MBISNP_OPCODE.BISNP_CUR
+                        cxl_packet = CxlMemBISnpPacket.create(addr, bi_opcode)
                         await self._upstream_fifo.target_to_host.put(cxl_packet)
 
                 if sf_update_list:
                     self._snoop_filter_update(addr, sf_update_list)
 
+    # pylint: disable=duplicate-code
     async def _run(self):
         tasks = [
             create_task(self._process_host_to_target()),
