@@ -30,7 +30,6 @@ class CacheRequest:
 class CACHE_RESPONSE_STATUS(Enum):
     OK = auto()
     FAILED = auto()
-    COH_DONE = auto()
     RSP_V = auto()
     RSP_S = auto()
     RSP_I = auto()
