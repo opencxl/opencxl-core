@@ -9,7 +9,6 @@ from opencxl.util.unaligned_bit_structure import (
     StructureField,
     ByteField,
     FIELD_ATTR,
-    RepeatedDynamicField,
 )
 
 
@@ -55,22 +54,25 @@ class CxlCacheIdRTTargetN(BitMaskedBitStructure):
     _fields = [BitField("valid", 0, 0), BitField("rsvd", 1, 7), BitField("port_number", 8, 15)]
 
 
-class CxlCacheIdRTCapabilityStructureN2(BitMaskedBitStructure):
+class CxlCacheIdRTCapabilityStructure2N(BitMaskedBitStructure):
     _fields = [
         StructureField("cxl_cache_id_rt_capability", 0x00, 0x03, CxlCacheIdRTCapability),
         StructureField("cxl_cache_id_rt_control", 0x04, 0x07, CxlCacheIdRTControl),
         StructureField("cxl_cache_id_rt_status", 0x08, 0x0B, CxlCacheIdRTStatus),
         ByteField("rsvd", 0x0C, 0x0F, FIELD_ATTR.RESERVED),
-        StructureField("target1", 0, 1, CxlCacheIdRTTargetN),
-        StructureField("target2", 0, 1, CxlCacheIdRTTargetN),
+        StructureField("target_1", 0x10, 0x11, CxlCacheIdRTTargetN),
+        StructureField("target_2", 0x12, 0x13, CxlCacheIdRTTargetN),
     ]
 
-class CxlCacheIdRTCapabilityStructureN2(BitMaskedBitStructure):
+
+class CxlCacheIdRTCapabilityStructure4N(BitMaskedBitStructure):
     _fields = [
         StructureField("cxl_cache_id_rt_capability", 0x00, 0x03, CxlCacheIdRTCapability),
         StructureField("cxl_cache_id_rt_control", 0x04, 0x07, CxlCacheIdRTControl),
         StructureField("cxl_cache_id_rt_status", 0x08, 0x0B, CxlCacheIdRTStatus),
         ByteField("rsvd", 0x0C, 0x0F, FIELD_ATTR.RESERVED),
-        StructureField("target1", 0, 1, CxlCacheIdRTTargetN),
-        StructureField("target2", 0, 1, CxlCacheIdRTTargetN),
+        StructureField("target_1", 0x10, 0x11, CxlCacheIdRTTargetN),
+        StructureField("target_2", 0x12, 0x13, CxlCacheIdRTTargetN),
+        StructureField("target_3", 0x14, 0x15, CxlCacheIdRTTargetN),
+        StructureField("target_4", 0x16, 0x17, CxlCacheIdRTTargetN),
     ]
