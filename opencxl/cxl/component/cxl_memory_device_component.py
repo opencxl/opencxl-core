@@ -358,6 +358,12 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             return 0
         return await self._memory_accessor.read(dpa, size)
 
+    async def read_mem_dpa(self, dpa: int, size: int = 64) -> int:
+        return await self._memory_accessor.read(dpa, size)
+
+    async def write_mem_dpa(self, dpa: int, data: int, size: int = 64):
+        await self._memory_accessor.write(dpa, data, size)
+
     # TODO: check OOB write for cache (should <= self._cache_line_size)
     async def write_cache(self, cache_id: int, data: int):
         self._cache_info[cache_id].write(data)
