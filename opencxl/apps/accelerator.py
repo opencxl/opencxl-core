@@ -5,6 +5,7 @@
  See LICENSE for details.
 """
 
+# pylint: disable=W0611
 from asyncio import gather, create_task
 from io import BytesIO
 from typing import cast
@@ -248,6 +249,7 @@ class MyType2Accelerator(RunnableComponent):
         return im
 
     async def _validate_model(self):
+        # pylint: disable=E1101
         im = await self._download_image()
         tens = cast(torch.Tensor, self.tensorify(im))
 
@@ -279,6 +281,7 @@ class MyType2Accelerator(RunnableComponent):
 
     async def _run_app(self):
         # pylint: disable=unused-variable
+        # pylint: disable=E1101
         logger.info(
             self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
         )
