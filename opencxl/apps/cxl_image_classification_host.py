@@ -219,7 +219,7 @@ class HostTrainIoGen(RunnableComponent):
 
 
 @dataclass
-class CxlTrainingHostConfig:
+class CxlImageClassificationHostConfig:
     host_name: str
     root_bus: int
     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
@@ -229,8 +229,8 @@ class CxlTrainingHostConfig:
     coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.DotMemBI
 
 
-class CxlTrainingHost(RunnableComponent):
-    def __init__(self, config: CxlTrainingHostConfig):
+class CxlImageClassificationHost(RunnableComponent):
+    def __init__(self, config: CxlImageClassificationHostConfig):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
 
         processor_to_cache_fifo = MemoryFifoPair()
