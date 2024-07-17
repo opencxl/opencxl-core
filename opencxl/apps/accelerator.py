@@ -114,7 +114,7 @@ class MyType2Accelerator(RunnableComponent):
             p.requires_grad = False
         summary(self.model, input_size=(1, 3, 160, 160))
 
-        self.tensorify = transforms.Compose(
+        self.transform = transforms.Compose(
             [
                 transforms.Resize((160, 160)),
                 transforms.ToTensor(),
@@ -206,7 +206,7 @@ class MyType2Accelerator(RunnableComponent):
 
         print(f"test_loss: {test_loss}, test_accuracy: {test_accuracy}")
 
-    async def _download_metadata(self):
+    async def _get_metadata(self):
         # When downloading the metadata, the device does not know ahead of time where
         # the metadata is located, nor the size of the metadata. The host relays this
         # information by writing to hardcoded DPAs using CXL.mem. Once the accelerator
@@ -228,7 +228,7 @@ class MyType2Accelerator(RunnableComponent):
                 cacheline = cast(int, cacheline)
                 md_file.write(cacheline.to_bytes(CACHELINE_LENGTH))
 
-    async def _download_image(self) -> Image.Image:
+    async def _get_test_image(self) -> Image.Image:
         IMAGE_ADDR_DPA = 0x40
         IMAGE_SIZE_DPA = 0x48
 
@@ -250,8 +250,8 @@ class MyType2Accelerator(RunnableComponent):
 
     async def _validate_model(self):
         # pylint: disable=E1101
-        im = await self._download_image()
-        tens = cast(torch.Tensor, self.tensorify(im))
+        im = await self._get_test_image()
+        tens = cast(torch.Tensor, self.transform(im))
 
         # Model expects a 4-dimensional tensor
         tens = torch.unsqueeze(tens, 0)
@@ -301,7 +301,7 @@ class MyType2Accelerator(RunnableComponent):
         print(f"torch.device: {device}")
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
-        await self._download_metadata()
+        await self._get_metadata()
 
         epochs = 2
         epoch_loss = 0
