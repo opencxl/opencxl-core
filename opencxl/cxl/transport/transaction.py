@@ -1181,6 +1181,20 @@ class CxlCacheCacheH2DDataPacket(CxlCacheH2DDataPacket):
         return packet
 
 
+def is_cxl_cache_h2d_data(packet: BasePacket) -> bool:
+    if not packet.is_cxl_cache():
+        return False
+    cxl_cache_packet = cast(CxlCacheH2DDataPacket, packet)
+    return cxl_cache_packet.is_h2ddata() and cxl_cache_packet.h2ddata_header.valid == 1
+
+
+def is_cxl_cache_d2h_data(packet: BasePacket) -> bool:
+    if not packet.is_cxl_cache():
+        return False
+    cxl_cache_packet = cast(CxlCacheD2HDataPacket, packet)
+    return cxl_cache_packet.is_d2hdata() and cxl_cache_packet.d2hdata_header.valid == 1
+
+
 #
 # Packet Definitions for PAYLOAD_TYPE.CXL_MEM
 #
