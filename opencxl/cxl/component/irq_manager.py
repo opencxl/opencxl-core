@@ -44,6 +44,7 @@ class IrqManager(RunnableComponent):
     _msg_to_interrupt_event: dict[Irq, Event]
     _callbacks: list[Callable]
     _server_task: Task
+    _callback_tasks: list[Task]
 
     def __init__(
         self,
@@ -61,6 +62,7 @@ class IrqManager(RunnableComponent):
             client_target_port = [9100, 9101, 9102, 9103]
         self._client_target_port = client_target_port
         self._callbacks = []
+        self._msg_to_interrupt_event = {}
 
     def register_interrupt_handler(self, irq_msg: Irq, irq_recv_cb: Callable):
         """
@@ -107,10 +109,13 @@ class IrqManager(RunnableComponent):
         try:
             server = await self._create_server()
             self._server_task = create_task(server.serve_forever())
+            self._callback_tasks = [create_task(cb()) for cb in self._callbacks]
             await self._change_status_to_running()
-            await gather(*[create_task(cb()) for cb in self._callbacks], self._server_task)
+            await gather(*self._callback_tasks, self._server_task)
         except CancelledError:
             logger.info(self._create_message("Irq enable listener stopped"))
 
     async def _stop(self):
+        for callback_task in self._callback_tasks:
+            callback_task.cancel()
         self._server_task.cancel()

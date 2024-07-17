@@ -120,15 +120,15 @@ class MyType2Accelerator(RunnableComponent):
             ]
         )
 
-        self.train_dataset = datasets.ImageFolder(root="train", transform=self.tensorify)
-        self.train_dataloader = DataLoader(
-            self.train_dataset, batch_size=32, shuffle=True, num_workers=4
-        )
+        # self.train_dataset = datasets.ImageFolder(root="train", transform=self.tensorify)
+        # self.train_dataloader = DataLoader(
+        #    self.train_dataset, batch_size=32, shuffle=True, num_workers=4
+        # )
 
-        self.test_dataset = datasets.ImageFolder(root="val", transform=self.tensorify)
-        self.test_dataloader = DataLoader(
-            self.test_dataset, batch_size=10, shuffle=True, num_workers=4
-        )
+        # self.test_dataset = datasets.ImageFolder(root="val", transform=self.tensorify)
+        # self.test_dataloader = DataLoader(
+        #    self.test_dataset, batch_size=10, shuffle=True, num_workers=4
+        # )
 
         self._irq_manager = IrqManager(
             server_bind_port=irq_listen_port,
@@ -346,4 +346,4 @@ class MyType2Accelerator(RunnableComponent):
             create_task(self._irq_manager.stop()),
         ]
         await gather(*tasks)
-        await self._app_shutdown()
+        # await self._app_shutdown()
