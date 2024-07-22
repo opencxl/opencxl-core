@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TypedDict
 from opencxl.util.logger import logger
 from opencxl.util.component import LabeledComponent
 from opencxl.pci.component.pci import (
@@ -26,11 +26,20 @@ from opencxl.cxl.component.root_complex.root_complex import RootComplex
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
 
 
+class PciDeviceInfo(TypedDict):
+    vid: int
+    did: int
+    class_name: str
+    bar_addr: int
+    bar_range: int
+    bdf: int
+
+
 class PciBusDriver(LabeledComponent):
     def __init__(self, root_complex: RootComplex, label: Optional[str] = None):
         super().__init__(label)
         self._root_complex = root_complex
-        self._devices = []
+        self._devices: list[PciDeviceInfo] = []
 
     async def init(self):
         await self._scan_pci_devices()
@@ -115,7 +124,7 @@ class PciBusDriver(LabeledComponent):
             return data
         return 0xFFFFFFFF - data + 1
 
-    async def _read_vid_did(self, bdf: int) -> Optional[int]:
+    async def _read_vid_did(self, bdf: int) -> Optional[tuple[int]]:
         logger.debug(self._create_message(f"Reading VID/DID from {bdf_to_string(bdf)}"))
         vid = await self._root_complex.read_config(
             bdf, REG_ADDR.VENDOR_ID.START, REG_ADDR.VENDOR_ID.LEN
@@ -128,7 +137,8 @@ class PciBusDriver(LabeledComponent):
         if did == 0xFFFF and vid == 0xFFFF:
             logger.debug(self._create_message(f"Device not found at {bdf_to_string(bdf)}"))
             return None
-        return (did << 16) | vid
+        # return (did << 16) | vid
+        return vid, did
 
     async def _read_class_code(self, bdf: int) -> int:
         data = await self._root_complex.read_config(
@@ -207,6 +217,8 @@ class PciBusDriver(LabeledComponent):
         multi_function_devices = set()
 
         for bdf in bdf_list:
+            dev_data = PciDeviceInfo()
+            dev_data["bdf"] = bdf
             device_number = extract_device_from_bdf(bdf)
             function_number = extract_function_from_bdf(bdf)
 
@@ -216,6 +228,9 @@ class PciBusDriver(LabeledComponent):
             vid_did = await self._read_vid_did(bdf)
             if vid_did is None:
                 continue
+            vid, did = vid_did
+            dev_data["vid"] = vid
+            dev_data["did"] = did
 
             is_multifunction = (await self._root_complex.read_config(bdf, 0x0E, 1) & 0x80) >> 7
             if is_multifunction:
@@ -224,15 +239,18 @@ class PciBusDriver(LabeledComponent):
             size = await self._check_bar_size_and_set(bdf, memory_start)
             # NOTE: assume size is less than 0x100000
             if size > 0:
+                dev_data["bar_addr"] = memory_start
+                dev_data["bar_range"] = 0x100000
                 memory_start += 0x100000
             else:
                 logger.info(self._create_message(f"BAR0 size of {bdf_to_string(bdf)} is {size}"))
 
             class_code = await self._read_class_code(bdf)
             if (class_code >> 8) == BRIDGE_CLASS:
+                dev_data["class_name"] = "bridge"
                 logger.info(
                     self._create_message(
-                        f"Found an bridge device at {bdf_to_string(bdf)} (VID/DID: 0x{vid_did:08x})"
+                        f"Found an bridge device at {bdf_to_string(bdf)} (VID: 0x{vid:04x} DID: 0x{did:04x})"
                     )
                 )
 
@@ -246,13 +264,14 @@ class PciBusDriver(LabeledComponent):
                 memory_start = memory_end
                 await self._set_subordinate_bus(bdf, bus)
             else:
+                dev_data["class_name"] = "endpoint"
                 logger.info(
                     self._create_message(
                         f"Found an endpoint device at {bdf_to_string(bdf)} "
-                        f"(VID/DID: 0x{vid_did:08x})"
+                        f"(VID: 0x{vid:04x} DID: 0x{did:04x})"
                     )
                 )
-
+            self._devices.append(dev_data)
         return (bus, memory_start)
 
     # pylint: enable=duplicate-code
