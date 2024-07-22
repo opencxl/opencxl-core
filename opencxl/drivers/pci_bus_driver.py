@@ -22,24 +22,23 @@ from opencxl.util.pci import (
     generate_bdfs_for_bus,
 )
 from opencxl.cxl.component.root_complex.root_complex import RootComplex
+from opencxl.cxl.device.root_port_device import (
+    DeviceEnumerationInfo,
+    EnumerationInfo,
+    PciCapabilities,
+    PciDvsecCapabilities,
+    DvsecRegisterLocators,
+    MemoryEnumerationInfo,
+)
 
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
-
-
-class PciDeviceInfo(TypedDict):
-    vid: int
-    did: int
-    class_name: str
-    bar_addr: int
-    bar_range: int
-    bdf: int
 
 
 class PciBusDriver(LabeledComponent):
     def __init__(self, root_complex: RootComplex, label: Optional[str] = None):
         super().__init__(label)
         self._root_complex = root_complex
-        self._devices: list[PciDeviceInfo] = []
+        self._devices: EnumerationInfo = EnumerationInfo()
 
     async def init(self):
         await self._scan_pci_devices()
@@ -124,7 +123,7 @@ class PciBusDriver(LabeledComponent):
             return data
         return 0xFFFFFFFF - data + 1
 
-    async def _read_vid_did(self, bdf: int) -> Optional[tuple[int]]:
+    async def _read_vid_did(self, bdf: int) -> Optional[int]:
         logger.debug(self._create_message(f"Reading VID/DID from {bdf_to_string(bdf)}"))
         vid = await self._root_complex.read_config(
             bdf, REG_ADDR.VENDOR_ID.START, REG_ADDR.VENDOR_ID.LEN
@@ -137,8 +136,7 @@ class PciBusDriver(LabeledComponent):
         if did == 0xFFFF and vid == 0xFFFF:
             logger.debug(self._create_message(f"Device not found at {bdf_to_string(bdf)}"))
             return None
-        # return (did << 16) | vid
-        return vid, did
+        return (did << 16) | vid
 
     async def _read_class_code(self, bdf: int) -> int:
         data = await self._root_complex.read_config(
@@ -217,8 +215,8 @@ class PciBusDriver(LabeledComponent):
         multi_function_devices = set()
 
         for bdf in bdf_list:
-            dev_data = PciDeviceInfo()
-            dev_data["bdf"] = bdf
+            dev_data = DeviceEnumerationInfo()
+            dev_data.bdf = bdf
             device_number = extract_device_from_bdf(bdf)
             function_number = extract_function_from_bdf(bdf)
 
@@ -228,9 +226,7 @@ class PciBusDriver(LabeledComponent):
             vid_did = await self._read_vid_did(bdf)
             if vid_did is None:
                 continue
-            vid, did = vid_did
-            dev_data["vid"] = vid
-            dev_data["did"] = did
+            dev_data.vid_did = vid_did
 
             is_multifunction = (await self._root_complex.read_config(bdf, 0x0E, 1) & 0x80) >> 7
             if is_multifunction:
@@ -239,18 +235,21 @@ class PciBusDriver(LabeledComponent):
             size = await self._check_bar_size_and_set(bdf, memory_start)
             # NOTE: assume size is less than 0x100000
             if size > 0:
-                dev_data["bar_addr"] = memory_start
-                dev_data["bar_range"] = 0x100000
+                bar0 = await self._read_bar(bdf, 0)
+                dev_data.bars = [bar0]
+                dev_data.mmio_range = MemoryEnumerationInfo(
+                    memory_base=memory_start, memory_limit=memory_start + 0x100000 - 1
+                )
                 memory_start += 0x100000
             else:
                 logger.info(self._create_message(f"BAR0 size of {bdf_to_string(bdf)} is {size}"))
 
             class_code = await self._read_class_code(bdf)
             if (class_code >> 8) == BRIDGE_CLASS:
-                dev_data["class_name"] = "bridge"
+                dev_data.is_bridge = True
                 logger.info(
                     self._create_message(
-                        f"Found an bridge device at {bdf_to_string(bdf)} (VID: 0x{vid:04x} DID: 0x{did:04x})"
+                        f"Found an bridge device at {bdf_to_string(bdf)} (VID/DID:{vid_did:08x})"
                     )
                 )
 
@@ -264,14 +263,14 @@ class PciBusDriver(LabeledComponent):
                 memory_start = memory_end
                 await self._set_subordinate_bus(bdf, bus)
             else:
-                dev_data["class_name"] = "endpoint"
+                dev_data.is_bridge = False
                 logger.info(
                     self._create_message(
                         f"Found an endpoint device at {bdf_to_string(bdf)} "
-                        f"(VID: 0x{vid:04x} DID: 0x{did:04x})"
+                        f"(VID/DID:{vid_did:08x})"
                     )
                 )
-            self._devices.append(dev_data)
+            self._devices.devices.append(dev_data)
         return (bus, memory_start)
 
     # pylint: enable=duplicate-code
