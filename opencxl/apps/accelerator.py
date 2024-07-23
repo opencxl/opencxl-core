@@ -10,16 +10,10 @@
 from asyncio import gather, create_task
 from io import BytesIO
 from typing import cast
-from io import BytesIO
-from typing import cast
 
-import json
-import os
 import json
 import os
 import torch
-
-from PIL import Image
 
 from PIL import Image
 from torch import nn
@@ -36,7 +30,6 @@ from opencxl.cxl.device.cxl_type2_device import (
     CxlType2Device,
     CxlType2DeviceConfig,
 )
-from opencxl.cxl.component.irq_manager import Irq, IrqManager
 from opencxl.cxl.component.irq_manager import Irq, IrqManager
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
@@ -344,8 +337,6 @@ class MyType2Accelerator(RunnableComponent):
         memory_file: str,
         host: str = "0.0.0.0",
         port: int = 8000,
-        irq_listen_port: int = 9100,
-        irq_send_port: int = 9000,
         irq_listen_port: int = 9100,
         irq_send_port: int = 9000,
     ):
