@@ -6,6 +6,14 @@
 """
 
 from typing import TypedDict, Optional, Dict
+from opencxl.cxl.mmio.component_register.memcache_register.cache_route_table import (
+    CxlCacheIdRTCapabilityStructure,
+    CacheRouteTableCapabilityStructureOptions,
+)
+from opencxl.cxl.mmio.component_register.memcache_register.cache_id_decoder_capability import (
+    CxlCacheIdDecoderCapabilityStructure,
+    CxlCacheIdDecoderCapabilityStructureOptions,
+)
 from opencxl.util.unaligned_bit_structure import (
     ShareableByteArray,
     BitMaskedBitStructure,
@@ -37,6 +45,8 @@ class CxlCacheMemRegisterOptions(TypedDict):
     hdm_decoder: Optional[CxlHdmDecoderCapabilityStructureOptions]
     bi_route_table: Optional[CxlBIRTCapabilityStructureOptions]
     bi_decoder: Optional[CxlBIDecoderCapabilityStructureOptions]
+    cache_route_table: Optional[CacheRouteTableCapabilityStructureOptions]
+    cache_id_decoder: Optional[CxlCacheIdDecoderCapabilityStructureOptions]
 
 
 STRUCTURE_MAP: Dict[str, BitMaskedBitStructure] = {
@@ -45,6 +55,8 @@ STRUCTURE_MAP: Dict[str, BitMaskedBitStructure] = {
     "hdm_decoder": CxlHdmDecoderCapabilityStructure,
     "bi_route_table": CxlBIRTCapabilityStructure,
     "bi_decoder": CxlBIDecoderCapabilityStructure,
+    "cache_route_table": CxlCacheIdRTCapabilityStructure,  # just hardcode 4N for now
+    "cache_id_decoder": CxlCacheIdDecoderCapabilityStructure,
 }
 
 CXL_CACHE_MEM_REGISTER_SIZE = 0x1000
