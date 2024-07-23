@@ -26,7 +26,19 @@ from opencxl.cxl.component.hdm_decoder import (
     HdmDecoderCapabilities,
     HDM_DECODER_COUNT,
 )
+from opencxl.cxl.component.cache_route_table_manager import (
+    SwitchCacheRouteTable,
+)
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
+from opencxl.cxl.mmio.component_register.memcache_register.cache_route_table import (
+    CacheRouteTableCapabilityRegisterOptions,
+)
+from opencxl.cxl.mmio.component_register.memcache_register.cache_id_decoder_capability import (
+    CxlCacheIdDecoderCapabilityRegisterOptions,
+    CxlCacheIdDecoderCapabilityStructureOptions,
+    CxlCacheIdDecoderControlOptions,
+    CxlCacheIdDecoderStatusOptions,
+)
 
 
 class CxlUpstreamPortComponent(CxlComponent):
@@ -52,6 +64,12 @@ class CxlUpstreamPortComponent(CxlComponent):
             bi_capable=True,
         )
         self._hdm_decoder_manager = SwitchHdmDecoderManager(hdm_decoder_capabilities, label)
+        self.cache_route_table_capabilities = CacheRouteTableCapabilityRegisterOptions(
+            cache_id_target_count=16,
+            hdmd_type2_device_max_count=8,
+            explicit_cache_id_rt_cmt_required=0,
+        )
+        self._cache_route_table = SwitchCacheRouteTable(self.cache_route_table_capabilities, label)
         self._routing_table = None
 
     def get_component_type(self) -> CXL_COMPONENT_TYPE:
@@ -74,12 +92,54 @@ class CxlUpstreamPortComponent(CxlComponent):
         )
         return options
 
+    def get_cache_route_table_options(self) -> Optional[CacheRouteTableCapabilityRegisterOptions]:
+        return self.cache_route_table_capabilities
+
     def set_routing_table(self, routing_table: RoutingTable):
         self._routing_table = routing_table
         self._routing_table.set_hdm_decoder(self._hdm_decoder_manager)
+        self._routing_table.set_cache_route_table(self._cache_route_table)
 
 
 class CxlDownstreamPortComponent(CxlComponent):
+    def __init__(
+        self,
+        label: Optional[str] = None,
+        cache_id_decoder_options: Optional[CxlCacheIdDecoderCapabilityStructureOptions] = None,
+    ):
+        if cache_id_decoder_options:
+            self.cache_id_decoder_options = cache_id_decoder_options
+        else:
+            # assign a sensible default
+            register_options = CxlCacheIdDecoderCapabilityRegisterOptions(
+                explicit_cache_id_decoder_cmt_required=0, rsvd=0
+            )
+            control_options = CxlCacheIdDecoderControlOptions(
+                forward_cache_id=1,
+                assign_cache_id=0,
+                hdmd_t2_device_present=0,
+                cache_id_decoder_cmt=0,
+                rsvd=0,
+                hdmd_t2_device_cache_id=0,
+                rsvd2=0,
+                local_cache_id=0,
+                rsvd3=0,
+            )
+            status_options = CxlCacheIdDecoderStatusOptions(
+                cache_id_decoder_cmtd=0,
+                cache_id_decoder_err_not_cmtd=0,
+                rsvd=0,
+                cache_id_decoder_cmt_timeout_scale=0,
+                cache_id_decoder_cmt_timeout_base=0,
+                rsvd2=0,
+            )
+            self.cache_id_decoder_options = CxlCacheIdDecoderCapabilityStructureOptions(
+                register_options=register_options,
+                control_options=control_options,
+                status_options=status_options,
+            )
+        super().__init__()
+
     def get_bi_decoder_options(self) -> Optional[CxlBIDecoderCapabilityStructureOptions]:
         options = CxlBIDecoderCapabilityStructureOptions()
         options["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(
@@ -98,6 +158,9 @@ class CxlDownstreamPortComponent(CxlComponent):
         )
         options["device_type"] = self.get_component_type()
         return options
+
+    def get_cache_decoder_options(self) -> Optional[CxlCacheIdDecoderCapabilityStructureOptions]:
+        return self.cache_id_decoder_options
 
     def get_component_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.DSP

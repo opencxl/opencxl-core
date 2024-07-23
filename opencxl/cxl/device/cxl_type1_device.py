@@ -5,24 +5,17 @@
  See LICENSE for details.
 """
 
-# pylint: disable=duplicate-code, unused-import
+# pylint: disable=duplicate-code
 from asyncio import create_task, gather
 from dataclasses import dataclass
-from typing import Optional
 
-from opencxl.cxl.component.cache_controller import CacheController, CacheControllerConfig
-from opencxl.cxl.component.cxl_mem_dcoh import CxlMemDcoh
-from opencxl.cxl.component.device_llc_iogen import DeviceLlcIoGen, DeviceLlcIoGenConfig
 from opencxl.cxl.config_space.dvsec.cxl_devices import (
     DvsecCxlCacheableRangeOptions,
     DvsecCxlCapabilityOptions,
 )
-from opencxl.cxl.transport.cache_fifo import CacheFifoPair
-from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
-from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 from opencxl.cxl.component.cxl_io_manager import CxlIoManager
 from opencxl.cxl.mmio import CombinedMmioRegister, CombinedMmioRegiterOptions
 from opencxl.cxl.config_space.dvsec import (
@@ -52,6 +45,17 @@ from opencxl.pci.component.config_space_manager import (
     ConfigSpaceManager,
     PCI_DEVICE_TYPE,
 )
+from opencxl.cxl.component.cache_controller import (
+    CacheController,
+    CacheControllerConfig,
+)
+from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
+from opencxl.cxl.transport.cache_fifo import CacheFifoPair
+from opencxl.cxl.component.device_llc_iogen import (
+    DeviceLlcIoGen,
+    DeviceLlcIoGenConfig,
+)
+from opencxl.cxl.component.cxl_cache_dcoh import CxlCacheDcoh
 from opencxl.util.number_const import KB, MB
 
 
@@ -92,13 +96,13 @@ class CxlType1Device(RunnableComponent):
 
         self._cxl_memory_device_component = None
 
-        self._cxl_cache_manager = CxlCacheManager(
+        self._cxl_cache_dcoh = CxlCacheDcoh(
+            cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
+            coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
             upstream_fifo=self._upstream_connection.cxl_cache_fifo,
             label=self._label,
         )
 
-        # Update CxlCacheManager with a CxlCacheDeviceComponent
-        self._cxl_cache_manager.set_memory_device_component(self._cxl_cache_device_component)
         cache_num_assoc = 4
         cache_controller_config = CacheControllerConfig(
             component_name=config.device_name,
@@ -207,13 +211,13 @@ class CxlType1Device(RunnableComponent):
         # pylint: disable=duplicate-code
         run_tasks = [
             create_task(self._cxl_io_manager.run()),
-            create_task(self._cxl_cache_manager.run()),
+            create_task(self._cxl_cache_dcoh.run()),
             create_task(self._cache_controller.run()),
             create_task(self._device_simple_processor.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
-            create_task(self._cxl_cache_manager.wait_for_ready()),
+            create_task(self._cxl_cache_dcoh.wait_for_ready()),
             create_task(self._cache_controller.wait_for_ready()),
             create_task(self._device_simple_processor.wait_for_ready()),
         ]
@@ -225,7 +229,7 @@ class CxlType1Device(RunnableComponent):
         # pylint: disable=duplicate-code
         tasks = [
             create_task(self._cxl_io_manager.stop()),
-            create_task(self._cxl_cache_manager.stop()),
+            create_task(self._cxl_cache_dcoh.stop()),
             create_task(self._cache_controller.stop()),
             create_task(self._device_simple_processor.stop()),
         ]

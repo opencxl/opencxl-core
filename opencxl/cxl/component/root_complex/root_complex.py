@@ -144,6 +144,12 @@ class RootComplex(RunnableComponent):
     async def read_mmio(self, address: int, size: int) -> int:
         return await self._io_bridge.read_mmio(address, size)
 
+    async def write_cxl_mem(self, address: int, size: int, value: int) -> int:
+        return await self._home_agent.write_cxl_mem(address, size, value)
+
+    async def read_cxl_mem(self, address: int, size: int) -> int:
+        return await self._home_agent.read_cxl_mem(address, size)
+
     async def _run(self):
         run_tasks = [
             asyncio.create_task(self._root_port_switch.run()),
