@@ -19,11 +19,11 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms, datasets
 from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
-from opencxl.util.number import split_cacheline
 from torchinfo import summary
 from tqdm import tqdm
 
 from opencxl.util.logger import logger
+from opencxl.util.number import split_cacheline
 from opencxl.cxl.device.cxl_type1_device import CxlType1Device, CxlType1DeviceConfig
 from opencxl.cxl.device.cxl_type2_device import (
     CxlType2Device,
@@ -40,11 +40,12 @@ class MyType1Accelerator(RunnableComponent):
     This demo app uses CXL.cache to read metadata from the host memory, uses the
     metadata to train an image classification model, then finally uses CXL.cache
     to rewrite the training results to the host memory.
-    
+
     The demo app also supports host "validation": the device can copy an image
     from some predefined address in host memory, run the trained model on the
     retrieved image, and write the class probabilities back to the host memory.
     """
+
     def __init__(
         self,
         port_index: int,
@@ -101,7 +102,7 @@ class MyType1Accelerator(RunnableComponent):
 
         self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
         self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
-    
+
     def _train_one_epoch(self, train_dataloader, test_dataloader, device, optimizer, loss_fn):
         # pylint: disable=unused-variable
         self.model.train()
@@ -164,42 +165,145 @@ class MyType1Accelerator(RunnableComponent):
         test_accuracy = correct_count / len(test_dataloader.sampler)
 
         print(f"test_loss: {test_loss}, test_accuracy: {test_accuracy}")
-    
+
     async def _get_metadata(self):
         # When retrieving the metadata, the device does not know ahead of time where
         # the metadata is located, nor the size of the metadata. The host relays this
-        # information by writing to hardcoded HPAs. Once the accelerator receives the 
-        # HOST_READY interrupt, it will read the address and size of the metadata from 
-        # the host memory using CXL.cache, then use CXL.cache again to appropriately 
+        # information by writing to hardcoded HPAs. Once the accelerator receives the
+        # HOST_READY interrupt, it will read the address and size of the metadata from
+        # the host memory using CXL.cache, then use CXL.cache again to appropriately
         # request the data from the host, one cacheline at a time.
 
-        METADATA_INFO_CACHELINE_HPA = 0x40 # 64-byte-aligned address
+        METADATA_INFO_CACHELINE_HPA = 0x40  # 64-byte-aligned address
 
         CACHELINE_LENGTH = 64
 
-        metadata_cacheline = await self._cxl_type2_device.cxl_cache_readline(METADATA_INFO_CACHELINE_HPA)
+        metadata_cacheline = await self._cxl_type1_device.cxl_cache_readline(
+            METADATA_INFO_CACHELINE_HPA
+        )
 
-        metadata_addr, metadata_size = split_cacheline(metadata_cacheline)
-        
+        metadata_addr, metadata_size, *_ = split_cacheline(metadata_cacheline)
+
         with open("noisy_imagenette.csv", "wb") as md_file:
             for cacheline_offset in range(metadata_addr, metadata_size, CACHELINE_LENGTH):
-                cacheline = await self._cxl_type2_device.cxl_cache_readline(cacheline_offset)
+                cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
                 cacheline = cast(int, cacheline)
                 md_file.write(cacheline.to_bytes(CACHELINE_LENGTH))
 
-    async def _run_app(self, *args):
-        # example app: prints the arguments
-        for idx, arg in enumerate(args):
-            logger.info(self._create_message(f"Type 1 Accelerator: arg{idx}, {arg}"))
+    async def _get_test_image(self) -> Image.Image:
+        IMAGE_INFO_CACHELINE_HPA = 0x40
+
+        CACHELINE_LENGTH = 64
+
+        image_info_cacheline = await self._cxl_type1_device.cxl_cache_readline(
+            IMAGE_INFO_CACHELINE_HPA
+        )
+        image_addr, image_size, *_ = split_cacheline(image_info_cacheline)
+
+        im = None
+
+        with BytesIO() as imgbuf:
+            for cacheline_offset in range(image_addr, image_size, CACHELINE_LENGTH):
+                cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
+                cacheline = cast(int, cacheline)
+                imgbuf.write(cacheline.to_bytes(CACHELINE_LENGTH))
+            im = Image.open(imgbuf)
+
+        return im
+
+    async def _validate_model(self):
+        # pylint: disable=E1101
+        im = await self._get_test_image()
+        tens = cast(torch.Tensor, self.transform(im))
+
+        # Model expects a 4-dimensional tensor
+        tens = torch.unsqueeze(tens, 0)
+
+        pred_logit = self.model(tens)
+        predicted_probs = torch.softmax(pred_logit, dim=1)
+
+        # 10 predicted classes
+        # TODO: avoid magic number usage
+        pred_kv = {self.test_dataset.classes[i]: predicted_probs[i] for i in range(0, 10)}
+
+        json_asenc = str.encode(json.dumps(pred_kv))
+        bytes_size = len(json_asenc)
+
+        json_asint = int.from_bytes(json_asenc)
+
+        RESULTS_HPA = 0x180  # Arbitrarily chosen
+
+        await self._cxl_type1_device.cxl_cache_writelines(RESULTS_HPA, json_asint, bytes_size)
+
+        HOST_VECTOR_ADDR = 0x50
+        HOST_VECTOR_SIZE = 0x58
+
+        await self._cxl_type1_device.cxl_cache_writelines(HOST_VECTOR_ADDR, RESULTS_HPA, 8)
+        await self._cxl_type1_device.cxl_cache_writelines(HOST_VECTOR_SIZE, bytes_size, 8)
+
+        # Done with eval
+        await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
+
+    async def _run_app(self):
+        # pylint: disable=unused-variable
+        # pylint: disable=E1101
+        logger.info(
+            self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
+        )
+        os.chdir(self.accel_dirname)
+
+        logger.info(self._create_message("Creating symlinks to training and validation datasets"))
+        os.symlink(src="../imagenette2-160/train", dst="train", target_is_directory=True)
+        os.symlink(src="../imagenette2-160/val", dst="val", target_is_directory=True)
+
+        logger.info(self._create_message("Beginning training"))
+        if torch.cuda.is_available():
+            device = torch.device("cuda:0")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+        print(f"torch.device: {device}")
+
+        # Uses CXL.cache to copy metadata from host cached memory into device local memory
+        await self._get_metadata()
+
+        epochs = 2
+        epoch_loss = 0
+        for epoch in range(epochs):
+            loss_fn = torch.nn.CrossEntropyLoss()
+            optimizer = torch.optim.SGD(self.model.parameters())
+            scheduler = torch.optim.lr_scheduler.LinearLR(
+                optimizer, start_factor=1, end_factor=0.5, total_iters=30
+            )
+            self._train_one_epoch(
+                train_dataloader=self.train_dataloader,
+                test_dataloader=self.test_dataloader,
+                optimizer=optimizer,
+                loss_fn=loss_fn,
+                device=device,
+            )
+            scheduler.step()
+
+        # Done training
+        await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
+
+    async def _app_shutdown(self):
+        logger.info("Moving out of accelerator directory")
+        os.chdir("..")
+
+        logger.info("Removing accelerator directory")
+        os.rmdir(self.accel_dirname)
 
     async def _run(self):
         tasks = [
             create_task(self._sw_conn_client.run()),
             create_task(self._cxl_type1_device.run()),
+            create_task(self._irq_manager.run()),
         ]
         await self._sw_conn_client.wait_for_ready()
         await self._cxl_type1_device.wait_for_ready()
-        tasks.append(create_task(self._run_app(1, 2)))
+        await self._irq_manager.wait_for_ready()
         await self._change_status_to_running()
         await gather(*tasks)
 
@@ -207,8 +311,10 @@ class MyType1Accelerator(RunnableComponent):
         tasks = [
             create_task(self._sw_conn_client.stop()),
             create_task(self._cxl_type1_device.stop()),
+            create_task(self._irq_manager.stop()),
         ]
         await gather(*tasks)
+        # await self._app_shutdown()
 
 
 class MyType2Accelerator(RunnableComponent):
@@ -217,11 +323,12 @@ class MyType2Accelerator(RunnableComponent):
     device cached memory via CXL.mem; after the device uses this metadata to
     train an image classification model, the host can use CXL.mem to read
     the training results from the device memory.
-    
-    The demo app also supports host "validation": the host can copy an image into 
+
+    The demo app also supports host "validation": the host can copy an image into
     some predefined address in device memory, send an interrupt to the device to
     start training, and read the class probabilities after training concludes.
     """
+
     def __init__(
         self,
         port_index: int,
