@@ -10,5 +10,4 @@
     "python.testing.pytestArgs": [
         "tests"
     ],
-    "editor.lineNumbers": "relative",
 }

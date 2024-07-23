@@ -3,7 +3,7 @@ CXL Cache ID Route Table Capability Structure definitions.
 """
 
 from enum import Enum
-from typing import Optional, TypeAlias, TypedDict
+from typing import Optional, TypedDict
 
 from opencxl.util.unaligned_bit_structure import (
     ShareableByteArray,
@@ -50,34 +50,33 @@ class CacheRouteTableStatusRegisterOptions(TypedDict):
     rsvd2: int
 
 
-class CacheIDTargetNOptions(TypedDict):
+class CacheIdTargetNOptions(TypedDict):
     valid: int
     rsvd: int
     port_number: int
 
 
 # Note the difference between CacheRouteTableCapabilityStructure & CacheRouteTableCapabilityRegister
-class CacheRouteTableCapabilityStructureOptions2N(TypedDict):
+class CacheRouteTableCapabilityStructureOptions(TypedDict, total=False):
     register_options: CacheRouteTableCapabilityRegisterOptions
     control_options: CacheRouteTableControlRegisterOptions
     status_options: CacheRouteTableStatusRegisterOptions
-    target1_options: CacheIDTargetNOptions
-    target2_options: CacheIDTargetNOptions
-
-
-class CacheRouteTableCapabilityStructureOptions4N(TypedDict):
-    register_options: CacheRouteTableCapabilityRegisterOptions
-    control_options: CacheRouteTableControlRegisterOptions
-    status_options: CacheRouteTableStatusRegisterOptions
-    target1_options: CacheIDTargetNOptions
-    target2_options: CacheIDTargetNOptions
-    target3_options: CacheIDTargetNOptions
-    target4_options: CacheIDTargetNOptions
-
-
-CacheRouteTableCapabilityStructureOptions: TypeAlias = (
-    CacheRouteTableCapabilityStructureOptions2N | CacheRouteTableCapabilityStructureOptions4N
-)
+    target0_options: CacheIdTargetNOptions
+    target1_options: CacheIdTargetNOptions
+    target2_options: CacheIdTargetNOptions
+    target3_options: CacheIdTargetNOptions
+    target4_options: CacheIdTargetNOptions
+    target5_options: CacheIdTargetNOptions
+    target6_options: CacheIdTargetNOptions
+    target7_options: CacheIdTargetNOptions
+    target8_options: CacheIdTargetNOptions
+    target9_options: CacheIdTargetNOptions
+    target10_options: CacheIdTargetNOptions
+    target11_options: CacheIdTargetNOptions
+    target12_options: CacheIdTargetNOptions
+    target13_options: CacheIdTargetNOptions
+    target14_options: CacheIdTargetNOptions
+    target15_options: CacheIdTargetNOptions
 
 
 class CxlCacheIdRTCapability(BitMaskedBitStructure):
@@ -87,7 +86,7 @@ class CxlCacheIdRTCapability(BitMaskedBitStructure):
         parent_name: Optional[str] = None,
         options: Optional[CacheRouteTableCapabilityStructureOptions] = None,
     ):
-        # pylint: disable=R0801
+        # pylint: disable=duplicate-code
         self._fields = [
             BitField("cache_id_target_count", 0, 4),
             BitField("rsvd", 5, 7, FIELD_ATTR.RESERVED),
@@ -113,7 +112,7 @@ class CxlCacheIdRTControl(BitMaskedBitStructure):
         parent_name: Optional[str] = None,
         options: Optional[CacheRouteTableCapabilityStructureOptions] = None,
     ):
-        # pylint: disable=R0801
+        # pylint: disable=duplicate-code
         cache_id_rt_cmt_attr: FIELD_ATTR
         if options["register_options"]["explicit_cache_id_rt_cmt_req"]:
             cache_id_rt_cmt_attr = FIELD_ATTR.RW
@@ -144,7 +143,7 @@ class CxlCacheIdRTStatus(BitMaskedBitStructure):
         parent_name: Optional[str] = None,
         options: Optional[CacheRouteTableCapabilityStructureOptions] = None,
     ):
-        # pylint: disable=R0801
+        # pylint: disable=duplicate-code
         cache_id_rt_cmt_attr: FIELD_ATTR
         if options["register_options"]["explicit_cache_id_rt_cmt_req"]:
             cache_id_rt_cmt_attr = FIELD_ATTR.RW
@@ -173,17 +172,17 @@ class CxlCacheIdRTTargetN(BitMaskedBitStructure):
     _fields = [BitField("valid", 0, 0), BitField("rsvd", 1, 7), BitField("port_number", 8, 15)]
 
 
-class CxlCacheIdRTCapabilityStructure2N(BitMaskedBitStructure):
+class CxlCacheIdRTCapabilityStructure(BitMaskedBitStructure):
     def __init__(
         self,
         data: Optional[ShareableByteArray] = None,
         parent_name: Optional[str] = None,
         options: Optional[CacheRouteTableCapabilityStructureOptions] = None,
     ):
-        # pylint: disable=R0801
         if not options:
             raise ValueError("options is required")
         self._init_global(options)
+        self._init_target_entries(options)
 
         super().__init__(data, parent_name)
 
@@ -199,46 +198,24 @@ class CxlCacheIdRTCapabilityStructure2N(BitMaskedBitStructure):
                 "cxl_cache_id_rt_status", 0x08, 0x0B, CxlCacheIdRTStatus, options=options
             ),
             ByteField("rsvd", 0x0C, 0x0F, FIELD_ATTR.RESERVED),
-            StructureField("target_1", 0x10, 0x11, CxlCacheIdRTTargetN),
-            StructureField("target_2", 0x12, 0x13, CxlCacheIdRTTargetN),
         ]
+
+    def _init_target_entries(self, options: CacheRouteTableCapabilityStructureOptions):
+        for target_idx in options["register_options"]["cache_id_target_count"]:
+            tgt_opts = options[f"target{target_idx}_options"]
+            self._init_single_target(target_idx, tgt_opts)
+
+    def _init_single_target(self, cache_id: int, options: CacheIdTargetNOptions):
+        self._fields += StructureField(
+            f"target_{cache_id}",
+            0x10 + (2 * cache_id),
+            0x11 + (2 * cache_id),
+            CxlCacheIdRTTargetN,
+            options=CacheIdTargetNOptions(
+                options=options,
+            ),
+        )
 
     @staticmethod
     def get_size_from_options(options: Optional[CacheRouteTableCapabilityStructureOptions]):
-        return 0x14
-
-
-class CxlCacheIdRTCapabilityStructure4N(BitMaskedBitStructure):
-    def __init__(
-        self,
-        data: Optional[ShareableByteArray] = None,
-        parent_name: Optional[str] = None,
-        options: Optional[CacheRouteTableCapabilityStructureOptions] = None,
-    ):
-        if not options:
-            raise ValueError("options is required")
-        self._init_global(options)
-
-        super().__init__(data, parent_name)
-
-    def _init_global(self, options: CacheRouteTableCapabilityStructureOptions):
-        self._fields = [
-            StructureField(
-                "cxl_cache_id_rt_capability", 0x00, 0x03, CxlCacheIdRTCapability, options=options
-            ),
-            StructureField(
-                "cxl_cache_id_rt_control", 0x04, 0x07, CxlCacheIdRTControl, options=options
-            ),
-            StructureField(
-                "cxl_cache_id_rt_status", 0x08, 0x0B, CxlCacheIdRTStatus, options=options
-            ),
-            ByteField("rsvd", 0x0C, 0x0F, FIELD_ATTR.RESERVED),
-            StructureField("target_1", 0x10, 0x11, CxlCacheIdRTTargetN),
-            StructureField("target_2", 0x12, 0x13, CxlCacheIdRTTargetN),
-            StructureField("target_3", 0x14, 0x15, CxlCacheIdRTTargetN),
-            StructureField("target_4", 0x16, 0x17, CxlCacheIdRTTargetN),
-        ]
-
-    @staticmethod
-    def get_size_from_options(options: Optional[CacheRouteTableCapabilityStructureOptions]):
-        return 0x18
+        return 0x10 + (2 * options["register_options"]["cache_id_target_count"])

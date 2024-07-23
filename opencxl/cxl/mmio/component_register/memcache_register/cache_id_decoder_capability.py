@@ -54,7 +54,7 @@ class CxlCacheIdDecoderCapability(BitMaskedBitStructure):
         parent_name: Optional[str] = None,
         options: Optional[CxlCacheIdDecoderCapabilityStructureOptions] = None,
     ):
-        # pylint: disable=R0801
+        # pylint: disable=duplicate-code
         self._fields = [
             BitField("explicit_cache_id_decoder_cmt_required", 0, 0),
             BitField("rsvd", 1, 31),
@@ -76,7 +76,7 @@ class CxlCacheIdDecoderControl(BitMaskedBitStructure):
         parent_name: Optional[str] = None,
         options: Optional[CxlCacheIdDecoderCapabilityStructureOptions] = None,
     ):
-        # pylint: disable=R0801
+        # pylint: disable=duplicate-code
         cache_id_decoder_cmt_attr: FIELD_ATTR
         if options["register_options"]["explicit_cache_id_decoder_cmt_required"]:
             cache_id_decoder_cmt_attr = FIELD_ATTR.RW
@@ -114,7 +114,7 @@ class CxlCacheIdDecoderStatus(BitMaskedBitStructure):
         parent_name: Optional[str] = None,
         options: Optional[CxlCacheIdDecoderCapabilityStructureOptions] = None,
     ):
-        # pylint: disable=R0801
+        # pylint: disable=duplicate-code
         cache_id_decoder_cmt_attr: FIELD_ATTR
         if options["register_options"]["explicit_cache_id_decoder_cmt_required"]:
             cache_id_decoder_cmt_attr = FIELD_ATTR.RW
@@ -146,7 +146,7 @@ class CxlCacheIdDecoderCapabilityStructure(BitMaskedBitStructure):
         parent_name: Optional[str] = None,
         options: Optional[CxlCacheIdDecoderCapabilityStructureOptions] = None,
     ):
-        # pylint: disable=R0801
+        # pylint: disable=duplicate-code
         if not options:
             raise ValueError("options is required")
         self._init_global(options)
