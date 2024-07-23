@@ -8,6 +8,7 @@
 import sys
 import os
 import random
+from typing import Generator
 
 
 def round_up_to_power_of_2(number: int) -> int:
@@ -107,6 +108,8 @@ def tlptoh64(n):
         return n
     return bswap64(n)
 
+def split_cacheline(cacheline: int) -> Generator[int, int, None]:
+    pass # implement tmrw
 
 def extract_upper(from_what: int, how_much: int, how_long: int):
     """
