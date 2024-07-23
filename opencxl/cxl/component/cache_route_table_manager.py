@@ -6,22 +6,18 @@
 """
 
 from dataclasses import dataclass
-from typing import TypedDict, List
+from typing import List
 
+from opencxl.cxl.mmio.component_register.memcache_register.cache_route_table import (
+    CacheRouteTableCapabilityRegisterOptions,
+)
 from opencxl.util.component import LabeledComponent
 from opencxl.util.logger import logger
 
 
-class CacheRouteTableCapabilities(TypedDict):
-    # pylint: disable=duplicate-code
-    cache_id_target_count: int
-    hdmd_type2_device_max_count: int
-    explicit_cache_id_rt_cmt_required: int
-
-
 @dataclass
 class CacheRouteTableBase(LabeledComponent):
-    _capabilities: CacheRouteTableCapabilities
+    _capabilities: CacheRouteTableCapabilityRegisterOptions
     _target_count: int
     _cache_id_to_port_mapping: List[int]
     _port_to_cache_id_mapping: dict[int, int]
@@ -51,10 +47,9 @@ class SwitchCacheRouteTable(CacheRouteTableBase):
             raise ValueError(
                 "CXL switch routing table must have 16 cache route table entries "
                 f"but {capabilities.cache_id_target_count} were given"
-            )  # TODO: support 68B flit mode?
+            )
         super().__init__(capabilities, label)
 
-    # TODO: properly implement commits
     def commit(self, index: int, new_port) -> bool:
         if index > len(self._cache_id_to_port_mapping):
             logger.warning(f"Cache ID ({index}) is out of bound")

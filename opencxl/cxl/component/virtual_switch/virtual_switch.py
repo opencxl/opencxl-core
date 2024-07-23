@@ -119,7 +119,7 @@ class CxlVirtualSwitch(RunnableComponent):
             self._bi_forward_override_for_test,
         )
         self._cxl_cache_router = CxlCacheRouter(
-            self._id, self._routing_table, self._usp_connection, self._vppb_connections
+            self._id, self._routing_table, self._usp_device, self._vppb_connections
         )
 
     def _create_message(self, message: str):
