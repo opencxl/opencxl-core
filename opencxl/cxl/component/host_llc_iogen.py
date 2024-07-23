@@ -5,6 +5,7 @@
  See LICENSE for details.
 """
 
+# pylint: disable=duplicate-code
 from asyncio import create_task, gather
 from dataclasses import dataclass
 from random import randrange

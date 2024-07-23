@@ -162,7 +162,7 @@ class CacheController(RunnableComponent):
         self._cache_priority_update(set, blk)
         self._cache[set][blk].data = data
 
-    def _cache_rsp_state_loopup(self, packet: CacheResponse) -> CacheState:
+    def _cache_rsp_state_lookup(self, packet: CacheResponse) -> CacheState:
         if packet.status == CACHE_RESPONSE_STATUS.OK:
             cache_state = CacheState.CACHE_EXCLUSIVE
         elif packet.status == CACHE_RESPONSE_STATUS.RSP_S:
@@ -208,6 +208,8 @@ class CacheController(RunnableComponent):
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_SHARED)
             elif type == CACHE_REQUEST_TYPE.SNP_INV:
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_INVALID)
+            elif type == CACHE_REQUEST_TYPE.SNP_CUR:
+                pass
             elif type == CACHE_REQUEST_TYPE.WRITE_BACK:
                 assert self._cache_extract_block_state(set, cache_blk) == CacheState.CACHE_SHARED
 
@@ -244,7 +246,7 @@ class CacheController(RunnableComponent):
             packet = await self._memory_load(addr, size)
             data = packet.data
 
-            cache_state = self._cache_rsp_state_loopup(packet)
+            cache_state = self._cache_rsp_state_lookup(packet)
             if cache_state == CacheState.CACHE_INVALID:
                 return data
 

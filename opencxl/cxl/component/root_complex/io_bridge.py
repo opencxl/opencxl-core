@@ -156,7 +156,7 @@ class IoBridge(RunnableComponent):
         packet = CxlIoMemWrPacket.create(address, size, value)
         await self._cxl_io_mmio_fifos.host_to_target.put(packet)
 
-    async def read_mmio(self, address: int, size: int) -> CxlIoCompletionWithDataPacket:
+    async def read_mmio(self, address: int, size: int) -> int:
         message = self._create_message(f"MMIO: Reading data from 0x{address:08x}")
         logger.debug(message)
         packet = CxlIoMemRdPacket.create(address, size)
