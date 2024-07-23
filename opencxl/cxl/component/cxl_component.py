@@ -24,7 +24,7 @@ from opencxl.util.component import LabeledComponent
 from opencxl.cxl.mmio.component_register.memcache_register.cache_route_table import (
     CacheRouteTableCapabilityStructureOptions,
 )
-from opencxl.cxl.mmio.component_register.memcache_register.cache_id_decoder_capabiility import (
+from opencxl.cxl.mmio.component_register.memcache_register.cache_id_decoder_capability import (
     CxlCacheIdDecoderCapabilityStructureOptions,
 )
 

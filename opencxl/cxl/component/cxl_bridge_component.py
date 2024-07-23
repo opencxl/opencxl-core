@@ -33,7 +33,7 @@ from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.mmio.component_register.memcache_register.cache_route_table import (
     CacheRouteTableCapabilityRegisterOptions,
 )
-from opencxl.cxl.mmio.component_register.memcache_register.cache_id_decoder_capabiility import (
+from opencxl.cxl.mmio.component_register.memcache_register.cache_id_decoder_capability import (
     CxlCacheIdDecoderCapabilityRegisterOptions,
     CxlCacheIdDecoderCapabilityStructureOptions,
     CxlCacheIdDecoderControlOptions,
