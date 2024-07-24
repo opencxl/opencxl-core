@@ -189,7 +189,7 @@ class CxlBusDriver(LabeledComponent):
                         logger.info(
                             self._create_message(
                                 f" - {CXL_CACHEMEM_REGISTER_CAPABILITY_ID(register.id).name}: "
-                                "0x{register.address:X}"
+                                f"0x{register.address:X}"
                             )
                         )
 
