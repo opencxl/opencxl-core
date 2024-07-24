@@ -109,9 +109,7 @@ def tlptoh64(n):
     return bswap64(n)
 
 
-def split_cacheline(
-    cacheline: int, line_length: int = 64, stride: int = 8
-) -> Generator[int, int, None]:
+def split_int(cacheline: int, line_length: int = 64, stride: int = 8) -> Generator[int, int, None]:
     for unit in range(line_length - stride, -1, -stride):
         bmask = ~((1 << unit) - 1)
         masked = cacheline & bmask

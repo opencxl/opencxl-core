@@ -5,8 +5,7 @@
  See LICENSE for details.
 """
 
-# pylint: disable=W0611
-# pylint: disable=W0611
+# pylint: disable=unused-import
 from asyncio import gather, create_task
 from io import BytesIO
 from typing import cast
@@ -24,7 +23,7 @@ from torchinfo import summary
 from tqdm import tqdm
 
 from opencxl.util.logger import logger
-from opencxl.util.number import split_cacheline
+from opencxl.util.number import split_int
 from opencxl.cxl.device.cxl_type1_device import CxlType1Device, CxlType1DeviceConfig
 from opencxl.cxl.device.cxl_type2_device import (
     CxlType2Device,
@@ -85,13 +84,13 @@ class MyType1Accelerator(RunnableComponent):
             ]
         )
 
-        # self.train_dataset = datasets.ImageFolder(root="train", transform=self.tensorify)
-        # self.train_dataloader = DataLoader(
+        # self._train_dataset = datasets.ImageFolder(root="train", transform=self.tensorify)
+        # self._train_dataloader = DataLoader(
         #    self.train_dataset, batch_size=32, shuffle=True, num_workers=4
         # )
 
-        # self.test_dataset = datasets.ImageFolder(root="val", transform=self.tensorify)
-        # self.test_dataloader = DataLoader(
+        # self._test_dataset = datasets.ImageFolder(root="val", transform=self.tensorify)
+        # self._test_dataloader = DataLoader(
         #    self.test_dataset, batch_size=10, shuffle=True, num_workers=4
         # )
 
@@ -183,7 +182,7 @@ class MyType1Accelerator(RunnableComponent):
             METADATA_INFO_CACHELINE_HPA
         )
 
-        metadata_addr, metadata_size, *_ = split_cacheline(metadata_cacheline)
+        metadata_addr, metadata_size, *_ = split_int(metadata_cacheline)
 
         with open("noisy_imagenette.csv", "wb") as md_file:
             for cacheline_offset in range(metadata_addr, metadata_size, CACHELINE_LENGTH):
@@ -199,7 +198,7 @@ class MyType1Accelerator(RunnableComponent):
         image_info_cacheline = await self._cxl_type1_device.cxl_cache_readline(
             IMAGE_INFO_CACHELINE_HPA
         )
-        image_addr, image_size, *_ = split_cacheline(image_info_cacheline)
+        image_addr, image_size, *_ = split_int(image_info_cacheline)
 
         im = None
 
@@ -247,7 +246,7 @@ class MyType1Accelerator(RunnableComponent):
 
     async def _run_app(self):
         # pylint: disable=unused-variable
-        # pylint: disable=E1101
+        # pylint: disable=no-member
         logger.info(
             self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
         )
@@ -278,8 +277,8 @@ class MyType1Accelerator(RunnableComponent):
                 optimizer, start_factor=1, end_factor=0.5, total_iters=30
             )
             self._train_one_epoch(
-                train_dataloader=self.train_dataloader,
-                test_dataloader=self.test_dataloader,
+                train_dataloader=self._train_dataloader,
+                test_dataloader=self._test_dataloader,
                 optimizer=optimizer,
                 loss_fn=loss_fn,
                 device=device,
@@ -371,13 +370,13 @@ class MyType2Accelerator(RunnableComponent):
             ]
         )
 
-        # self.train_dataset = datasets.ImageFolder(root="train", transform=self.tensorify)
-        # self.train_dataloader = DataLoader(
+        # self._train_dataset = datasets.ImageFolder(root="train", transform=self.tensorify)
+        # self._train_dataloader = DataLoader(
         #    self.train_dataset, batch_size=32, shuffle=True, num_workers=4
         # )
 
-        # self.test_dataset = datasets.ImageFolder(root="val", transform=self.tensorify)
-        # self.test_dataloader = DataLoader(
+        # self._test_dataset = datasets.ImageFolder(root="val", transform=self.tensorify)
+        # self._test_dataloader = DataLoader(
         #    self.test_dataset, batch_size=10, shuffle=True, num_workers=4
         # )
 
@@ -496,7 +495,7 @@ class MyType2Accelerator(RunnableComponent):
         return im
 
     async def _validate_model(self):
-        # pylint: disable=E1101
+        # pylint: disable=no-member
         im = await self._get_test_image()
         tens = cast(torch.Tensor, self.transform(im))
 
@@ -559,8 +558,8 @@ class MyType2Accelerator(RunnableComponent):
                 optimizer, start_factor=1, end_factor=0.5, total_iters=30
             )
             self._train_one_epoch(
-                train_dataloader=self.train_dataloader,
-                test_dataloader=self.test_dataloader,
+                train_dataloader=self._train_dataloader,
+                test_dataloader=self._test_dataloader,
                 optimizer=optimizer,
                 loss_fn=loss_fn,
                 device=device,
