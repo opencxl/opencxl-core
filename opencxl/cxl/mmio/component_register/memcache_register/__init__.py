@@ -105,7 +105,6 @@ class CxlCacheMemRegister(BitMaskedBitStructure):
                 structure_size = structure_class.get_size_from_options(value)
             else:
                 raise Exception(f'Unexpected type for options["{key}"]')
-            print(f"k: {key}, v: {value}")
             self._fields += [
                 StructureField(
                     key,

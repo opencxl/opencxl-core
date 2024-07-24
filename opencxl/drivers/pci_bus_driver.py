@@ -5,7 +5,15 @@
  See LICENSE for details.
 """
 
-from typing import Optional, Tuple, TypedDict
+from typing import Optional, Tuple
+from opencxl.cxl.component.bi_decoder import (
+    CxlBIDecoderCapabilityRegister,
+    CxlBIRTCapabilityRegister,
+)
+from opencxl.cxl.mmio.component_register.memcache_register.capability import (
+    CAPABILITY_NAME_TO_CAPABILITY_INFO_MAP,
+    CxlCapabilityIDToName,
+)
 from opencxl.util.logger import logger
 from opencxl.util.component import LabeledComponent
 from opencxl.pci.component.pci import (
@@ -24,12 +32,12 @@ from opencxl.util.pci import (
 from opencxl.cxl.component.root_complex.root_complex import RootComplex
 from opencxl.cxl.device.root_port_device import (
     DeviceEnumerationInfo,
+    DvsecRegisterLocator,
     EnumerationInfo,
     PciCapabilities,
-    PciDvsecCapabilities,
-    DvsecRegisterLocators,
     MemoryEnumerationInfo,
 )
+from opencxl.util.unaligned_bit_structure import BitMaskedBitStructure
 
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
 
@@ -39,6 +47,7 @@ class PciBusDriver(LabeledComponent):
         super().__init__(label)
         self._root_complex = root_complex
         self._devices: EnumerationInfo = EnumerationInfo()
+        self._fully_scanned = False
 
     async def init(self):
         await self._scan_pci_devices()
@@ -54,13 +63,25 @@ class PciBusDriver(LabeledComponent):
 
     # pylint: disable=duplicate-code
 
+    async def read_config(self, bdf: int, offset: int, size: int) -> int:
+        return await self._root_complex.read_config(bdf, offset, size)
+
+    async def write_config(self, bdf: int, offset: int, size: int, value: int):
+        await self._root_complex.write_config(bdf, offset, size, value)
+
+    async def read_mmio(self, address, size) -> int:
+        return await self._root_complex.read_mmio(address, size)
+
+    async def write_mmio(self, address, size, value):
+        await self._root_complex.write_mmio(address, size, value)
+
     async def _set_secondary_bus(self, bdf: int, secondary_bus: int):
         bdf_string = bdf_to_string(bdf)
         logger.info(
             self._create_message(f"Setting secondary bus of device {bdf_string} to {secondary_bus}")
         )
 
-        await self._root_complex.write_config(
+        await self.write_config(
             bdf,
             REG_ADDR.SECONDARY_BUS_NUMBER.START,
             REG_ADDR.SECONDARY_BUS_NUMBER.LEN,
@@ -75,7 +96,7 @@ class PciBusDriver(LabeledComponent):
             )
         )
 
-        await self._root_complex.write_config(
+        await self.write_config(
             bdf,
             REG_ADDR.SUBORDINATE_BUS_NUMBER.START,
             REG_ADDR.SUBORDINATE_BUS_NUMBER.LEN,
@@ -90,7 +111,7 @@ class PciBusDriver(LabeledComponent):
             )
         )
         address_base_regval = memory_base_addr_to_regval(address_base)
-        await self._root_complex.write_config(
+        await self.write_config(
             bdf,
             REG_ADDR.MEMORY_BASE.START,
             REG_ADDR.MEMORY_BASE.LEN,
@@ -104,7 +125,7 @@ class PciBusDriver(LabeledComponent):
             )
         )
         address_limit_regval = memory_limit_addr_to_regval(address_limit)
-        await self._root_complex.write_config(
+        await self.write_config(
             bdf,
             REG_ADDR.MEMORY_LIMIT.START,
             REG_ADDR.MEMORY_LIMIT.LEN,
@@ -112,25 +133,21 @@ class PciBusDriver(LabeledComponent):
         )
 
     async def _set_bar0(self, bdf: int, bar_address: int):
-        await self._root_complex.write_config(bdf, BAR_OFFSETS.BAR0, BAR_REGISTER_SIZE, bar_address)
+        await self.write_config(bdf, BAR_OFFSETS.BAR0, BAR_REGISTER_SIZE, bar_address)
 
     async def _get_bar0_size(
         self,
         bdf: int,
     ) -> int:
-        data = await self._root_complex.read_config(bdf, BAR_OFFSETS.BAR0, BAR_REGISTER_SIZE)
+        data = await self.read_config(bdf, BAR_OFFSETS.BAR0, BAR_REGISTER_SIZE)
         if data == 0:
             return data
         return 0xFFFFFFFF - data + 1
 
     async def _read_vid_did(self, bdf: int) -> Optional[int]:
         logger.debug(self._create_message(f"Reading VID/DID from {bdf_to_string(bdf)}"))
-        vid = await self._root_complex.read_config(
-            bdf, REG_ADDR.VENDOR_ID.START, REG_ADDR.VENDOR_ID.LEN
-        )
-        did = await self._root_complex.read_config(
-            bdf, REG_ADDR.DEVICE_ID.START, REG_ADDR.DEVICE_ID.LEN
-        )
+        vid = await self.read_config(bdf, REG_ADDR.VENDOR_ID.START, REG_ADDR.VENDOR_ID.LEN)
+        did = await self.read_config(bdf, REG_ADDR.DEVICE_ID.START, REG_ADDR.DEVICE_ID.LEN)
         logger.debug(self._create_message(f"VID: 0x{vid:x}"))
         logger.debug(self._create_message(f"DID: 0x{did:x}"))
         if did == 0xFFFF and vid == 0xFFFF:
@@ -139,9 +156,7 @@ class PciBusDriver(LabeledComponent):
         return (did << 16) | vid
 
     async def _read_class_code(self, bdf: int) -> int:
-        data = await self._root_complex.read_config(
-            bdf, REG_ADDR.CLASS_CODE.START, REG_ADDR.CLASS_CODE.LEN
-        )
+        data = await self.read_config(bdf, REG_ADDR.CLASS_CODE.START, REG_ADDR.CLASS_CODE.LEN)
         if data == 0xFFFF:
             raise Exception("Failed to read class code")
         return data
@@ -149,13 +164,13 @@ class PciBusDriver(LabeledComponent):
     async def _read_bar(self, bdf, bar_id) -> int:
         offset = 0x10 + bar_id * 4
         size = 4
-        data = await self._root_complex.read_config(bdf, offset, size=size)
+        data = await self.read_config(bdf, offset, size=size)
         if data == 0xFFFF:
             raise Exception(f"Failed to read bar {bar_id}")
         return data
 
     async def _read_secondary_bus(self, bdf: int) -> int:
-        data = await self._root_complex.read_config(
+        data = await self.read_config(
             bdf,
             REG_ADDR.SECONDARY_BUS_NUMBER.START,
             REG_ADDR.SECONDARY_BUS_NUMBER.LEN,
@@ -165,7 +180,7 @@ class PciBusDriver(LabeledComponent):
         return data
 
     async def _read_subordinate_bus(self, bdf: int) -> int:
-        data = await self._root_complex.read_config(
+        data = await self.read_config(
             bdf,
             REG_ADDR.SUBORDINATE_BUS_NUMBER.START,
             REG_ADDR.SUBORDINATE_BUS_NUMBER.LEN,
@@ -175,17 +190,13 @@ class PciBusDriver(LabeledComponent):
         return data
 
     async def _read_memory_base(self, bdf: int) -> int:
-        data = await self._root_complex.read_config(
-            bdf, REG_ADDR.MEMORY_BASE.START, REG_ADDR.MEMORY_BASE.LEN
-        )
+        data = await self.read_config(bdf, REG_ADDR.MEMORY_BASE.START, REG_ADDR.MEMORY_BASE.LEN)
         if data == 0xFFFF:
             raise Exception("Failed to read memory base")
         return data
 
     async def _read_memory_limit(self, bdf: int) -> int:
-        data = await self._root_complex.read_config(
-            bdf, REG_ADDR.MEMORY_LIMIT.START, REG_ADDR.MEMORY_LIMIT.LEN
-        )
+        data = await self.read_config(bdf, REG_ADDR.MEMORY_LIMIT.START, REG_ADDR.MEMORY_LIMIT.LEN)
         if data == 0xFFFF:
             raise Exception("Failed to read memory limit")
         return data
@@ -215,8 +226,8 @@ class PciBusDriver(LabeledComponent):
         multi_function_devices = set()
 
         for bdf in bdf_list:
-            dev_data = DeviceEnumerationInfo()
-            dev_data.bdf = bdf
+            info = DeviceEnumerationInfo()
+            info.bdf = bdf
             device_number = extract_device_from_bdf(bdf)
             function_number = extract_function_from_bdf(bdf)
 
@@ -226,9 +237,9 @@ class PciBusDriver(LabeledComponent):
             vid_did = await self._read_vid_did(bdf)
             if vid_did is None:
                 continue
-            dev_data.vid_did = vid_did
+            info.vid_did = vid_did
 
-            is_multifunction = (await self._root_complex.read_config(bdf, 0x0E, 1) & 0x80) >> 7
+            is_multifunction = (await self.read_config(bdf, 0x0E, 1) & 0x80) >> 7
             if is_multifunction:
                 multi_function_devices.add(device_number)
 
@@ -236,8 +247,8 @@ class PciBusDriver(LabeledComponent):
             # NOTE: assume size is less than 0x100000
             if size > 0:
                 bar0 = await self._read_bar(bdf, 0)
-                dev_data.bars = [bar0]
-                dev_data.mmio_range = MemoryEnumerationInfo(
+                info.bars = [bar0]
+                info.mmio_range = MemoryEnumerationInfo(
                     memory_base=memory_start, memory_limit=memory_start + 0x100000 - 1
                 )
                 memory_start += 0x100000
@@ -246,10 +257,10 @@ class PciBusDriver(LabeledComponent):
 
             class_code = await self._read_class_code(bdf)
             if (class_code >> 8) == BRIDGE_CLASS:
-                dev_data.is_bridge = True
+                info.is_bridge = True
                 logger.info(
                     self._create_message(
-                        f"Found an bridge device at {bdf_to_string(bdf)} (VID/DID:{vid_did:08x})"
+                        f"Found a bridge device at {bdf_to_string(bdf)} (VID/DID:{vid_did:08x})"
                     )
                 )
 
@@ -263,14 +274,217 @@ class PciBusDriver(LabeledComponent):
                 memory_start = memory_end
                 await self._set_subordinate_bus(bdf, bus)
             else:
-                dev_data.is_bridge = False
+                info.is_bridge = False
                 logger.info(
                     self._create_message(
                         f"Found an endpoint device at {bdf_to_string(bdf)} "
                         f"(VID/DID:{vid_did:08x})"
                     )
                 )
-            self._devices.devices.append(dev_data)
+            # await self.scan_component_registers(info)
+            self._devices.devices.append(info)
         return (bus, memory_start)
+
+    async def scan_dvsec_register_locator(
+        self, bdf: int, cap_offset: int, length: int, capabilities: PciCapabilities
+    ):
+        logger.info(self._create_message("Found Register Locator DVSEC"))
+        block_offset_base = 0x0C
+        blocks = int((length - block_offset_base) / 8)
+        block_size = 8
+        for block_index in range(blocks):
+            block_offset = block_offset_base + block_index * block_size
+
+            register_offset_low = await self.read_config(bdf, cap_offset + block_offset, 4)
+            if register_offset_low is None:
+                raise Exception(
+                    f"Failed to read Register Block {block_index + 1} - Register Offset Low"
+                )
+            register_offset_high = await self.read_config(bdf, cap_offset + block_offset + 4, 4)
+            if register_offset_high is None:
+                raise Exception(
+                    f"Failed to read Register Block {block_index + 1} - Register Offset High"
+                )
+
+            register_bir = register_offset_low & 0x7
+            register_block_identifier = (register_offset_low >> 8) & 0xFF
+            bar_offset = (register_offset_low & 0xFFFF0000) | register_offset_high << 32
+
+            if register_block_identifier == 0x01:
+                component_registers = DvsecRegisterLocator()
+                capabilities.dvsec.register_locators.component_registers = component_registers
+                component_registers.bar = register_bir
+                component_registers.offset = bar_offset
+                logger.info(
+                    self._create_message(
+                        f"(Block {block_index + 1}) "
+                        f"Component Registers, BAR: {component_registers.bar}"
+                    )
+                )
+                logger.info(
+                    self._create_message(
+                        f"(Block {block_index + 1}) "
+                        f"Component Registers, OFFSET: {component_registers.offset}"
+                    )
+                )
+            elif register_block_identifier == 0x03:
+                cxl_device_registers = DvsecRegisterLocator()
+                capabilities.dvsec.register_locators.cxl_device_registers = cxl_device_registers
+                cxl_device_registers.bar = register_bir
+                cxl_device_registers.offset = bar_offset
+                logger.info(
+                    self._create_message(
+                        f"(Block {block_index + 1}) CXL Device Registers, "
+                        f"BAR: {cxl_device_registers.bar}"
+                    )
+                )
+                logger.info(
+                    self._create_message(
+                        f"(Block {block_index + 1}) CXL Device Registers, "
+                        f"OFFSET: {cxl_device_registers.offset}"
+                    )
+                )
+
+    async def scan_dvsec(self, bdf: int, cap_offset: int, capabilities: PciCapabilities):
+        dvsec_header1 = await self.read_config(bdf, cap_offset + 0x04, 4)
+        if dvsec_header1 is None:
+            raise Exception("Failed to read DVSEC Header 1")
+        dvsec_header2 = await self.read_config(bdf, cap_offset + 0x08, 2)
+        if dvsec_header2 is None:
+            raise Exception("Failed to read DVSEC Header 2")
+
+        vendor_id = dvsec_header1 & 0xFFFF
+        revision_id = (dvsec_header1 >> 16) & 0xF
+        length = (dvsec_header1 >> 20) & 0xFFF
+        dvsec_id = dvsec_header2
+
+        if vendor_id == 0x1E98 and revision_id == 0x0 and dvsec_id == 0x0008:
+            await self.scan_dvsec_register_locator(bdf, cap_offset, length, capabilities)
+
+    async def scan_pcie_cap_helper(self, bdf: int, offset: int, capabilities: PciCapabilities):
+        data = await self.read_config(bdf, offset, 4)
+        if data is None:
+            return
+
+        cap_id = data & 0xFFFF
+        cap_version = (data >> 16) & 0xF
+        next_cap_offset = (data >> 20) & 0xFFF
+
+        is_dvsec_cap = cap_id == 0x0023 and cap_version == 0x1
+        if is_dvsec_cap:
+            await self.scan_dvsec(bdf, offset, capabilities)
+
+        if next_cap_offset != 0:
+            await self.scan_pcie_cap_helper(bdf, next_cap_offset, capabilities)
+
+    async def scan_pci_capabilities(self, bdf: int, capabilities: PciCapabilities):
+        PCIE_CONFIG_BASE = 0x100
+        await self.scan_pcie_cap_helper(bdf, PCIE_CONFIG_BASE, capabilities)
+
+    async def write_cachemem_register(self, offset: int, value: int, len: int):
+        await self.write_mmio(offset, len, value)
+
+    async def scan_component_registers(self, info: DeviceEnumerationInfo):
+        component_registers = info.capabilities.dvsec.register_locators.component_registers
+        if not component_registers:
+            return
+
+        component_register_bar = component_registers.bar
+        component_register_offset = component_registers.offset
+        mmio_base = info.bars[component_register_bar]
+        cxl_cachemem_offset = mmio_base + component_register_offset + 0x1000
+
+        logger.info(
+            self._create_message(f"Scanning Component Registers at 0x{cxl_cachemem_offset:x}")
+        )
+
+        cxl_capability_header = await self.read_mmio(cxl_cachemem_offset, 4)
+        cxl_capability_id = cxl_capability_header & 0xFFFF
+        cxl_capability_version = (cxl_capability_header >> 16) & 0xF
+        cxl_cachemem_version = (cxl_capability_header >> 20) & 0xF
+        array_size = (cxl_capability_header >> 24) & 0xFF
+
+        logger.debug(self._create_message(f"cxl_capability_id: {cxl_capability_id:x}"))
+        logger.debug(self._create_message(f"cxl_capability_version: {cxl_capability_version:x}"))
+        logger.debug(self._create_message(f"cxl_cachemem_version: {cxl_cachemem_version:x}"))
+        logger.debug(self._create_message(f"array_size: {array_size:x}"))
+
+        if cxl_capability_id != 0x0001:
+            return
+
+        logger.info(self._create_message("Found Component Registers"))
+        info.component_registers["hdm_decoder"] = 0
+        for header_index in range(array_size):
+            header_offset = header_index * 4 + 4 + cxl_cachemem_offset
+            header_info = await self.read_mmio(header_offset, 4)
+            cxl_capability_id = header_info & 0xFFFF
+            cxl_capability_version = (header_info >> 16) & 0xF
+            offset = (header_info >> 20) & 0xFFF
+            logger.info(
+                self._create_message(
+                    f"Found {CxlCapabilityIDToName.get(cxl_capability_id)} Capability Header"
+                )
+            )
+            info.component_registers[CxlCapabilityIDToName.get_original_name(cxl_capability_id)] = (
+                cxl_cachemem_offset + offset
+            )
+
+    async def find_register_offset_by_name(self, bar: int, name: str) -> int:
+        await self.init_dvsec_and_capability()
+        all_devices = self._devices.devices
+        info = None
+        for dev in all_devices:
+            if bar in dev.bars:
+                info = dev
+        if info is None:
+            raise Exception(f"{bar} is not valid!")
+
+        if name not in CAPABILITY_NAME_TO_CAPABILITY_INFO_MAP:
+            raise Exception(f"{name} is not a valid capability!")
+
+        offset = info.component_registers[name]
+        if offset is None:
+            raise Exception(f"Capability {name} does not exist for this device!")
+        return offset
+
+    async def write_register_by_name(
+        self, bar: int, reg: BitMaskedBitStructure, name: str, len: int, inner_offset: int = 0
+    ):
+        """
+        Writes to a register by name.
+        inner_offset is used for the offset of the register within that capability structure
+        e.g., BI RT Capability: 0x00, BI RT Control: 0x04, ...
+        """
+        location = await self.find_register_offset_by_name(bar, name)
+        await self.write_cachemem_register(
+            location + inner_offset, reg.read_bytes(0x0, len - 1), len
+        )
+
+    async def read_register_by_name(
+        self, bar: int, name: str, len: int, inner_offset: int = 0
+    ) -> int:
+        location = await self.find_register_offset_by_name(bar, name)
+        return await self.read_mmio(location + inner_offset, len)
+
+    async def write_bi_rt_capability(self, bar: int, reg: CxlBIRTCapabilityRegister, len: int = 4):
+        await self.write_register_by_name(bar, reg, "bi_route_table", len)
+
+    async def write_bi_decoder_capability(
+        self, bar: int, reg: CxlBIDecoderCapabilityRegister, len: int = 4
+    ):
+        await self.write_register_by_name(bar, reg, "bi_decoder", len)
+
+    async def get_dev_mem_size(self, info: DeviceEnumerationInfo):
+        dvsec_registers = info.capabilities.dvsec.register_locators.cxl_device_registers
+        if not dvsec_registers:
+            return
+
+    async def init_dvsec_and_capability(self):
+        all_devices = self._devices.get_all_devices()
+        if not self._fully_scanned:
+            self._fully_scanned = True
+            for info in all_devices:
+                await self.scan_pci_capabilities(info.bdf, info.capabilities)
+                await self.scan_component_registers(info)
 
     # pylint: enable=duplicate-code

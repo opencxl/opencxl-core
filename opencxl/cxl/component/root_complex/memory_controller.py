@@ -53,4 +53,5 @@ class MemoryController(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
-        await self._memory_consumer_fifos.put(None)
+        await self._memory_consumer_fifos.request.put(None)
+        await self._memory_consumer_fifos.response.put(None)
