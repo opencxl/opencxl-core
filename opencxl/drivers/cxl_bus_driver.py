@@ -170,7 +170,7 @@ class CxlBusDriver(LabeledComponent):
                     self._create_message(f"Children BDFs    : {', '.join(children_bdf_list)}")
                 )
             if len(device.dvsecs) > 0:
-                logger.info(self._create_message(f"DVSEC            :"))
+                logger.info(self._create_message("DVSEC            :"))
                 for dvsec_info in device.dvsecs:
                     logger.info(self._create_message(f" - {CXL_DVSEC_ID(dvsec_info.id).name}"))
                     if (
@@ -188,7 +188,8 @@ class CxlBusDriver(LabeledComponent):
                     for register in device.cachemem_registers.values():
                         logger.info(
                             self._create_message(
-                                f" - {CXL_CACHEMEM_REGISTER_CAPABILITY_ID(register.id).name}: 0x{register.address:X}"
+                                f" - {CXL_CACHEMEM_REGISTER_CAPABILITY_ID(register.id).name}: "
+                                "0x{register.address:X}"
                             )
                         )
 
@@ -210,8 +211,9 @@ class CxlBusDriver(LabeledComponent):
             if device.parent:
                 device.parent.children.append(device)
 
-    async def _scan_register_locator_dvsec(self, device_info: CxlDeviceInfo):
+    # pylint: disable=duplicate-code
 
+    async def _scan_register_locator_dvsec(self, device_info: CxlDeviceInfo):
         bdf = device_info.pci_device_info.bdf
         register_locator_dvsec = device_info.get_dvsec_by_id(CXL_DVSEC_ID.REGISTER_LOCATOR_DVSEC)
         if not register_locator_dvsec:
@@ -271,6 +273,8 @@ class CxlBusDriver(LabeledComponent):
             )
             device_info.registers.append(register_info)
 
+    # pylint: enable=duplicate-code
+
     async def _scan_pcie_dvsec_for_cxl_devices(self, device_info: CxlDeviceInfo):
         device_dvsec = device_info.get_dvsec_by_id(CXL_DVSEC_ID.PCIE_DVSEC_FOR_CXL_DEVICES)
         if not device_dvsec:
@@ -313,6 +317,8 @@ class CxlBusDriver(LabeledComponent):
                 memory_size=memory_size,
             )
             device_info.device_dvsec.ranges.append(range_info)
+
+    # pylint: disable=duplicate-code
 
     async def _scan_dvsec(self, device_info: CxlDeviceInfo):
         for capability in device_info.pci_device_info.capabilities:
@@ -362,6 +368,8 @@ class CxlBusDriver(LabeledComponent):
 
             await dvsec_function(device_info)
 
+    # pylint: enable=duplicate-code
+
     async def _scan_cachemem_registers(self, device_info: CxlDeviceInfo):
         component_register_info = device_info.get_register_by_type(CXL_REGISTER_TYPE.COMPONENT)
         if not component_register_info:
@@ -370,7 +378,9 @@ class CxlBusDriver(LabeledComponent):
         cxl_cachemem_offset = component_register_info.address + 0x1000
 
         logger.info(
-            self._create_message(f"Scanning Component Registers at 0x{cxl_cachemem_offset:x}")
+            self._create_message(
+                f"Scanning CXL.cache and CXL.mem Registers at 0x{cxl_cachemem_offset:x}"
+            )
         )
 
         cxl_capability_header = await self._root_complex.read_mmio(
@@ -416,7 +426,7 @@ class CxlBusDriver(LabeledComponent):
         await self._scan_cachemem_registers(device_info)
 
     async def _scan_cxl_devices(self):
-        for device in self._pci_bus_driver._devices:
+        for device in self._pci_bus_driver.get_devices():
             is_cxl_device = False
             for capability in device.capabilities:
                 if capability.id == 0x0023 and capability.version == 0x1:

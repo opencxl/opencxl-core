@@ -23,7 +23,6 @@ from opencxl.util.pci import (
     generate_bdfs_for_bus,
 )
 from opencxl.cxl.component.root_complex.root_complex import RootComplex
-from pprint import pprint
 
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
 NUM_BARS_BRIDGE = 2
@@ -206,7 +205,8 @@ class PciBusDriver(LabeledComponent):
     async def _set_prefetchable_memory_limit(self, bdf: int, address_limit: int):
         logger.info(
             self._create_message(
-                f"Setting prefetchable memory limit of device {bdf_to_string(bdf)} to {address_limit:08x}"
+                f"Setting prefetchable memory limit of device {bdf_to_string(bdf)}"
+                " to {address_limit:08x}"
             )
         )
 
@@ -328,7 +328,8 @@ class PciBusDriver(LabeledComponent):
 
         logger.info(
             self._create_message(
-                f"Found PCI Extended Capbility at 0x{offset:03X} - ID: 0x{cap_id:04X}, Version: {cap_version}"
+                f"Found PCI Extended Capbility at 0x{offset:03X}"
+                " - ID: 0x{cap_id:04X}, Version: {cap_version}"
             )
         )
 
@@ -416,7 +417,8 @@ class PciBusDriver(LabeledComponent):
                 memory_start = memory_end
                 await self._set_subordinate_bus(bdf, bus)
 
-                # NOTE: Set prefetchable base and limit. Assuming there are no devices requesting prefetchable memory
+                # NOTE: Set prefetchable base and limit. Assuming there are no devices
+                # requesting prefetchable memory
                 await self._set_prefetchable_memory_base(bdf, 0xFFF00000)
                 await self._set_prefetchable_memory_limit(bdf, 0xFFE00000)
             else:
