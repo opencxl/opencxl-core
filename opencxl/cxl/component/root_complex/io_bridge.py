@@ -192,7 +192,6 @@ class IoBridge(RunnableComponent):
 
     async def _run(self):
         tasks = [create_task(self.process_target_to_host_mmio_packets())]
-        # tasks = []
         await self._change_status_to_running()
         await gather(*tasks)
 

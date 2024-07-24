@@ -226,8 +226,8 @@ class PciBusDriver(LabeledComponent):
         multi_function_devices = set()
 
         for bdf in bdf_list:
-            info = DeviceEnumerationInfo()
-            info.bdf = bdf
+            dev_enum_info = DeviceEnumerationInfo()
+            dev_enum_info.bdf = bdf
             device_number = extract_device_from_bdf(bdf)
             function_number = extract_function_from_bdf(bdf)
 
@@ -237,7 +237,7 @@ class PciBusDriver(LabeledComponent):
             vid_did = await self._read_vid_did(bdf)
             if vid_did is None:
                 continue
-            info.vid_did = vid_did
+            dev_enum_info.vid_did = vid_did
 
             is_multifunction = (await self.read_config(bdf, 0x0E, 1) & 0x80) >> 7
             if is_multifunction:
@@ -247,8 +247,8 @@ class PciBusDriver(LabeledComponent):
             # NOTE: assume size is less than 0x100000
             if size > 0:
                 bar0 = await self._read_bar(bdf, 0)
-                info.bars = [bar0]
-                info.mmio_range = MemoryEnumerationInfo(
+                dev_enum_info.bars.append(bar0)
+                dev_enum_info.mmio_range = MemoryEnumerationInfo(
                     memory_base=memory_start, memory_limit=memory_start + 0x100000 - 1
                 )
                 memory_start += 0x100000
@@ -257,7 +257,7 @@ class PciBusDriver(LabeledComponent):
 
             class_code = await self._read_class_code(bdf)
             if (class_code >> 8) == BRIDGE_CLASS:
-                info.is_bridge = True
+                dev_enum_info.is_bridge = True
                 logger.info(
                     self._create_message(
                         f"Found a bridge device at {bdf_to_string(bdf)} (VID/DID:{vid_did:08x})"
@@ -274,15 +274,15 @@ class PciBusDriver(LabeledComponent):
                 memory_start = memory_end
                 await self._set_subordinate_bus(bdf, bus)
             else:
-                info.is_bridge = False
+                dev_enum_info.is_bridge = False
                 logger.info(
                     self._create_message(
                         f"Found an endpoint device at {bdf_to_string(bdf)} "
                         f"(VID/DID:{vid_did:08x})"
                     )
                 )
-            # await self.scan_component_registers(info)
-            self._devices.devices.append(info)
+
+            self._devices.devices.append(dev_enum_info)
         return (bus, memory_start)
 
     async def scan_dvsec_register_locator(
