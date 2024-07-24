@@ -5,6 +5,7 @@
  See LICENSE for details.
 """
 
+# pylint: disable=unused-import
 import asyncio
 from typing import Dict, Tuple
 import json
@@ -464,6 +465,7 @@ async def test_cxl_host_type3_ete():
 #     await run(virtual_switch_manager3)
 
 
+# pylint: disable=line-too-long
 # @pytest.mark.asyncio
 # async def test_cxl_host_type2_ete():
 #     # pylint: disable=protected-access

@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from typing import Optional, List, cast
 
 from opencxl.cxl.mmio.component_register.memcache_register.capability import (
-    CxlCapabilityHeaderStructureOptions,
     CxlCapabilityIDToName,
 )
 from opencxl.util.logger import logger
