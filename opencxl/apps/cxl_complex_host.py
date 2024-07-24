@@ -8,6 +8,7 @@
 import asyncio
 from dataclasses import dataclass, field
 from typing import Optional, List
+from opencxl.drivers.pci_bus_driver import PciBusDriver
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.root_complex.root_complex import (
     RootComplex,
@@ -84,6 +85,7 @@ class CxlComplexHost(RunnableComponent):
             root_ports=root_complex_root_ports,
         )
         self._root_complex = RootComplex(root_complex_config)
+        self._pci_bus_driver = PciBusDriver(self._root_complex)
 
         if config.coh_type == COH_POLICY_TYPE.DotCache:
             cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
@@ -135,6 +137,7 @@ class CxlComplexHost(RunnableComponent):
             asyncio.create_task(self._root_complex.wait_for_ready()),
             asyncio.create_task(self._cache_controller.wait_for_ready()),
             asyncio.create_task(self._host_simple_processor.wait_for_ready()),
+            asyncio.create_task(self._pci_bus_driver.init()),
         ]
         await asyncio.gather(*wait_tasks)
         await self._change_status_to_running()
