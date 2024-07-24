@@ -13,12 +13,13 @@ from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.util.pci import bdf_to_string
 from opencxl.util.number import tlptoh16
-from opencxl.cxl.component.cxl_connection import FifoPair
+from opencxl.cxl.component.cxl_connection import CxlConnection, FifoPair
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BindSlot
 from opencxl.cxl.transport.transaction import (
     BasePacket,
+    CxlCacheD2HReqPacket,
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
@@ -31,6 +32,9 @@ from opencxl.cxl.transport.transaction import (
     CxlMemM2SRwDPacket,
     CxlMemM2SBIRspPacket,
     CxlMemS2MBISnpPacket,
+    CxlCacheBasePacket,
+    CxlCacheH2DRspPacket,
+    CxlCacheH2DReqPacket,
 )
 
 
@@ -362,3 +366,92 @@ class CxlMemRouter(CxlRouter):
                         continue
             else:
                 await self._upstream_connection_fifo.target_to_host.put(packet)
+
+
+class CxlCacheRouter(CxlRouter):
+    def __init__(
+        self,
+        vcs_id: int,
+        routing_table: RoutingTable,
+        usp_device: UpstreamPortDevice,
+        vppb_connections: List[CxlConnection],
+    ):
+        super().__init__(vcs_id, routing_table)
+        self._usp_device = usp_device
+        usp_connection = self._usp_device.get_downstream_connection()
+        self._upstream_connection = usp_connection.cxl_cache_fifo
+        self._downstream_connections = [
+            vppb_connection.cxl_cache_fifo for vppb_connection in vppb_connections
+        ]
+
+    async def _process_host_to_target_packets(self):
+        while True:
+            packet = await self._upstream_connection_fifo.host_to_target.get()
+            if packet is None:
+                break
+
+            cxl_cache_base_packet = cast(CxlCacheBasePacket, packet)
+            if cxl_cache_base_packet.is_h2dreq():
+                cxl_cache_packet = cast(CxlCacheH2DReqPacket, packet)
+                cache_id = cxl_cache_packet.h2dreq_header.cache_id
+            elif cxl_cache_base_packet.is_h2drsp():
+                cxl_cache_packet = cast(CxlCacheH2DRspPacket, packet)
+                cache_id = cxl_cache_packet.h2drsp_header.cache_id
+            else:
+                raise Exception("Received unexpected packet")
+
+            usp_component = self._usp_device.get_cxl_component()
+
+            # HACK: this is a placeholder that only works with structures having a
+            # fixed number of targets. A MUCH better way of doing this is through an
+            # indexed memory read, but in the interest of time, and due to the
+            # unstability of UnalignedBitStructure, that solution is probably unwise.
+
+            target_fld_name = f"target{cache_id}_options"
+
+            if target_fld_name not in usp_component.get_cache_route_table_options:
+                logger.warning(self._create_message("Received unroutable CXL.cache packet"))
+                continue
+            target_port = usp_component.get_cache_route_table_options[target_fld_name][
+                "port_number"
+            ]
+
+            if target_port >= len(self._downstream_connections):
+                raise Exception("target_port is out of bound")
+
+            downstream_connection = self._downstream_connections[
+                target_port
+            ].vppb_connection.cxl_cache_fifo
+            await downstream_connection.host_to_target.put(packet)
+
+    async def _process_target_to_host_packets(self, downstream_connection_bind_slot: BindSlot):
+        downstream_connection_fifo = downstream_connection_bind_slot.vppb_connection.cxl_cache_fifo
+
+        dsp_device = downstream_connection_bind_slot.dsp
+        dsp_component = dsp_device.get_cxl_component()
+
+        while True:
+            packet = await downstream_connection_fifo.target_to_host.get()
+            if packet is None:
+                break
+            cxl_cache_base_packet = cast(CxlCacheBasePacket, packet)
+
+            # See CXL 3.0 specification: Section 9.15.2
+            if cxl_cache_base_packet.is_d2hreq():
+                cxl_cache_packet = cast(CxlCacheD2HReqPacket, packet)
+                cache_id_decoder_opt_ctl = dsp_component.get_cache_decoder_options()[
+                    "control_options"
+                ]
+                assign, fwd = (
+                    cache_id_decoder_opt_ctl["assign_cache_id"],
+                    cache_id_decoder_opt_ctl["forward_cache_id"],
+                )
+                if (assign, fwd) == (1, 1):
+                    logger.error(self._create_message("Invalid setting: assign/fwd cannot be 1/1"))
+                elif (assign, fwd) == (0, 1):
+                    pass  # just forward upstream
+                elif (assign, fwd) == (1, 0):
+                    # get the local cache id
+                    cache_id = cache_id_decoder_opt_ctl["local_cache_id"]
+                    cxl_cache_packet.set_cache_id(cache_id)
+            await self._upstream_connection_fifo.target_to_host.put(packet)

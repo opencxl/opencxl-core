@@ -984,6 +984,9 @@ class CxlCacheD2HReqPacket(CxlCacheBasePacket):
     def get_address(self) -> int:
         return self.d2hreq_header.addr << 6
 
+    def set_cache_id(self, cache_id: int):
+        self.d2hreq_header.cache_id = cache_id
+
 
 D2HRSP_HEADER_START = CXL_CACHE_HEADER_END + 1
 D2HRSP_HEADER_END = D2HRSP_HEADER_START + CxlCacheD2HRspHeader.get_size() - 1
