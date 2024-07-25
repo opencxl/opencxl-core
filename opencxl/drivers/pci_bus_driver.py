@@ -345,7 +345,9 @@ class PciBusDriver(LabeledComponent):
                     )
                 )
 
-    async def scan_dvsec(self, bdf: int, cap_offset: int, capabilities: PciCapabilities):
+    async def scan_dvsec(self, info: DeviceEnumerationInfo, cap_offset: int):
+        bdf: int = info.bdf
+        capabilities: PciCapabilities = info.capabilities
         dvsec_header1 = await self.read_config(bdf, cap_offset + 0x04, 4)
         if dvsec_header1 is None:
             raise Exception("Failed to read DVSEC Header 1")
@@ -360,8 +362,59 @@ class PciBusDriver(LabeledComponent):
 
         if vendor_id == 0x1E98 and revision_id == 0x0 and dvsec_id == 0x0008:
             await self.scan_dvsec_register_locator(bdf, cap_offset, length, capabilities)
+        elif vendor_id == 0x1E98 and dvsec_id == 0x0000:
+            assert length == 0x03C
+            print(f"vendor: {vendor_id}, revision: {revision_id}, dvsec: {dvsec_id}")
+            print("GOT DVSEC HEADER")
+            cxl_capability = await self.read_config(bdf, cap_offset + 0x0A, 2)
+            mem_capable = (cxl_capability & 0x4) >> 2
+            hdm_count = (cxl_capability & 0x30) >> 4
+            if mem_capable:
+                if hdm_count == 0b01 or hdm_count == 0b10:
+                    # 1 or 2 hdm range(s)
+                    # TODO: check valid bit for the range
+                    info.dev_cxl_mem_enable = True
+                    range1_size_high = await self.read_config(bdf, cap_offset + 0x18, 4)
+                    print(f"High: {range1_size_high}")
+                    range1_size_low = await self.read_config(bdf, cap_offset + 0x1C, 4)
+                    print(f"Low: {range1_size_low}")
+                    info.dev_mem_range1_size = (range1_size_high << 32) | (
+                        range1_size_low & 0xF0000000
+                    )
+                    range1_base_high = await self.read_config(bdf, cap_offset + 0x20, 4)
+                    range1_base_low = await self.read_config(bdf, cap_offset + 0x24, 4)
+                    info.dev_mem_range1_base = (range1_base_high << 32) | (
+                        range1_base_low & 0xF0000000
+                    )
+                    print(
+                        f"Range 1 base: {info.dev_mem_range1_base}, "
+                        f"range 1 size: {info.dev_mem_range1_size}"
+                    )
 
-    async def scan_pcie_cap_helper(self, bdf: int, offset: int, capabilities: PciCapabilities):
+                    if hdm_count == 0b10:
+                        # 2 hdm ranges
+                        range2_size_high = await self.read_config(bdf, cap_offset + 0x28, 4)
+                        range2_size_low = await self.read_config(bdf, cap_offset + 0x2C, 4)
+                        info.dev_mem_range2_size = (range2_size_high << 32) | (
+                            range2_size_low & 0xF0000000
+                        )
+
+                        range2_base_high = await self.read_config(bdf, cap_offset + 0x30, 4)
+                        range2_base_low = await self.read_config(bdf, cap_offset + 0x34, 4)
+                        info.dev_mem_range2_base = (range2_base_high << 32) | (
+                            range2_base_low & 0xF0000000
+                        )
+                        print(
+                            f"Range 2 base: {info.dev_mem_range2_base}, "
+                            f"range 2 size: {info.dev_mem_range2_size}"
+                        )
+                else:
+                    raise Exception(
+                        f"Illegal hdm_count 0b{hdm_count:02b} for mem_capable 0b{mem_capable:1b}"
+                    )
+
+    async def scan_pcie_cap_helper(self, info: DeviceEnumerationInfo, offset: int):
+        bdf = info.bdf
         data = await self.read_config(bdf, offset, 4)
         if data is None:
             return
@@ -372,14 +425,14 @@ class PciBusDriver(LabeledComponent):
 
         is_dvsec_cap = cap_id == 0x0023 and cap_version == 0x1
         if is_dvsec_cap:
-            await self.scan_dvsec(bdf, offset, capabilities)
+            await self.scan_dvsec(info, offset)
 
         if next_cap_offset != 0:
-            await self.scan_pcie_cap_helper(bdf, next_cap_offset, capabilities)
+            await self.scan_pcie_cap_helper(info, next_cap_offset)
 
-    async def scan_pci_capabilities(self, bdf: int, capabilities: PciCapabilities):
+    async def scan_pci_capabilities(self, info: DeviceEnumerationInfo):
         PCIE_CONFIG_BASE = 0x100
-        await self.scan_pcie_cap_helper(bdf, PCIE_CONFIG_BASE, capabilities)
+        await self.scan_pcie_cap_helper(info, PCIE_CONFIG_BASE)
 
     async def write_cachemem_register(self, offset: int, value: int, len: int):
         await self.write_mmio(offset, len, value)
@@ -474,17 +527,25 @@ class PciBusDriver(LabeledComponent):
     ):
         await self.write_register_by_name(bar, reg, "bi_decoder", len)
 
+    async def set_up_router_hdm_decoder(self, info: DeviceEnumerationInfo):
+        pass
+
     async def get_dev_mem_size(self, info: DeviceEnumerationInfo):
+        await self.init_dvsec_and_capability()
         dvsec_registers = info.capabilities.dvsec.register_locators.cxl_device_registers
         if not dvsec_registers:
             return
+        addr = dvsec_registers.bar + dvsec_registers.offset + 0x1000
+        data = await self.read_mmio(addr + 4, 4)
+        print(f"Data: {data:08x}")
 
     async def init_dvsec_and_capability(self):
         all_devices = self._devices.get_all_devices()
         if not self._fully_scanned:
             self._fully_scanned = True
             for info in all_devices:
-                await self.scan_pci_capabilities(info.bdf, info.capabilities)
+                await self.scan_pci_capabilities(info)
                 await self.scan_component_registers(info)
+                print(info)
 
     # pylint: enable=duplicate-code

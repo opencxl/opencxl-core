@@ -44,7 +44,7 @@ from opencxl.cxl.mmio.component_register.memcache_register.cache_id_decoder_capa
 class CxlUpstreamPortComponent(CxlComponent):
     def __init__(
         self,
-        decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_1,
+        decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_2,
         label: Optional[str] = None,
     ):
         # pylint: disable=duplicate-code

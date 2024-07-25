@@ -133,6 +133,11 @@ class DeviceEnumerationInfo:
     parent: Optional["DeviceEnumerationInfo"] = None
     children: List["DeviceEnumerationInfo"] = field(default_factory=list)
     cxl_device_size: int = 256 * 1024 * 1024
+    dev_cxl_mem_enable: bool = False
+    dev_mem_range1_base: int = 0
+    dev_mem_range1_size: int = 0
+    dev_mem_range2_base: int = 0
+    dev_mem_range2_size: int = 0
 
     def get_all_devices(self) -> List["DeviceEnumerationInfo"]:
         devices: List["DeviceEnumerationInfo"] = []

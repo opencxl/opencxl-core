@@ -40,6 +40,7 @@ from opencxl.cxl.component.virtual_switch_manager import (
 )
 from opencxl.apps.accelerator import MyType2Accelerator
 from opencxl.apps.single_logical_device import SingleLogicalDevice
+from opencxl.util.number_const import MB
 
 BASE_TEST_PORT = 9300
 
@@ -568,7 +569,7 @@ async def test_cxl_host_type3_complex_host_ete():
 
     sld = SingleLogicalDevice(
         port_index=1,
-        memory_size=0x1000000,
+        memory_size=1024 * MB,  # min 256MB, or will cause error for DVSEC
         memory_file=f"mem{switch_port}.bin",
         port=switch_port,
     )
@@ -629,11 +630,15 @@ async def test_cxl_host_type3_complex_host_ete():
         old_bi_decoder_val = await host._pci_bus_driver.read_register_by_name(bar, name, 4)
         print(f"Got old value: 0x{old_bi_decoder_val:08x}")
         print(f"Writing value: 0x{val:08x}")
-        await host._pci_bus_driver.write_bi_decoder_capability(bar, test_reg)
+        # await host._pci_bus_driver.write_bi_decoder_capability(bar, test_reg)
+        all_devs = host._pci_bus_driver._devices.get_all_devices()
+        for info in all_devs:
+            print("GOT SIZE")
+            await host._pci_bus_driver.get_dev_mem_size(info)
 
         # Check if value matches
-        new_bi_decoder_val = await host._pci_bus_driver.read_register_by_name(bar, name, 4)
-        print(f"Got new value: 0x{new_bi_decoder_val:08x}")
+        # new_bi_decoder_val = await host._pci_bus_driver.read_register_by_name(bar, name, 4)
+        # print(f"Got new value: 0x{new_bi_decoder_val:08x}")
         # assert new_bi_decoder_val == test_reg.read_bytes(0x0, 0x3)
 
     test_tasks = [
