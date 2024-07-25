@@ -7,8 +7,7 @@
 
 # pylint: disable=unused-import
 from asyncio import CancelledError, Event, Future, Lock, create_task, get_running_loop, timeout
-from collections.abc import Callable
-from typing import Optional, cast
+from typing import Callable, Optional, cast
 
 from opencxl.cxl.component.cxl_memory_device_component import CxlMemoryDeviceComponent
 from opencxl.util.logger import logger
