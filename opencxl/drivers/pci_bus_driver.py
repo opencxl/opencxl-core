@@ -5,13 +5,15 @@
  See LICENSE for details.
 """
 
-from typing import Optional, Tuple, List
+from enum import IntEnum
+from typing import Optional, Tuple, List, cast
 from dataclasses import dataclass, field
 from opencxl.util.logger import logger
 from opencxl.util.component import LabeledComponent
 from opencxl.pci.component.pci import (
     PCI_CLASS,
     PCI_BRIDGE_SUBCLASS,
+    PCI_DEVICE_PORT_TYPE,
     memory_base_addr_to_regval,
     memory_limit_addr_to_regval,
 )
@@ -28,6 +30,28 @@ BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
 NUM_BARS_BRIDGE = 2
 NUM_BARS_ENDPOINT = 6
 PCIE_CONFIG_BASE = 0x100
+PCI_CAPABILITY_POINTER = 0x34
+PCI_CONFIG_HEADER_SIZE = 2
+PCIE_CONFIG_HEADER_SIZE = 4
+PCIE_CONFIG_HEADER_ID_MASK = 0xFFFF
+PCIE_CONFIG_HEADER_ID_START = 0
+PCIE_CONFIG_VERSION_MASK = 0xF
+PCIE_CONFIG_VERSION_START = 16
+PCIE_NEXT_CAP_OFFSET_MASK = 0xFFF
+PCIE_NEXT_CAP_OFFSET_START = 20
+
+
+class PCI_CAPABILITY_ID(IntEnum):
+    POWER_MANAGEMENT = 0x01
+    PCI_EXPRESS = 0x10
+    MSI = 0x05
+    MSIX = 0x11
+
+
+class PCI_EXTENDED_CAPABILITY_ID(IntEnum):
+    DEVICE_SERIAL_NUMBER = 0x0003
+    DESIGNATED_VENDOR_SPECIFIC = 0x0023
+    DATA_OBJECT_EXCHANGE = 0x002E
 
 
 @dataclass
@@ -47,6 +71,12 @@ class PciCapabilityInfo:
 
 
 @dataclass
+class PciExpressCapabilityInfo(PciCapabilityInfo):
+    device_port_type: PCI_DEVICE_PORT_TYPE = PCI_DEVICE_PORT_TYPE.PCI_EXPRESS_ENDPOINT
+    port_number: int = 0
+
+
+@dataclass
 class PciDeviceInfo:
     bdf: int = 0
     vendor_id: int = 0
@@ -57,6 +87,80 @@ class PciDeviceInfo:
     parent: Optional["PciDeviceInfo"] = None
     children: List["PciDeviceInfo"] = field(default_factory=list)
     capabilities: List[PciCapabilityInfo] = field(default_factory=list)
+
+    def get_capabilities_by_id(self, id: int, is_extended: bool) -> List[PciCapabilityInfo]:
+        capabilities = []
+        for capability in self.capabilities:
+            if capability.is_extended == is_extended and capability.id == id:
+                capabilities.append(capability)
+        return capabilities
+
+    def get_device_port_type(self) -> Optional[PCI_DEVICE_PORT_TYPE]:
+        capabilities = self.get_capabilities_by_id(PCI_CAPABILITY_ID.PCI_EXPRESS, False)
+        if len(capabilities) == 0:
+            return None
+        pci_express_capability = cast(PciExpressCapabilityInfo, capabilities[0])
+        return pci_express_capability.device_port_type
+
+    def get_bdf_string(self) -> str:
+        return bdf_to_string(self.bdf)
+
+    def get_port_number(self) -> int:
+        capabilities = self.get_capabilities_by_id(PCI_CAPABILITY_ID.PCI_EXPRESS, False)
+        if len(capabilities) == 0:
+            return 0
+        pci_express_capability = cast(PciExpressCapabilityInfo, capabilities[0])
+        return pci_express_capability.port_number
+
+    def print(self, prefix: str = ""):
+        logger.info(f"{prefix}BDF              : {bdf_to_string(self.bdf)}")
+        logger.info(f"{prefix}Vendor ID        : 0x{self.vendor_id:04X}")
+        logger.info(f"{prefix}Device ID        : 0x{self.device_id:04X}")
+        logger.info(f"{prefix}Class Code       : 0x{self.class_code:06X}")
+        logger.info(f"{prefix}Is Bridge        : {'Yes' if self.is_bridge else 'No'}")
+
+        if self.parent:
+            logger.info(f"{prefix}Parent BDF       : {bdf_to_string(self.parent.bdf)}")
+
+        if len(self.children) > 0:
+            children_bdf_list = [bdf_to_string(child.bdf) for child in self.children]
+            logger.info(f"{prefix}Children BDFs    : {', '.join(children_bdf_list)}")
+
+        for bar_index, bar_info in enumerate(self.bars):
+            logger.info(f"{prefix}BAR{bar_index} Base Address: 0x{bar_info.base_address:X}")
+            logger.info(f"{prefix}BAR{bar_index} Size        : {bar_info.size}")
+
+        if len(self.capabilities) > 0:
+            logger.info(f"{prefix}Capabilities        :")
+            for capability in self.capabilities:
+                if capability.is_extended:
+                    supported_cap_id_list = [member.value for member in PCI_EXTENDED_CAPABILITY_ID]
+                    if capability.id in supported_cap_id_list:
+                        cap_name = PCI_EXTENDED_CAPABILITY_ID(capability.id).name
+                        logger.info(
+                            f"{prefix} - {cap_name} Extended Capability: 0x{capability.offset:X}"
+                        )
+                    else:
+                        logger.info(
+                            f"{prefix} - Extended Capability ID 0x{capability.id:03X}: "
+                            f"0x{capability.offset:X}"
+                        )
+                else:
+                    supported_cap_id_list = [member.value for member in PCI_CAPABILITY_ID]
+                    if capability.id in supported_cap_id_list:
+                        cap_name = PCI_CAPABILITY_ID(capability.id).name
+                        logger.info(f"{prefix} - {cap_name} Capability: 0x{capability.offset:X}")
+                    else:
+                        logger.info(
+                            f"{prefix} - Capability ID 0x{capability.id:02X}: "
+                            f"0x{capability.offset:X}"
+                        )
+                    if capability.id == PCI_CAPABILITY_ID.PCI_EXPRESS:
+                        pxcap = cast(PciExpressCapabilityInfo, capability)
+                        logger.info(f"{prefix}    - Port Number: {pxcap.port_number}")
+                        logger.info(
+                            f"{prefix}    - Device/Port Type: {pxcap.device_port_type.name}"
+                        )
 
 
 class PciBusDriver(LabeledComponent):
@@ -78,24 +182,7 @@ class PciBusDriver(LabeledComponent):
         logger.info(self._create_message("Enumerated PCI Devices"))
         logger.info(self._create_message("=============================="))
         for device in self._devices:
-            logger.info(self._create_message(f"BDF              : {bdf_to_string(device.bdf)}"))
-            logger.info(self._create_message(f"Vendor ID        : 0x{device.vendor_id:04X}"))
-            logger.info(self._create_message(f"Device ID        : 0x{device.device_id:04X}"))
-            logger.info(self._create_message(f"Class Code       : 0x{device.class_code:06X}"))
-            logger.info(
-                self._create_message(f"Is Bridge        : {'Yes' if device.is_bridge else 'No'}")
-            )
-            if device.parent:
-                logger.info(
-                    self._create_message(f"Parent BDF       : {bdf_to_string(device.parent.bdf)}")
-                )
-            for bar_index, bar_info in enumerate(device.bars):
-                logger.info(
-                    self._create_message(
-                        f"BAR{bar_index} Base Address: 0x{bar_info.base_address:X}"
-                    )
-                )
-                logger.info(self._create_message(f"BAR{bar_index} Size        : {bar_info.size}"))
+            device.print("[PciBusDriver] ")
             logger.info(self._create_message("------------------------------"))
 
     async def _scan_pci_devices(self):
@@ -318,23 +405,31 @@ class PciBusDriver(LabeledComponent):
         return size
 
     async def scan_pcie_cap_helper(self, bdf: int, offset: int, device_info: PciDeviceInfo):
-        data = await self.read_config(bdf, offset, 4)
+        data = await self.read_config(bdf, offset, PCIE_CONFIG_HEADER_SIZE)
         if data is None:
             return
 
-        cap_id = data & 0xFFFF
-        cap_version = (data >> 16) & 0xF
-        next_cap_offset = (data >> 20) & 0xFFF
-
-        logger.info(
-            self._create_message(
-                f"Found PCI Extended Capbility at 0x{offset:03X}"
-                f" - ID: 0x{cap_id:04X}, Version: {cap_version}"
-            )
-        )
+        cap_id = (data >> PCIE_CONFIG_HEADER_ID_START) & PCIE_CONFIG_HEADER_ID_MASK
+        cap_version = (data >> PCIE_CONFIG_VERSION_START) & PCIE_CONFIG_VERSION_MASK
+        next_cap_offset = (data >> PCIE_NEXT_CAP_OFFSET_START) & PCIE_NEXT_CAP_OFFSET_MASK
 
         if cap_id == 0:
             return
+
+        support_cap_id_list = [member.value for member in PCI_EXTENDED_CAPABILITY_ID]
+        if cap_id in support_cap_id_list:
+            cap_name = PCI_EXTENDED_CAPABILITY_ID(cap_id).name
+            logger.info(
+                self._create_message(
+                    f"Found {cap_name} Extended Capbility at 0x{offset:02X} - ID: 0x{cap_id:02X}"
+                )
+            )
+        else:
+            logger.info(
+                self._create_message(
+                    f"Found PCI Extended Capbility at 0x{offset:02X} - ID: 0x{cap_id:02X}"
+                )
+            )
 
         device_info.capabilities.append(
             PciCapabilityInfo(is_extended=True, id=cap_id, version=cap_version, offset=offset)
@@ -343,7 +438,57 @@ class PciBusDriver(LabeledComponent):
         if next_cap_offset != 0:
             await self.scan_pcie_cap_helper(bdf, next_cap_offset, device_info)
 
+    async def scan_pci_cap_pci_express(self, bdf: int, capability_info: PciExpressCapabilityInfo):
+        offset = capability_info.offset
+
+        pci_express_register_offset = offset + 0x02
+        pci_express_register = await self.read_config(bdf, pci_express_register_offset, 2)
+        capability_info.device_port_type = PCI_DEVICE_PORT_TYPE((pci_express_register >> 4) & 0xF)
+        link_capability_register_offset = offset + 0x0C
+        link_capability_register = await self.read_config(bdf, link_capability_register_offset, 4)
+        capability_info.port_number = (link_capability_register >> 24) & 0xFF
+
+    async def scan_pci_cap_helper(self, bdf: int, offset: int, device_info: PciDeviceInfo):
+        data = await self.read_config(bdf, offset, PCI_CONFIG_HEADER_SIZE)
+        if data is None:
+            return
+
+        cap_id = data & 0xFF
+        next_cap_offset = (data >> 8) & 0xFF
+
+        if cap_id == 0:
+            return
+
+        support_cap_id_list = [member.value for member in PCI_CAPABILITY_ID]
+        if cap_id in support_cap_id_list:
+            logger.info(
+                self._create_message(
+                    f"Found {PCI_CAPABILITY_ID(cap_id).name} Capbility at 0x{offset:02X}"
+                    f" - ID: 0x{cap_id:02X}"
+                )
+            )
+        else:
+            logger.info(
+                self._create_message(f"Found PCI Capbility at 0x{offset:02X} - ID: 0x{cap_id:02X}")
+            )
+
+        if cap_id == PCI_CAPABILITY_ID.PCI_EXPRESS:
+            capability_info = PciExpressCapabilityInfo(
+                is_extended=False, id=cap_id, version=0, offset=offset
+            )
+            device_info.capabilities.append(capability_info)
+            await self.scan_pci_cap_pci_express(bdf, capability_info)
+        else:
+            device_info.capabilities.append(
+                PciCapabilityInfo(is_extended=False, id=cap_id, version=0, offset=offset)
+            )
+
+        if next_cap_offset != 0:
+            await self.scan_pci_cap_helper(bdf, next_cap_offset, device_info)
+
     async def _scan_pci_capabilities(self, bdf: int, device_info: PciDeviceInfo):
+        pci_cap_pointer = await self.read_config(bdf, PCI_CAPABILITY_POINTER, 2)
+        await self.scan_pci_cap_helper(bdf, pci_cap_pointer, device_info)
         await self.scan_pcie_cap_helper(bdf, PCIE_CONFIG_BASE, device_info)
 
     async def _scan_bus(
