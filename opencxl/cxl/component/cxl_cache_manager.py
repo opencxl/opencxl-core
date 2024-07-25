@@ -182,10 +182,7 @@ class CxlCacheManager(PacketProcessor):
             elif cxl_cache_packet.is_h2drsp():
                 h2drsp_packet = cast(CxlCacheCacheH2DRspPacket, packet)
 
-                # TODO: the following logic is only valid for GO_WritePull Rsps.
-                # We should move this logic out into a generalized process_h2d_rsp
-                # method. We should also be doing error handling in the case that
-                # the host sends GO_Err_WritePull, etc.
+                # TODO: Move this logic out into a generalized process_h2d_rsp method.
 
                 # notify matching cqid listener, if one exists
                 cqid = h2drsp_packet.h2drsp_header.cq_id
@@ -197,10 +194,10 @@ class CxlCacheManager(PacketProcessor):
                 h2drsp_packet.get_pretty_string()
             elif cxl_cache_packet.is_h2ddata():
                 h2ddata_packet = cast(CxlCacheCacheH2DDataPacket, packet)
-                cqid = h2drsp_packet.h2drsp_header.cq_id
+                cqid = h2ddata_packet.h2drsp_header.cq_id
                 async with self.device_entry_lock:
                     if cqid in self.device_entries:
-                        self.device_entries[cqid].set()
+                        self.device_entries[cqid].set_result(h2ddata_packet)
                 await self._process_cxl_cache_h2d_data_packet(h2ddata_packet)
             else:
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
