@@ -315,12 +315,26 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         ),
     ]
 
-    def fill(self, addr: int, length_dword: int, req_id: int, tag: int) -> "CxlIoMemRdPacket":
+    def fill(self, addr: int, length: int, req_id: int, tag: int) -> "CxlIoMemRdPacket":
+        address_offset = addr % 4
+
+        # `length` field from the TLP header is measured in DWORDs.
+        length_dword = (address_offset + length + 3) // 4
+
         self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
         self.cxl_io_header.length_upper = length_dword & 0x300
         self.cxl_io_header.length_lower = length_dword & 0xFF
         self.mreq_header.req_id = req_id
         self.mreq_header.tag = tag
+
+        bytes_enabled = (1 << length) - 1
+        bytes_enabled_with_offset = bytes_enabled << address_offset
+        first_be = bytes_enabled_with_offset & 0xF
+        last_be = 0
+        if length_dword > 1:
+            last_be = (bytes_enabled_with_offset >> (length_dword - 1) * 4) & 0xF
+        self.mreq_header.first_dw_be = first_be
+        self.mreq_header.last_dw_be = last_be
 
         addr_upper_bytes = (addr >> 8).to_bytes(7, byteorder="big")
         self.mreq_header.addr_upper = int.from_bytes(addr_upper_bytes, byteorder="little")
@@ -354,12 +368,8 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
             tag = cls.get_tag()
         tag %= 256
 
-        """
-        `length` field from the TLP header is measured in DWORDs.
-        """
-        length_dword = (length + 3) // 4
         packet = CxlIoMemRdPacket()
-        packet.fill(addr, length_dword, req_id, tag)
+        packet.fill(addr, length, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
         packet.system_header.payload_length = CxlIoMemRdPacket.get_size()
         return packet
@@ -389,12 +399,8 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             tag = cls.get_tag()
         tag %= 256
 
-        """
-        `length` field from the TLP header is measured in DWORDs.
-        """
-        length_dword = (length + 3) // 4
         packet = CxlIoMemWrPacket()
-        packet.fill(addr, length_dword, req_id, tag)
+        packet.fill(addr, length, req_id, tag)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
         packet.set_dynamic_field_length(length)
         packet.data = data
