@@ -440,6 +440,3 @@ class CxlBusDriver(LabeledComponent):
             self._devices.append(device_info)
             await self._scan_dvsec(device_info)
             await self._scan_component_register(device_info)
-
-    async def write_hdm_decoder_reg(self, bdf, decoder_id, contents):
-        pass
