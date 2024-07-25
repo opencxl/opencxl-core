@@ -31,7 +31,7 @@ class PciDevice(RunnableComponent):
         super().__init__(label)
         self._sw_conn_client = SwitchConnectionClient(
             port_index,
-            CXL_COMPONENT_TYPE.LD,
+            CXL_COMPONENT_TYPE.P,
             host=host,
             port=port,
             parent_name=f"PciDevice{port_index}",

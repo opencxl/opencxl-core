@@ -77,6 +77,7 @@ class CxlPacketProcessor(RunnableComponent):
             )
             self._outgoing_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
         elif component_type in (
+            CXL_COMPONENT_TYPE.P,
             CXL_COMPONENT_TYPE.T1,
             CXL_COMPONENT_TYPE.T2,
             CXL_COMPONENT_TYPE.D2,
