@@ -329,7 +329,7 @@ class PciBusDriver(LabeledComponent):
         logger.info(
             self._create_message(
                 f"Found PCI Extended Capbility at 0x{offset:03X}"
-                " - ID: 0x{cap_id:04X}, Version: {cap_version}"
+                f" - ID: 0x{cap_id:04X}, Version: {cap_version}"
             )
         )
 

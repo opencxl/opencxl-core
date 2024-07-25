@@ -40,6 +40,7 @@ from opencxl.cxl.component.virtual_switch_manager import (
 )
 from opencxl.apps.accelerator import MyType2Accelerator
 from opencxl.apps.single_logical_device import SingleLogicalDevice
+from opencxl.util.number_const import MB
 
 BASE_TEST_PORT = 9300
 
@@ -540,115 +541,6 @@ async def test_cxl_host_type3_ete():
 #         asyncio.create_task(host_manager.stop()),
 #         asyncio.create_task(host.stop()),
 #         asyncio.create_task(accel_t2.stop()),
-#     ]
-#     await asyncio.gather(*stop_tasks)
-#     await asyncio.gather(*start_tasks)
-
-
-# NOTE: Temporarily commented out due to changes in PCI Bus Driver
-# @pytest.mark.asyncio
-# async def test_cxl_host_type3_complex_host_ete():
-#     # pylint: disable=protected-access
-#     host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 155
-#     util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 156
-#     switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 157
-
-#     port_configs = [
-#         PortConfig(PORT_TYPE.USP),
-#         PortConfig(PORT_TYPE.DSP),
-#     ]
-#     sw_conn_manager = SwitchConnectionManager(port_configs, port=switch_port)
-#     physical_port_manager = PhysicalPortManager(
-#         switch_connection_manager=sw_conn_manager, port_configs=port_configs
-#     )
-
-#     switch_configs = [VirtualSwitchConfig(upstream_port_index=0, vppb_counts=1, initial_bounds=[1])]
-#     virtual_switch_manager = VirtualSwitchManager(
-#         switch_configs=switch_configs, physical_port_manager=physical_port_manager
-#     )
-
-#     sld = SingleLogicalDevice(
-#         port_index=1,
-#         memory_size=0x1000000,
-#         memory_file=f"mem{switch_port}.bin",
-#         port=switch_port,
-#     )
-
-#     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
-#     host_mem_size = 0x8000  # Needs to be big enough to test cache eviction
-
-#     host_name = "foo"
-#     root_port_switch_type = ROOT_PORT_SWITCH_TYPE.PASS_THROUGH
-#     memory_controller = RootComplexMemoryControllerConfig(host_mem_size, "foo.bin")
-#     root_ports = [RootPortClientConfig(0, "localhost", switch_port)]
-#     memory_ranges = [MemoryRange(MEMORY_RANGE_TYPE.DRAM, 0x0, host_mem_size)]
-
-#     config = CxlComplexHostConfig(
-#         host_name,
-#         0,
-#         root_port_switch_type,
-#         memory_controller,
-#         memory_ranges,
-#         root_ports,
-#     )
-
-#     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
-#     # host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
-#     host = CxlComplexHost(config)
-
-#     start_tasks = [
-#         asyncio.create_task(host.run()),
-#         asyncio.create_task(host_manager.run()),
-#         asyncio.create_task(sw_conn_manager.run()),
-#         asyncio.create_task(physical_port_manager.run()),
-#         asyncio.create_task(virtual_switch_manager.run()),
-#         asyncio.create_task(sld.run()),
-#     ]
-
-#     wait_tasks = [
-#         asyncio.create_task(sw_conn_manager.wait_for_ready()),
-#         asyncio.create_task(physical_port_manager.wait_for_ready()),
-#         asyncio.create_task(virtual_switch_manager.wait_for_ready()),
-#         asyncio.create_task(host_manager.wait_for_ready()),
-#         asyncio.create_task(host.wait_for_ready()),
-#         asyncio.create_task(sld.wait_for_ready()),
-#     ]
-#     await asyncio.gather(*wait_tasks)
-
-#     async def test_configs():
-#         bar = 0x80100000
-#         name = "bi_decoder"
-#         await host._pci_bus_driver.find_register_offset_by_name(bar, name)
-#         test_reg_capability_options = CxlBIDecoderCapabilityRegisterOptions(
-#             hdm_d_compatible=1, explicit_bi_decoder_commit_required=0
-#         )
-#         test_reg_options = CxlBIDecoderCapabilityStructureOptions(
-#             device_type=CXL_COMPONENT_TYPE.D2, capability_options=test_reg_capability_options
-#         )
-#         test_reg = CxlBIDecoderCapabilityRegister(options=test_reg_options)
-#         val = test_reg.read_bytes(0x0, 0x3)
-#         old_bi_decoder_val = await host._pci_bus_driver.read_register_by_name(bar, name, 4)
-#         print(f"Got old value: 0x{old_bi_decoder_val:08x}")
-#         print(f"Writing value: 0x{val:08x}")
-#         await host._pci_bus_driver.write_bi_decoder_capability(bar, test_reg)
-
-#         # Check if value matches
-#         new_bi_decoder_val = await host._pci_bus_driver.read_register_by_name(bar, name, 4)
-#         print(f"Got new value: 0x{new_bi_decoder_val:08x}")
-#         # assert new_bi_decoder_val == test_reg.read_bytes(0x0, 0x3)
-
-#     test_tasks = [
-#         asyncio.create_task(test_configs()),
-#     ]
-#     await asyncio.gather(*test_tasks)
-
-#     stop_tasks = [
-#         asyncio.create_task(sw_conn_manager.stop()),
-#         asyncio.create_task(physical_port_manager.stop()),
-#         asyncio.create_task(virtual_switch_manager.stop()),
-#         asyncio.create_task(host_manager.stop()),
-#         asyncio.create_task(host.stop()),
-#         asyncio.create_task(sld.stop()),
 #     ]
 #     await asyncio.gather(*stop_tasks)
 #     await asyncio.gather(*start_tasks)
