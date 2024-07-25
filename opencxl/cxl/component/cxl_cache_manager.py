@@ -44,7 +44,7 @@ class CxlCacheManager(PacketProcessor):
         self._upstream_fifo: FifoPair
         self._cache_device_component = None
 
-        self.device_entries = {}  # maps CQID -> future host UQID
+        self.device_entries = {}  # maps CQID -> received future packets associated with CQID
         self.device_entry_lock = Lock()  # locks the above mapping
 
         super().__init__(upstream_fifo, downstream_fifo, label)
@@ -85,7 +85,7 @@ class CxlCacheManager(PacketProcessor):
                 if _timeout:
                     try:
                         async with timeout(_timeout):
-                            await fut.wait()
+                            await fut
                     except TimeoutError as err:
                         # this request was apparently lost by the host
                         # clear the cqid entry for reuse
@@ -93,7 +93,7 @@ class CxlCacheManager(PacketProcessor):
                             del self.device_entries[cqid]
                         raise CancelledError from err  # intentionally cancel the current task
                 else:
-                    fut.wait()
+                    await fut
                 cb(fut.result())
                 if _one_use:
                     async with self.device_entry_lock:
