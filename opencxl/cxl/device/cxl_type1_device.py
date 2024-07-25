@@ -201,6 +201,12 @@ class CxlType1Device(RunnableComponent):
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
 
+    async def cxl_cache_readline(self, addr: int) -> int:
+        pass
+
+    async def cxl_cache_writelines(self, addr: int, data: int, howmuch: int):
+        pass
+
     async def _run(self):
         # pylint: disable=duplicate-code
         run_tasks = [

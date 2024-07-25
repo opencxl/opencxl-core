@@ -1088,6 +1088,7 @@ class CxlRootPortDevice(RunnableComponent):
     async def init(self, hpa_base: int):
         if self._test_mode:
             return
+        logger.debug(self._create_message("Starting CXL initialization"))
         memory_base_address = 0xFE000000
         self._cxl_hpa_base = hpa_base
         await self.enumerate(memory_base_address)
@@ -1095,6 +1096,7 @@ class CxlRootPortDevice(RunnableComponent):
         usp = enum_info.devices[0]
         await self.enable_hdm_decoder(usp)
         await self.configure_hdm_decoder_single_device(usp, hpa_base)
+        logger.debug(self._create_message("Completed CXL initialization"))
 
     def get_hpa_base(self) -> int:
         return self._cxl_hpa_base
