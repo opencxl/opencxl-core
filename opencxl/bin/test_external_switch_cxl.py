@@ -12,6 +12,7 @@ from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
+from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from typing import List, cast
 
 
@@ -44,6 +45,17 @@ class TestRunner:
         logger.info("Starting CXL bus driver init")
         await cxl_bus_driver.init()
         logger.info("Completed CXL bus driver init")
+        cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
+
+        hpa_base = 0xA0000000
+        next_available_hpa_base = hpa_base
+        for device in cxl_mem_driver.get_devices():
+            size = device.get_memory_size()
+            successful = await cxl_mem_driver.attach_single_mem_device(
+                device, next_available_hpa_base, size
+            )
+            if successful:
+                next_available_hpa_base += size
 
 
 def main():
