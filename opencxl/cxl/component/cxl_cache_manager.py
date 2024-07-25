@@ -78,7 +78,7 @@ class CxlCacheManager(PacketProcessor):
                 self.device_entries[cqid].cancel()
 
         loop = get_running_loop()
-        fut_uqid = loop.create_future()
+        fut_pckt = loop.create_future()
 
         async def _callback(fut: Future):
             while True:
@@ -100,8 +100,8 @@ class CxlCacheManager(PacketProcessor):
                         del self.device_entries[cqid]
                     break
 
-        self.device_entries[cqid] = fut_uqid
-        create_task(_callback(fut_uqid))
+        self.device_entries[cqid] = fut_pckt
+        create_task(_callback(fut_pckt))
 
     async def _process_cxl_cache_h2d_data_packet(self, cache_data_packet: CxlCacheH2DDataPacket):
         await self._upstream_fifo.host_to_target.put(cache_data_packet)
