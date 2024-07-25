@@ -304,7 +304,7 @@ class CxlBusDriver(LabeledComponent):
             desired_interleave = (size_low >> 8) & 0b11111
             memory_active_timeout = (size_low >> 13) & 0b111
             memory_active_degraded = bool((size_low >> 16) & 0b1)
-            memory_size = (size_high << 32) | (size_low & 0xF000000)
+            memory_size = (size_high << 32) | (size_low & 0xF0000000)
 
             range_info = CxlDeviceDvsecRangeInfo(
                 memory_info_valid=memory_info_valid,

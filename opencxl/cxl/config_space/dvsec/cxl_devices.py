@@ -8,6 +8,7 @@
 from dataclasses import dataclass
 from typing import TypedDict, List, Optional
 
+from opencxl.util.number_const import MB
 from opencxl.util.unaligned_bit_structure import (
     ShareableByteArray,
     BitMaskedBitStructure,
@@ -236,11 +237,13 @@ class DvsecCxlDevices(BitMaskedBitStructure):
         cacheable_address_range = options["cacheable_address_range"]
         identity = memory_device_component.get_identity()
 
+        volatile_only_capacity = identity.volatile_only_capacity * 256 * MB
+
         range1_size_low_options: DvsecCxlRangeSizeLowOptions = {
-            "memory_size_low": identity.volatile_only_capacity & 0xFFFFFFFF,
+            "memory_size_low": volatile_only_capacity & 0xFFFFFFFF,
             "is_valid": True,
         }
-        range1_size_high = identity.volatile_only_capacity >> 32
+        range1_size_high = volatile_only_capacity >> 32
         range2_size_low_options: DvsecCxlRangeSizeLowOptions = {
             "memory_size_low": 0,
             "is_valid": False,
