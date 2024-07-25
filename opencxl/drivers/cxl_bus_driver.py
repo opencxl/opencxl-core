@@ -10,11 +10,15 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from opencxl.util.component import LabeledComponent, Label
 from opencxl.cxl.component.root_complex.root_complex import RootComplex
+from opencxl.pci.component.pci import PCI_DEVICE_PORT_TYPE
 from opencxl.drivers.pci_bus_driver import PciBusDriver, PciDeviceInfo
 from opencxl.util.logger import logger
 from opencxl.util.pci import bdf_to_string
 
 CXL_CACHEMEM_REGISTER_HEADER_SIZE = 4
+CXL_HDM_DECODER_CAPABILITY_REGISTER_SIZE = 4
+CXL_HDM_DECODER_CONTROL_REGISTER_SIZE = 4
+CXL_HDM_DECODER_CONTROL_REGISTER_COMMITTED_MASK = 0x400
 
 
 class CXL_REGISTER_TYPE(IntEnum):
@@ -107,6 +111,7 @@ class CxlDeviceDvsecInfo:
 
 @dataclass
 class CxlDeviceInfo:
+    root_complex: RootComplex
     pci_device_info: PciDeviceInfo
     registers: List[CxlRegisterInfo] = field(default_factory=list)
     dvsecs: List[CxlDvsecInfo] = field(default_factory=list)
@@ -114,6 +119,7 @@ class CxlDeviceInfo:
     parent: Optional["CxlDeviceInfo"] = None
     children: List["CxlDeviceInfo"] = field(default_factory=list)
     device_dvsec: Optional[CxlDeviceDvsecInfo] = None
+    log_prefix: str = "CxlDevice"
 
     def get_dvsec_by_id(self, id: CXL_DVSEC_ID):
         for dvsec in self.dvsecs:
@@ -132,6 +138,218 @@ class CxlDeviceInfo:
             return self.cachemem_registers[id]
         return None
 
+    def _get_prefix(self) -> str:
+        return f"[{self.log_prefix}:{self.pci_device_info.get_bdf_string()}] "
+
+    # pylint: disable=duplicate-code
+
+    async def _get_hdm_decoder_count(self, register_base_address: int) -> int:
+        decoder_counter_map = [1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32]
+        hdm_decoder_cap = await self.root_complex.read_mmio(
+            register_base_address, CXL_HDM_DECODER_CAPABILITY_REGISTER_SIZE
+        )
+        decoder_count_index = hdm_decoder_cap & 0xF
+        if decoder_count_index >= len(decoder_counter_map):
+            logger.warning(
+                f"{self._get_prefix()}HDM Decoder count, 0x{decoder_count_index:X}, "
+                "is not supported"
+            )
+            return 0
+        decoder_count = decoder_counter_map[decoder_count_index]
+        if (
+            self.pci_device_info.get_device_port_type() == PCI_DEVICE_PORT_TYPE.PCI_EXPRESS_ENDPOINT
+            and decoder_count > 10
+        ):
+            logger.warning(
+                f"{self._get_prefix()}CXL device shall not advertise more than 10 decoders"
+            )
+            return 0
+
+        logger.info(f"{self._get_prefix()}Total of {decoder_count} decoders are supported")
+        return decoder_count
+
+    async def _get_next_available_decoder_index(self, register_base_address: int) -> Optional[int]:
+        decoder_count = await self._get_hdm_decoder_count(register_base_address)
+        if decoder_count == 0:
+            return None
+
+        next_available_decoder = None
+        for decoder_index in range(decoder_count):
+            register_offset = 0x20 + decoder_index * 0x20 + register_base_address
+            register_value = await self.root_complex.read_mmio(
+                register_offset, CXL_HDM_DECODER_CONTROL_REGISTER_SIZE
+            )
+            is_committed = bool(register_value & CXL_HDM_DECODER_CONTROL_REGISTER_COMMITTED_MASK)
+            if not is_committed:
+                next_available_decoder = decoder_index
+                break
+        return next_available_decoder
+
+    async def _configure_hdm_decoder_common(
+        self,
+        register_base_address: int,
+        decoder_index: int,
+        hpa_base: int,
+        hpa_size: int,
+        interleaving_granularity: int = 0,
+        interleaving_way: int = 0,
+    ):
+        decoder_base_low_offset = 0x20 * decoder_index + 0x10 + register_base_address
+        decoder_base_high_offset = 0x20 * decoder_index + 0x14 + register_base_address
+        decoder_size_low_offset = 0x20 * decoder_index + 0x18 + register_base_address
+        decoder_size_high_offset = 0x20 * decoder_index + 0x1C + register_base_address
+        decoder_control_register_offset = 0x20 * decoder_index + 0x20 + register_base_address
+
+        commit = 1
+
+        decoder_base_low = hpa_base & 0xFFFFFFFF
+        decoder_base_high = (hpa_base >> 32) & 0xFFFFFFFF
+        decoder_size_low = hpa_size & 0xFFFFFFFF
+        decoder_size_high = (hpa_size >> 32) & 0xFFFFFFFF
+
+        decoder_control = (
+            interleaving_granularity & 0xF | (interleaving_way & 0xF) << 4 | commit << 9
+        )
+
+        logger.info(f"{self._get_prefix()}HDM Decoder {decoder_index}, HPA Base: 0x{hpa_base:x}")
+        logger.info(f"{self._get_prefix()}HDM Decoder {decoder_index}, HPA Size: 0x{hpa_size:x}")
+
+        await self.root_complex.write_mmio(decoder_base_low_offset, 4, decoder_base_low)
+        await self.root_complex.write_mmio(decoder_base_high_offset, 4, decoder_base_high)
+        await self.root_complex.write_mmio(decoder_size_low_offset, 4, decoder_size_low)
+        await self.root_complex.write_mmio(decoder_size_high_offset, 4, decoder_size_high)
+        await self.root_complex.write_mmio(decoder_control_register_offset, 4, decoder_control)
+
+        logger.info(f"{self._get_prefix()}Waiting until the decoder is committed")
+        committed = False
+        while not committed:
+            control = await self.root_complex.read_mmio(decoder_control_register_offset, 4)
+            committed = bool(control & CXL_HDM_DECODER_CONTROL_REGISTER_COMMITTED_MASK)
+
+    async def configure_hdm_decoder_device(
+        self,
+        hpa_base: int,
+        hpa_size: int,
+        dpa_skip: int = 0,
+        interleaving_granularity: int = 0,
+        interleaving_way: int = 0,
+    ) -> bool:
+        hdm_decoder = self.get_cachemem_register_by_id(
+            CXL_CACHEMEM_REGISTER_CAPABILITY_ID.CXL_HDM_DECODER
+        )
+
+        if not hdm_decoder:
+            logger.warning(f"{self._get_prefix()} HDM Decoder Register not found")
+            return False
+
+        register_base_address = hdm_decoder.address
+        decoder_index = await self._get_next_available_decoder_index(register_base_address)
+        if decoder_index is None:
+            logger.warning(f"{self._get_prefix()}Not found any available HDM decoders")
+            return False
+
+        logger.debug(
+            f"{self._get_prefix()}HDM Decoder Capability Offset: 0x{register_base_address:x}"
+        )
+        logger.info(f"{self._get_prefix()}Setting HDM Decoder {decoder_index} from CXL Device")
+
+        dpa_skip_low_offset = 0x20 * decoder_index + 0x24 + register_base_address
+        dpa_skip_high_offset = 0x20 * decoder_index + 0x28 + register_base_address
+        dpa_skip_low = dpa_skip & 0xFFFFFFFF
+        dpa_skip_high = (dpa_skip >> 32) & 0xFFFFFFFF
+        await self.root_complex.write_mmio(dpa_skip_low_offset, 4, dpa_skip_low)
+        await self.root_complex.write_mmio(dpa_skip_high_offset, 4, dpa_skip_high)
+
+        await self._configure_hdm_decoder_common(
+            register_base_address,
+            decoder_index,
+            hpa_base,
+            hpa_size,
+            interleaving_granularity,
+            interleaving_way,
+        )
+
+        logger.info(f"{self._get_prefix()}Successfully configured HDM decoder {decoder_index}")
+        return True
+
+    async def configure_hdm_decoder_switch(
+        self,
+        hpa_base: int,
+        hpa_size: int,
+        target_list: List[int],
+        interleaving_granularity: int = 0,
+        interleaving_way: int = 0,
+    ) -> bool:
+        hdm_decoder = self.get_cachemem_register_by_id(
+            CXL_CACHEMEM_REGISTER_CAPABILITY_ID.CXL_HDM_DECODER
+        )
+
+        if not hdm_decoder:
+            return False
+
+        register_base_address = hdm_decoder.address
+        decoder_index = await self._get_next_available_decoder_index(register_base_address)
+        if decoder_index is None:
+            logger.warning(f"{self._get_prefix()}Not found any available HDM decoders")
+            return False
+
+        register_base_address = hdm_decoder.address
+        logger.debug(
+            f"{self._get_prefix()}HDM Decoder Capability Offset: 0x{register_base_address:x}"
+        )
+        logger.info(f"{self._get_prefix()}Setting HDM Decoder {decoder_index} from Upstream Port")
+        target_list_low_offset = 0x20 * decoder_index + 0x24 + register_base_address
+        target_list_high_offset = 0x20 * decoder_index + 0x28 + register_base_address
+        target_list_low = 0
+        target_list_high = 0
+
+        target_list_str = ", ".join([str(target) for target in target_list])
+        logger.info(
+            f"{self._get_prefix()}HDM Decoder {decoder_index}, Target Ports: {target_list_str}"
+        )
+        for i, _ in enumerate(target_list):
+            if i < 4:
+                target_list_low |= (target_list[i] & 0xFF) << (i * 8)
+            elif i < 8:
+                target_list_high |= (target_list[i] & 0xFF) << ((i - 4) * 8)
+
+        await self.root_complex.write_mmio(target_list_low_offset, 4, target_list_low)
+        await self.root_complex.write_mmio(target_list_high_offset, 4, target_list_high)
+
+        await self._configure_hdm_decoder_common(
+            register_base_address,
+            decoder_index,
+            hpa_base,
+            hpa_size,
+            interleaving_granularity,
+            interleaving_way,
+        )
+
+        logger.info(f"{self._get_prefix()}Successfully configured HDM decoder {decoder_index}")
+        return True
+
+    # pylint: enable=duplicate-code
+
+    def get_memory_size(self) -> int:
+        if not self.device_dvsec:
+            return 0
+        size = 0
+        for range in self.device_dvsec.ranges:
+            size += range.memory_size
+        return size
+
+    def is_upstream_port(self) -> bool:
+        device_port_type = self.pci_device_info.get_device_port_type()
+        return device_port_type == PCI_DEVICE_PORT_TYPE.UPSTREAM_PORT_OF_PCI_EXPRESS_SWITCH
+
+    def is_downstream_port(self) -> bool:
+        device_port_type = self.pci_device_info.get_device_port_type()
+        return device_port_type == PCI_DEVICE_PORT_TYPE.DOWNSTREAM_PORT_OF_PCI_EXPRESS_SWITCH
+
+    def is_cxl_device(self) -> bool:
+        device_port_type = self.pci_device_info.get_device_port_type()
+        return device_port_type == PCI_DEVICE_PORT_TYPE.PCI_EXPRESS_ENDPOINT and self.device_dvsec
+
 
 class CxlBusDriver(LabeledComponent):
     def __init__(
@@ -147,15 +365,18 @@ class CxlBusDriver(LabeledComponent):
         await self._connect_cxl_devices()
         self.display_devices()
 
+    def get_devices(self) -> List[CxlDeviceInfo]:
+        return self._devices
+
     def display_devices(self):
         logger.info(self._create_message("Enumerated CXL Devices"))
         logger.info(self._create_message("=============================="))
         for device in self._devices:
             pci_info = device.pci_device_info
             logger.info(self._create_message(f"BDF              : {bdf_to_string(pci_info.bdf)}"))
-            logger.info(
-                self._create_message(f"Is Bridge        : {'Yes' if pci_info.is_bridge else 'No'}")
-            )
+            device_port_type = pci_info.get_device_port_type()
+            if device_port_type is not None:
+                logger.info(self._create_message(f"Type             : {device_port_type.name}"))
             if device.parent:
                 logger.info(
                     self._create_message(
@@ -426,6 +647,7 @@ class CxlBusDriver(LabeledComponent):
         await self._scan_cachemem_registers(device_info)
 
     async def _scan_cxl_devices(self):
+        self._devices = []
         for device in self._pci_bus_driver.get_devices():
             is_cxl_device = False
             for capability in device.capabilities:
@@ -436,7 +658,7 @@ class CxlBusDriver(LabeledComponent):
                 continue
 
             logger.info(self._create_message(f"Found CXL Device at {bdf_to_string(device.bdf)}"))
-            device_info = CxlDeviceInfo(pci_device_info=device)
+            device_info = CxlDeviceInfo(root_complex=self._root_complex, pci_device_info=device)
             self._devices.append(device_info)
             await self._scan_dvsec(device_info)
             await self._scan_component_register(device_info)
