@@ -32,7 +32,6 @@ from opencxl.drivers.pci_bus_driver import PciBusDriver
 BASE_TEST_PORT = 9300
 
 
-# NOTE: Temporarily commented out due to changes in PCI Bus Driver
 @pytest.mark.asyncio
 async def test_cxl_host_type3_complex_host_ete():
     # pylint: disable=protected-access
