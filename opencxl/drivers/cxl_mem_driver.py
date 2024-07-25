@@ -6,7 +6,6 @@
 """
 
 from typing import List
-from dataclasses import dataclass, field
 from opencxl.util.component import LabeledComponent, Label
 from opencxl.cxl.component.root_complex.root_complex import RootComplex
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver, CxlDeviceInfo

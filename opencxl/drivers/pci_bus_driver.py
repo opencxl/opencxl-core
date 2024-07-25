@@ -131,7 +131,7 @@ class PciDeviceInfo:
             logger.info(f"{prefix}BAR{bar_index} Size        : {bar_info.size}")
 
         if len(self.capabilities) > 0:
-            logger.info(f"{prefix}Capabilities        : {bar_info.size}")
+            logger.info(f"{prefix}Capabilities        :")
             for capability in self.capabilities:
                 if capability.is_extended:
                     supported_cap_id_list = [member.value for member in PCI_EXTENDED_CAPABILITY_ID]
@@ -142,7 +142,8 @@ class PciDeviceInfo:
                         )
                     else:
                         logger.info(
-                            f"{prefix} - Extended Capability ID 0x{capability.id:03X}: 0x{capability.offset:X}"
+                            f"{prefix} - Extended Capability ID 0x{capability.id:03X}: "
+                            f"0x{capability.offset:X}"
                         )
                 else:
                     supported_cap_id_list = [member.value for member in PCI_CAPABILITY_ID]
@@ -151,7 +152,8 @@ class PciDeviceInfo:
                         logger.info(f"{prefix} - {cap_name} Capability: 0x{capability.offset:X}")
                     else:
                         logger.info(
-                            f"{prefix} - Capability ID 0x{capability.id:02X}: 0x{capability.offset:X}"
+                            f"{prefix} - Capability ID 0x{capability.id:02X}: "
+                            f"0x{capability.offset:X}"
                         )
                     if capability.id == PCI_CAPABILITY_ID.PCI_EXPRESS:
                         pxcap = cast(PciExpressCapabilityInfo, capability)
@@ -461,7 +463,8 @@ class PciBusDriver(LabeledComponent):
         if cap_id in support_cap_id_list:
             logger.info(
                 self._create_message(
-                    f"Found {PCI_CAPABILITY_ID(cap_id).name} Capbility at 0x{offset:02X} - ID: 0x{cap_id:02X}"
+                    f"Found {PCI_CAPABILITY_ID(cap_id).name} Capbility at 0x{offset:02X}"
+                    f" - ID: 0x{cap_id:02X}"
                 )
             )
         else:

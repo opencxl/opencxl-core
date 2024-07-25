@@ -141,6 +141,8 @@ class CxlDeviceInfo:
     def _get_prefix(self) -> str:
         return f"[{self.log_prefix}:{self.pci_device_info.get_bdf_string()}] "
 
+    # pylint: disable=duplicate-code
+
     async def _get_hdm_decoder_count(self, register_base_address: int) -> int:
         decoder_counter_map = [1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32]
         hdm_decoder_cap = await self.root_complex.read_mmio(
@@ -149,7 +151,8 @@ class CxlDeviceInfo:
         decoder_count_index = hdm_decoder_cap & 0xF
         if decoder_count_index >= len(decoder_counter_map):
             logger.warning(
-                f"{self._get_prefix()}HDM Decoder count, 0x{decoder_count_index:X}, is not supported"
+                f"{self._get_prefix()}HDM Decoder count, 0x{decoder_count_index:X}, "
+                "is not supported"
             )
             return 0
         decoder_count = decoder_counter_map[decoder_count_index]
@@ -324,6 +327,8 @@ class CxlDeviceInfo:
 
         logger.info(f"{self._get_prefix()}Successfully configured HDM decoder {decoder_index}")
         return True
+
+    # pylint: enable=duplicate-code
 
     def get_memory_size(self) -> int:
         if not self.device_dvsec:
