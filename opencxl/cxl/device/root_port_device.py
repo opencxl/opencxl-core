@@ -9,7 +9,9 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Optional, List, cast
 
-from opencxl.cxl.mmio.component_register.memcache_register.capability import CxlCapabilityIDToName
+from opencxl.cxl.mmio.component_register.memcache_register.capability import (
+    CxlCapabilityIDToName,
+)
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
@@ -94,9 +96,28 @@ class PciCapabilities:
 
 
 @dataclass
-class ComponentRegisters:
+# Should be merged with CxlCapabilityHeaderStructureOptions
+class CxlCapabilities:
+    ras: int = 0
+    security: int = 0
+    link: int = 0
     hdm_decoder: int = 0
+    extended_security: int = 0
+    ide: int = 0
+    snoop_filter: int = 0
+    timeout_isolation: int = 0
+    cache_mem_extended_register: int = 0
+    bi_route_table: int = 0
+    bi_decoder: int = 0
     cache_id_route_table: int = 0
+    cache_id_decoder: int = 0
+    extended_hdm_decoder: int = 0
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 
 @dataclass
@@ -107,7 +128,7 @@ class DeviceEnumerationInfo:
     bars: List[int] = field(default_factory=list)
     mmio_range: MemoryEnumerationInfo = field(default_factory=MemoryEnumerationInfo)
     capabilities: PciCapabilities = field(default_factory=PciCapabilities)
-    component_registers: ComponentRegisters = field(default_factory=ComponentRegisters)
+    component_registers: CxlCapabilities = field(default_factory=CxlCapabilities)
     is_bridge: bool = False
     parent: Optional["DeviceEnumerationInfo"] = None
     children: List["DeviceEnumerationInfo"] = field(default_factory=list)
@@ -606,7 +627,7 @@ class CxlRootPortDevice(RunnableComponent):
             self._create_message(f"Scanning Component Registers at 0x{cxl_cachemem_offset:x}")
         )
 
-        cxl_capability_header = await self.read_mmio(cxl_cachemem_offset, 4, verbose=False)
+        cxl_capability_header = await self.read_mmio(cxl_cachemem_offset, 4)
         cxl_capability_id = cxl_capability_header & 0xFFFF
         cxl_capability_version = (cxl_capability_header >> 16) & 0xF
         cxl_cachemem_version = (cxl_capability_header >> 20) & 0xF
@@ -624,7 +645,7 @@ class CxlRootPortDevice(RunnableComponent):
 
         for header_index in range(array_size):
             header_offset = header_index * 4 + 4 + cxl_cachemem_offset
-            header_info = await self.read_mmio(header_offset, 4, verbose=False)
+            header_info = await self.read_mmio(header_offset, 4)
             cxl_capability_id = header_info & 0xFFFF
             cxl_capability_version = (header_info >> 16) & 0xF
             offset = (header_info >> 20) & 0xFFF
@@ -633,23 +654,9 @@ class CxlRootPortDevice(RunnableComponent):
                     f"Found {CxlCapabilityIDToName.get(cxl_capability_id)} Capability Header"
                 )
             )
-            if cxl_capability_id == 0x0005:
-                hdm_decoder_offset = cxl_cachemem_offset + offset
-                info.component_registers.hdm_decoder = hdm_decoder_offset
-                logger.info(
-                    self._create_message(
-                        f"HDM Decoder Capability Offset: 0x{hdm_decoder_offset:08x}"
-                    )
-                )
-            elif cxl_capability_id == 0x000D:
-                logger.info(self._create_message("Found Cache ID Route Table Capability Header"))
-                route_table_offset = cxl_cachemem_offset + offset
-                info.component_registers.cache_id_route_table = route_table_offset
-                logger.info(
-                    self._create_message(
-                        f"Cache ID Route Table Capability Offset: 0x{route_table_offset:08x}"
-                    )
-                )
+            info.component_registers[CxlCapabilityIDToName.get_original_name(cxl_capability_id)] = (
+                cxl_cachemem_offset + offset
+            )
 
     async def scan_bus(
         self, bus: int, parent: Optional[DeviceEnumerationInfo] = None
