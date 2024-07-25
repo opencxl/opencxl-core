@@ -1097,7 +1097,10 @@ class CxlCacheCacheD2HReqPacket(CxlCacheD2HReqPacket):
     @staticmethod
     # read length is assumed to be 64 for now
     def create(
-        addr: int, cache_id: int, opcode: CXL_CACHE_D2HREQ_OPCODE
+        addr: int,
+        cache_id: int,
+        opcode: CXL_CACHE_D2HREQ_OPCODE,
+        cqid: int = 0,
     ) -> "CxlCacheCacheD2HReqPacket":
         packet = CxlCacheCacheD2HReqPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
@@ -1105,6 +1108,7 @@ class CxlCacheCacheD2HReqPacket(CxlCacheD2HReqPacket):
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_REQ
         packet.d2hreq_header.valid = 0b1
         packet.d2hreq_header.cache_opcode = opcode
+        packet.d2hreq_header.cq_id = cqid
         packet.d2hreq_header.cache_id = cache_id
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")

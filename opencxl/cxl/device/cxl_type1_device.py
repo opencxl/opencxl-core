@@ -6,8 +6,12 @@
 """
 
 # pylint: disable=duplicate-code
-from asyncio import create_task, gather
+from asyncio import CancelledError, Future, Lock, create_task, gather, get_running_loop
+from itertools import cycle
+import math
+from typing import Optional
 from dataclasses import dataclass
+from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 
 from opencxl.cxl.config_space.dvsec.cxl_devices import (
     DvsecCxlCacheableRangeOptions,
@@ -51,11 +55,18 @@ from opencxl.cxl.component.cache_controller import (
 )
 from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
+from opencxl.cxl.transport.transaction import (
+    CXL_CACHE_H2DRSP_CACHE_STATE,
+    CXL_CACHE_H2DRSP_OPCODE,
+    CxlCacheH2DDataPacket,
+    CxlCacheH2DRspPacket,
+)
 from opencxl.cxl.component.device_llc_iogen import (
     DeviceLlcIoGen,
     DeviceLlcIoGenConfig,
 )
 from opencxl.cxl.component.cxl_cache_dcoh import CxlCacheDcoh
+from opencxl.util.number import split_int
 from opencxl.util.number_const import KB, MB
 
 
@@ -93,6 +104,10 @@ class CxlType1Device(RunnableComponent):
             init_callback=self._init_device,
             label=self._label,
         )
+        self._cxl_cache_manager = CxlCacheManager(
+            upstream_fifo=self._upstream_connection.cxl_cache_fifo,
+            label=self._label,
+        )
 
         self._cxl_memory_device_component = None
 
@@ -118,6 +133,9 @@ class CxlType1Device(RunnableComponent):
             device_name=config.device_name, processor_to_cache_fifo=processor_to_cache_fifo
         )
         self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
+
+        self._cqid_gen = cycle(range(0, 4096))
+        self._cqid_assign_lock = Lock()
 
     def _init_device(
         self,
@@ -201,11 +219,92 @@ class CxlType1Device(RunnableComponent):
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
 
-    async def cxl_cache_readline(self, addr: int) -> int:
-        pass
+    async def get_next_cqid(self) -> int:
+        cqid: int
+        async with self._cqid_assign_lock:
+            cqid = next(self._cqid_gen)
+        return cqid
+
+    async def cxl_cache_readline(self, addr: int, cqid: Optional[int] = None) -> Future[int]:
+        loop = get_running_loop()
+        fut_data = loop.create_future()  # ugly solution
+
+        def _listen_check_set_fut(pckt: CxlCacheH2DRspPacket | CxlCacheH2DDataPacket):
+            # for now, ignore the 32B transfer case.
+            if isinstance(pckt, CxlCacheH2DDataPacket):
+                # received a data packet
+                # since we're ignoring the 32B transfer case,
+                # we can just assume this data packet contains everything we want
+                fut_data.set_result(pckt.data)
+                raise CancelledError
+            if (
+                pckt.h2drsp_header.cache_opcode != CXL_CACHE_H2DRSP_OPCODE.GO
+                or pckt.h2drsp_header.rsp_data
+                in (CXL_CACHE_H2DRSP_CACHE_STATE.INVALID, CXL_CACHE_H2DRSP_CACHE_STATE.ERROR)
+            ):
+                raise CancelledError  # terminate the listener and free the cqid
+
+        await self._cxl_cache_manager.send_d2h_req_rdown(addr)
+
+        if not cqid:
+            cqid = await self.get_next_cqid()
+
+        # avoid sequential cacheline writes by maintaining callbacks which are
+        # executed upon retrieval of a Rsp with matching cqid.
+
+        self._cxl_cache_manager.register_cqid_listener(
+            cqid=cqid,
+            cb=_listen_check_set_fut,
+            _timeout=20,
+        )
+
+        return fut_data
+
+    async def cxl_cache_writeline(self, addr: int, data: int, cqid: Optional[int] = None):
+        def _listen_check_send(pckt: CxlCacheH2DRspPacket):
+            """
+            Callback registered to listen for the given CQID.
+            Checks if the host response packet represents an error.
+            If not, sends the requested cacheline write.
+            """
+            # don't need to perform the type check twice
+            # just trust in ourselves!
+            if pckt.h2drsp_header.cache_opcode == CXL_CACHE_H2DRSP_OPCODE.GO_ERR_WRITE_PUL:
+                raise CancelledError  # terminate the listener and free the cqid
+            self._cxl_cache_manager.send_d2h_data(data, pckt.h2drsp_header.rsp_data)
+
+        await self._cxl_cache_manager.send_d2h_req_itomwr(addr, cqid)
+
+        if not cqid:
+            cqid = await self.get_next_cqid()
+
+        # avoid sequential cacheline writes by maintaining callbacks which are
+        # executed upon retrieval of a Rsp with matching cqid.
+        self._cxl_cache_manager.register_cqid_listener(
+            cqid=cqid,
+            cb=_listen_check_send,
+            _timeout=20,
+        )
+
+    async def cxl_cache_readlines(self, addr: int, howmuch: int) -> int:
+        # pylint: disable=not-an-iterable
+        CACHELINE_LENGTH = 64
+        lines = bytearray(max(howmuch, 64))
+        async for l_idx in range(math.ceil(howmuch / CACHELINE_LENGTH)):
+            lines[l_idx * CACHELINE_LENGTH : (l_idx + 1) * CACHELINE_LENGTH] = bytes(
+                await self.cxl_cache_readline(
+                    addr + l_idx * CACHELINE_LENGTH, await self.get_next_cqid()
+                )
+            )
+        return int.from_bytes(lines)
 
     async def cxl_cache_writelines(self, addr: int, data: int, howmuch: int):
-        pass
+        # pylint: disable=not-an-iterable
+        CACHELINE_LENGTH = 64
+        async for l_idx, line in enumerate(split_int(data, howmuch, CACHELINE_LENGTH)):
+            await self.cxl_cache_writeline(
+                addr + l_idx * CACHELINE_LENGTH, line, await self.get_next_cqid()
+            )
 
     async def _run(self):
         # pylint: disable=duplicate-code

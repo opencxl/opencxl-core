@@ -216,8 +216,9 @@ class CxlType2Device(RunnableComponent):
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
 
+    # TODO: change to match more efficient/accurate versions in cxl_type1_device.py
     async def cxl_cache_readline(self, hpa: int) -> Optional[int]:
-        await self._cxl_cache_manager.send_d2h_req_rdonly(hpa)
+        await self._cxl_cache_manager.send_d2h_req_rdown(hpa)
         try:
             async with timeout(3):
                 packet = await self._upstream_connection.cxl_cache_fifo.target_to_host.get()
