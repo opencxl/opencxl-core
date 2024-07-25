@@ -239,8 +239,6 @@ class DvsecCxlDevices(BitMaskedBitStructure):
 
         volatile_only_capacity = identity.volatile_only_capacity * 256 * MB
 
-        print(f"Initialized size: 0x{volatile_only_capacity:08x}")
-
         range1_size_low_options: DvsecCxlRangeSizeLowOptions = {
             "memory_size_low": volatile_only_capacity & 0xFFFFFFFF,
             "is_valid": True,
