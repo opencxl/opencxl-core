@@ -106,6 +106,17 @@ async def test_cxl_host_type3_complex_host_ete():
     async def test_configs():
         await pci_bus_driver.init()
         await cxl_bus_driver.init()
+        bridge_dev = cxl_bus_driver.find_device_by_bdf(256)
+        sld_dev = cxl_bus_driver.find_device_by_bdf(768)
+
+        await bridge_dev.set_hdm_decoder_range(
+            0,
+            sld_dev.device_dvsec.ranges[0].memory_base,
+            sld_dev.device_dvsec.ranges[0].memory_size,
+            [6],
+        )
+
+        await bridge_dev.get_hdm_decoder_range(0)
 
     test_tasks = [
         asyncio.create_task(test_configs()),

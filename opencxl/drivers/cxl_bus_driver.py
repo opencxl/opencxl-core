@@ -8,6 +8,13 @@
 from typing import Optional, List, Dict
 from dataclasses import dataclass, field
 from enum import IntEnum
+from opencxl.cxl.component.hdm_decoder import (
+    HDM_DECODER_COUNT,
+    HDMCOUNT_TO_NUM,
+    INTERLEAVE_GRANULARITY,
+    INTERLEAVE_WAYS,
+    IW_TO_WAYS,
+)
 from opencxl.util.component import LabeledComponent, Label
 from opencxl.cxl.component.root_complex.root_complex import RootComplex
 from opencxl.drivers.pci_bus_driver import PciBusDriver, PciDeviceInfo
@@ -88,6 +95,7 @@ class CxlDeviceDvsecRangeInfo:
     memory_active_timeout: int
     memory_active_degraded: bool
     memory_size: int
+    memory_base: int
 
 
 @dataclass
@@ -108,6 +116,7 @@ class CxlDeviceDvsecInfo:
 @dataclass
 class CxlDeviceInfo:
     pci_device_info: PciDeviceInfo
+    root_complex: RootComplex
     registers: List[CxlRegisterInfo] = field(default_factory=list)
     dvsecs: List[CxlDvsecInfo] = field(default_factory=list)
     cachemem_registers: Dict[int, CxlCacheMemRegisterInfo] = field(default_factory=dict)
@@ -132,6 +141,142 @@ class CxlDeviceInfo:
             return self.cachemem_registers[id]
         return None
 
+    async def read_config(self, bdf: int, offset: int, size: int) -> int:
+        return await self.root_complex.read_config(bdf, offset, size)
+
+    async def write_config(self, bdf: int, offset: int, size: int, value: int):
+        await self.root_complex.write_config(bdf, offset, size, value)
+
+    async def read_mmio(self, address, size) -> int:
+        return await self.root_complex.read_mmio(address, size)
+
+    async def write_mmio(self, address, size, value):
+        await self.root_complex.write_mmio(address, size, value)
+
+    async def get_hdm_decoder_and_target_count(self) -> tuple[HDM_DECODER_COUNT, int]:
+        addr = self.get_cachemem_register_by_id(
+            CXL_CACHEMEM_REGISTER_CAPABILITY_ID.CXL_HDM_DECODER
+        ).address
+        capability = await self.read_mmio(addr, 4)
+        return HDM_DECODER_COUNT(capability & 0xF), (capability & 0xF0)
+
+    def get_hdm_offset(self, decoder_id: int):
+        reg_addr = (
+            self.get_cachemem_register_by_id(
+                CXL_CACHEMEM_REGISTER_CAPABILITY_ID.CXL_HDM_DECODER
+            ).address
+            + 0x20 * decoder_id
+        )
+        return reg_addr
+
+    async def get_hdm_decoder_range(self, decoder_id: int):
+        reg_addr = self.get_hdm_offset(decoder_id)
+
+        mem_base_low_addr = reg_addr + 0x10
+        mem_base_high_addr = reg_addr + 0x14
+        mem_base_low = await self.read_mmio(mem_base_low_addr, 4)
+        mem_base_high = await self.read_mmio(mem_base_high_addr, 4)
+        mem_base = (mem_base_high << 32) | (mem_base_low & 0xF0000000)
+
+        mem_size_low_addr = reg_addr + 0x18
+        mem_size_high_addr = reg_addr + 0x1C
+        mem_size_low = await self.read_mmio(mem_size_low_addr, 4)
+        mem_size_high = await self.read_mmio(mem_size_high_addr, 4)
+        mem_size = (mem_size_high << 32) | (mem_size_low & 0xF0000000)
+        print(f"mem base: 0x{mem_base:016x}, mem size: 0x{mem_size:016x}")
+
+        target_low_addr = reg_addr + 0x24
+        target_high_addr = reg_addr + 0x28
+        target_low = await self.read_mmio(target_low_addr, 4)
+        target_high = await self.read_mmio(target_high_addr, 4)
+        print(f"target_low: 0x{target_low:08x}, target_high: 0x{target_high:08x}")
+        return mem_base, mem_size
+
+    async def set_hdm_decoder_range(
+        self,
+        decoder_id: int,
+        mem_base: int,
+        mem_size: int,
+        target_port: list[int],
+        ig: INTERLEAVE_GRANULARITY = INTERLEAVE_GRANULARITY.SIZE_256B,
+        iw: INTERLEAVE_WAYS = INTERLEAVE_WAYS.WAY_1,
+    ):
+        reg_addr = self.get_hdm_offset(decoder_id)
+
+        decoder_count, target_count = await self.get_hdm_decoder_and_target_count()
+        decoder_count_num = HDMCOUNT_TO_NUM.calc(decoder_count)
+        if decoder_id >= decoder_count_num:
+            raise Exception(f"Only {decoder_count_num} decoders available.")
+        target_port_len = len(target_port)
+        if target_port_len > target_count:
+            raise Exception(f"Only {target_count} target ports available for each decoder.")
+
+        mem_base_low = mem_base & 0xF0000000
+        mem_base_high = (mem_base >> 32) & 0xFFFFFFFF
+        mem_base_low_addr = reg_addr + 0x10
+        await self.write_mmio(mem_base_low_addr, 4, mem_base_low)
+        mem_base_high_addr = reg_addr + 0x14
+        await self.write_mmio(mem_base_high_addr, 4, mem_base_high)
+
+        mem_size_low = mem_size & 0xF0000000
+        mem_size_high = (mem_size >> 32) & 0xFFFFFFFF
+        mem_size_low_addr = reg_addr + 0x18
+        await self.write_mmio(mem_size_low_addr, 4, mem_size_low)
+        mem_size_high_addr = reg_addr + 0x1C
+        await self.write_mmio(mem_size_high_addr, 4, mem_size_high)
+
+        print(f"Writing HDM mem base: 0x{mem_base:016x}, mem size: 0x{mem_size:016x}")
+
+        ctrl_addr = reg_addr + 0x20
+        original_ctrl = await self.read_mmio(ctrl_addr, 4)
+        new_ctrl = (original_ctrl & 0xFFFFFF00) & ((iw << 4) & ig)
+        await self.write_mmio(ctrl_addr, 4, new_ctrl)
+
+        target_low_addr = reg_addr + 0x24
+        target_high_addr = reg_addr + 0x28
+        original_target_low = await self.read_mmio(target_low_addr, 4)
+        original_target_high = await self.read_mmio(target_high_addr, 4)
+
+        new_target_low = original_target_low
+        new_target_high = original_target_high
+
+        iw_ways_num = IW_TO_WAYS.calc(iw)
+
+        for iw_port_id in range(8):
+            if iw_port_id >= target_port_len:
+                break
+
+            if iw_port_id >= iw_ways_num:
+                logger.debug(
+                    f"Setting iw = {iw_ways_num}ways, but more ({target_port_len}) target ports are passed."
+                )
+                break
+
+            cur_port = target_port[iw_port_id]
+            if cur_port < 0:
+                # Don't overwrite this port setting
+                continue
+
+            if cur_port > 255:
+                logger.debug(f"Illegal port number: {cur_port} (max 255)")
+
+            if iw_port_id >= 4:
+                internal_port_id = iw_port_id - 4
+                mask = (~(0xFF << (internal_port_id * 8))) & 0xFFFFFFFF
+                new_target_high &= mask
+                new_target_high |= cur_port << (internal_port_id * 8)
+            else:
+                mask = (~(0xFF << (iw_port_id * 8))) & 0xFFFFFFFF
+                new_target_low &= mask
+                new_target_low |= cur_port << (iw_port_id * 8)
+                print(
+                    f"mask: 0x{mask:08x}, curport: 0x{cur_port:02x}, new_targ_low: 0x{new_target_low:08x}"
+                )
+
+        await self.write_mmio(target_low_addr, 4, new_target_low)
+        if target_port_len > 4:
+            await self.write_mmio(target_high_addr, 4, new_target_high)
+
 
 class CxlBusDriver(LabeledComponent):
     def __init__(
@@ -146,6 +291,13 @@ class CxlBusDriver(LabeledComponent):
         await self._scan_cxl_devices()
         await self._connect_cxl_devices()
         self.display_devices()
+
+    def find_device_by_bdf(self, bdf: int) -> CxlDeviceInfo:
+        for dev in self._devices:
+            if dev.pci_device_info.bdf == bdf:
+                return dev
+
+        raise Exception(f"Cannot find device with bdf {bdf_to_string(bdf)}!")
 
     def display_devices(self):
         logger.info(self._create_message("Enumerated CXL Devices"))
@@ -286,7 +438,7 @@ class CxlBusDriver(LabeledComponent):
         capability = await self._root_complex.read_config(bdf, dvsec_cxl_capability_offset, 2)
         cache_capable = bool(capability & 0x01)
         io_capable = bool(capability & 0x02)
-        mem_capable = capability & 0x04
+        mem_capable = bool(capability & 0x04)
         device_info.device_dvsec = CxlDeviceDvsecInfo(
             cache_capable=cache_capable, io_capable=io_capable, mem_capable=mem_capable
         )
@@ -297,6 +449,11 @@ class CxlBusDriver(LabeledComponent):
             range_size_low_offset = device_dvsec.offset + 0x1C + range_index * 0x10
             size_low = await self._root_complex.read_config(bdf, range_size_low_offset, 4)
 
+            range_base_high_offset = device_dvsec.offset + 0x20 + range_index * 0x10
+            base_high = await self._root_complex.read_config(bdf, range_base_high_offset, 4)
+            range_base_low_offset = device_dvsec.offset + 0x24 + range_index * 0x10
+            base_low = await self._root_complex.read_config(bdf, range_base_low_offset, 4)
+
             memory_info_valid = bool(size_low & 0b1)
             memory_active = bool((size_low >> 1) & 0b1)
             media_type = (size_low >> 2) & 0b111
@@ -305,6 +462,7 @@ class CxlBusDriver(LabeledComponent):
             memory_active_timeout = (size_low >> 13) & 0b111
             memory_active_degraded = bool((size_low >> 16) & 0b1)
             memory_size = (size_high << 32) | (size_low & 0xF0000000)
+            memory_base = (base_high << 32) | (base_low & 0xF0000000)
 
             range_info = CxlDeviceDvsecRangeInfo(
                 memory_info_valid=memory_info_valid,
@@ -315,6 +473,7 @@ class CxlBusDriver(LabeledComponent):
                 memory_active_timeout=memory_active_timeout,
                 memory_active_degraded=memory_active_degraded,
                 memory_size=memory_size,
+                memory_base=memory_base,
             )
             device_info.device_dvsec.ranges.append(range_info)
 
@@ -436,7 +595,7 @@ class CxlBusDriver(LabeledComponent):
                 continue
 
             logger.info(self._create_message(f"Found CXL Device at {bdf_to_string(device.bdf)}"))
-            device_info = CxlDeviceInfo(pci_device_info=device)
+            device_info = CxlDeviceInfo(pci_device_info=device, root_complex=self._root_complex)
             self._devices.append(device_info)
             await self._scan_dvsec(device_info)
             await self._scan_component_register(device_info)

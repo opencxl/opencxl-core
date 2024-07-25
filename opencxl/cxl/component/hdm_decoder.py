@@ -30,6 +30,39 @@ class HDM_DECODER_COUNT(IntEnum):
     DECODER_32 = 0xC
 
 
+class INTERLEAVE_GRANULARITY(IntEnum):
+    SIZE_256B = 0x0
+    SIZE_512B = 0x1
+    SIZE_1KB = 0x2
+    SIZE_2KB = 0x3
+    SIZE_4KB = 0x4
+    SIZE_8KB = 0x5
+    SIZE_16KB = 0x6
+
+
+class INTERLEAVE_WAYS(IntEnum):
+    WAY_1 = 0x0
+    WAY_2 = 0x1
+    WAY_4 = 0x2
+    WAY_8 = 0x3
+    WAY_16 = 0x4
+    WAY_3 = 0x8
+    WAY_6 = 0x9
+    WAY_12 = 0xA
+
+
+class IW_TO_WAYS:
+    @staticmethod
+    def calc(value: INTERLEAVE_WAYS) -> int:
+        return int((value.name).split("_")[-1])
+
+
+class HDMCOUNT_TO_NUM:
+    @staticmethod
+    def calc(value: HDM_DECODER_COUNT) -> int:
+        return int((value.name).split("_")[-1])
+
+
 class HdmDecoderCapabilities(TypedDict):
     # pylint: disable=duplicate-code
     decoder_count: HDM_DECODER_COUNT
@@ -50,8 +83,8 @@ class HdmDecoderBase:
     index: int = 0
     size: int = 0
     base: int = 0
-    ig: int = 0  # interleave granularity
-    iw: int = 0  # interleave ways
+    ig: INTERLEAVE_GRANULARITY = INTERLEAVE_GRANULARITY.SIZE_256B  # interleave granularity
+    iw: INTERLEAVE_WAYS = INTERLEAVE_WAYS.WAY_1  # interleave ways
 
     def is_hpa_in_range(self, hpa: int) -> bool:
         return self.base <= hpa < (self.base + self.size)
@@ -187,7 +220,7 @@ class DeviceHdmDecoderManager(HdmDecoderManagerBase):
 
         decoder_commit_info = (
             f"[Decoder Commit] index: {index}, base: 0x{decoder.base:x}, size: 0x{decoder.size:x}, "
-            + f"ig: {decoder.ig}, iw: {decoder.iw}, dpa skip: {str(decoder.dpa_skip)}"
+            + f"ig: {decoder.ig.name}, iw: {decoder.iw.name}, dpa skip: {str(decoder.dpa_skip)}"
         )
         logger.info(self._create_message(decoder_commit_info))
 
@@ -236,7 +269,7 @@ class SwitchHdmDecoderManager(HdmDecoderManagerBase):
 
         decoder_commit_info = (
             f"[Decoder Commit] index: {index}, base: 0x{decoder.base:x}, size: 0x{decoder.size:x}, "
-            + f"ig: {decoder.ig}, iw: {decoder.iw}, target ports: {str(decoder.target_ports)}"
+            + f"ig: {decoder.ig.name}, iw: {decoder.iw.name}, target ports: {str(decoder.target_ports)}"
         )
         logger.info(self._create_message(decoder_commit_info))
         return True
