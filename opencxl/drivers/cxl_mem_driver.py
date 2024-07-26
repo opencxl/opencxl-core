@@ -20,6 +20,8 @@ class CxlMemDriver(LabeledComponent):
         self._root_complex = root_complex
         self._cxl_bus_driver = cxl_bus_driver
         self._devices: List[CxlDeviceInfo] = []
+
+    async def init(self):
         self.scan_mem_devices()
 
     def scan_mem_devices(self):

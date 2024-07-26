@@ -8,6 +8,10 @@
 from typing import Optional, List, Dict
 from dataclasses import dataclass, field
 from enum import IntEnum
+from opencxl.cxl.component.hdm_decoder import (
+    HDM_DECODER_COUNT,
+    HDM_COUNT_TO_NUM,
+)
 from opencxl.util.component import LabeledComponent, Label
 from opencxl.cxl.component.root_complex.root_complex import RootComplex
 from opencxl.pci.component.pci import PCI_DEVICE_PORT_TYPE
@@ -92,6 +96,7 @@ class CxlDeviceDvsecRangeInfo:
     memory_active_timeout: int
     memory_active_degraded: bool
     memory_size: int
+    memory_base: int
 
 
 @dataclass
@@ -144,18 +149,17 @@ class CxlDeviceInfo:
     # pylint: disable=duplicate-code
 
     async def _get_hdm_decoder_count(self, register_base_address: int) -> int:
-        decoder_counter_map = [1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32]
         hdm_decoder_cap = await self.root_complex.read_mmio(
             register_base_address, CXL_HDM_DECODER_CAPABILITY_REGISTER_SIZE
         )
-        decoder_count_index = hdm_decoder_cap & 0xF
-        if decoder_count_index >= len(decoder_counter_map):
+        decoder_count_index = HDM_DECODER_COUNT(hdm_decoder_cap & 0xF)
+        if decoder_count_index >= len(HDM_DECODER_COUNT):
             logger.warning(
                 f"{self._get_prefix()}HDM Decoder count, 0x{decoder_count_index:X}, "
                 "is not supported"
             )
             return 0
-        decoder_count = decoder_counter_map[decoder_count_index]
+        decoder_count = HDM_COUNT_TO_NUM.calc(decoder_count_index)
         if (
             self.pci_device_info.get_device_port_type() == PCI_DEVICE_PORT_TYPE.PCI_EXPRESS_ENDPOINT
             and decoder_count > 10
@@ -507,7 +511,7 @@ class CxlBusDriver(LabeledComponent):
         capability = await self._root_complex.read_config(bdf, dvsec_cxl_capability_offset, 2)
         cache_capable = bool(capability & 0x01)
         io_capable = bool(capability & 0x02)
-        mem_capable = capability & 0x04
+        mem_capable = bool(capability & 0x04)
         device_info.device_dvsec = CxlDeviceDvsecInfo(
             cache_capable=cache_capable, io_capable=io_capable, mem_capable=mem_capable
         )
@@ -518,6 +522,11 @@ class CxlBusDriver(LabeledComponent):
             range_size_low_offset = device_dvsec.offset + 0x1C + range_index * 0x10
             size_low = await self._root_complex.read_config(bdf, range_size_low_offset, 4)
 
+            range_base_high_offset = device_dvsec.offset + 0x20 + range_index * 0x10
+            base_high = await self._root_complex.read_config(bdf, range_base_high_offset, 4)
+            range_base_low_offset = device_dvsec.offset + 0x24 + range_index * 0x10
+            base_low = await self._root_complex.read_config(bdf, range_base_low_offset, 4)
+
             memory_info_valid = bool(size_low & 0b1)
             memory_active = bool((size_low >> 1) & 0b1)
             media_type = (size_low >> 2) & 0b111
@@ -526,6 +535,7 @@ class CxlBusDriver(LabeledComponent):
             memory_active_timeout = (size_low >> 13) & 0b111
             memory_active_degraded = bool((size_low >> 16) & 0b1)
             memory_size = (size_high << 32) | (size_low & 0xF0000000)
+            memory_base = (base_high << 32) | (base_low & 0xF0000000)
 
             range_info = CxlDeviceDvsecRangeInfo(
                 memory_info_valid=memory_info_valid,
@@ -536,6 +546,7 @@ class CxlBusDriver(LabeledComponent):
                 memory_active_timeout=memory_active_timeout,
                 memory_active_degraded=memory_active_degraded,
                 memory_size=memory_size,
+                memory_base=memory_base,
             )
             device_info.device_dvsec.ranges.append(range_info)
 
