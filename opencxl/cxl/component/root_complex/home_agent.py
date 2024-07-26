@@ -143,11 +143,13 @@ class HomeAgent(RunnableComponent):
             packet = CxlMemMemWrPacket.create(address + (chunk_count * 64), low_64_byte)
             await self._downstream_cxl_mem_fifos.host_to_target.put(packet)
             try:
+                # Does not work since target_to_host queue conflicts with
+                # _process_downstream_target_to_host_packets
                 async with asyncio.timeout(3):
                     packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
             except asyncio.exceptions.TimeoutError:
                 logger.error(self._create_message("CXL.mem Write: Timed-out"))
-                return None
+                return
             size -= 64
             chunk_count += 1
             value >>= 64 * 8
@@ -164,6 +166,8 @@ class HomeAgent(RunnableComponent):
             await self._downstream_cxl_mem_fifos.host_to_target.put(packet)
 
             try:
+                # Does not work since target_to_host queue conflicts with
+                # _process_downstream_target_to_host_packets
                 async with asyncio.timeout(3):
                     packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
                 assert is_cxl_mem_data(packet)
@@ -314,6 +318,7 @@ class HomeAgent(RunnableComponent):
                 await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
 
             elif base_packet.is_s2mdrs():
+                print("At this DRS")
                 packet = cast(CxlMemS2MDRSPacket, cxl_packet)
                 cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, packet.data)
                 await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)

@@ -55,7 +55,14 @@ async def test_cxl_host_type3_complex_host_ete():
         switch_configs=switch_configs, physical_port_manager=physical_port_manager
     )
 
-    sld = SingleLogicalDevice(
+    # sld = SingleLogicalDevice(
+    #     port_index=1,
+    #     memory_size=1024 * MB,  # min 256MB, or will cause error for DVSEC
+    #     memory_file=f"mem{switch_port}.bin",
+    #     port=switch_port,
+    # )
+
+    sld = MyType2Accelerator(
         port_index=1,
         memory_size=1024 * MB,  # min 256MB, or will cause error for DVSEC
         memory_file=f"mem{switch_port}.bin",
@@ -122,6 +129,10 @@ async def test_cxl_host_type3_complex_host_ete():
             )
             if successful:
                 next_available_hpa_base += size
+
+        # await host._host_simple_processor.store(hpa_base, 0x40, 0xAAAAAAAA)
+        # await sld._cxl_type2_device.cxl_cache_readline(0x00000000)
+        await sld._cxl_type2_device._cxl_cache_manager.send_d2h_req_test()
 
     test_tasks = [
         asyncio.create_task(test_configs()),

@@ -106,21 +106,24 @@ class CxlMemManager(PacketProcessor):
             logger.debug(self._create_message("Received incoming packet"))
             cxl_mem_packet = cast(CxlMemBasePacket, packet)
 
+            print(self._create_message("DEV Received incoming packet"))
             if cxl_mem_packet.is_m2sreq():
                 m2sreq_packet = cast(CxlMemM2SReqPacket, packet)
-                if m2sreq_packet.is_mem_rd():
+                if m2sreq_packet.is_mem_rd() or m2sreq_packet.is_mem_inv():
                     await self._process_cxl_mem_rd_packet(cast(CxlMemMemRdPacket, m2sreq_packet))
                 else:
+                    print(m2sreq_packet.get_pretty_string())
                     raise Exception(
-                        f"Unsupported MEM Opcode: {m2sreq_packet.m2sreq_header.mem_opcode}"
+                        f"Unsupported MEM Opcode for Req: {m2sreq_packet.m2sreq_header.mem_opcode}"
                     )
             elif cxl_mem_packet.is_m2srwd():
                 m2srwd_packet = cast(CxlMemM2SRwDPacket, packet)
                 if m2srwd_packet.is_mem_wr():
                     await self._process_cxl_mem_wr_packet(cast(CxlMemMemWrPacket, m2srwd_packet))
                 else:
+                    print(m2srwd_packet.get_pretty_string())
                     raise Exception(
-                        f"Unsupported MEM Opcode: {m2srwd_packet.m2srwd_header.mem_opcode}"
+                        f"Unsupported MEM Opcode for RwD: {m2srwd_packet.m2srwd_header.mem_opcode}"
                     )
             elif cxl_mem_packet.is_m2sbirsp():
                 m2sbirsp_packet = cast(CxlMemM2SBIRspPacket, packet)

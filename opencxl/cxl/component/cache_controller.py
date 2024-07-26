@@ -190,7 +190,7 @@ class CacheController(RunnableComponent):
         packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, address)
         await self._cache_to_coh_agent_fifo.request.put(packet)
         packet = await self._cache_to_coh_agent_fifo.response.get()
-
+        print(packet.status.name)
         assert packet.status == CACHE_RESPONSE_STATUS.RSP_I
 
     # For response: coherency tasks from coh module to cache controller

@@ -290,7 +290,7 @@ class CxlMemRouter(CxlRouter):
             packet = await self._upstream_connection_fifo.host_to_target.get()
             if packet is None:
                 break
-
+            print("_process_host_to_target_packets?")
             target_port = None
 
             cxl_mem_base_packet = cast(CxlMemBasePacket, packet)
@@ -338,7 +338,9 @@ class CxlMemRouter(CxlRouter):
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
+            print("_process_target_to_host_packets?")
             cxl_mem_base_packet: CxlMemBasePacket = cast(CxlMemBasePacket, packet)
+            print(cxl_mem_base_packet)
             if cxl_mem_base_packet.is_s2mbisnp():
                 # NOTE: Following vars might be uninitialized before while
                 bi_id = dsp_device.get_secondary_bus_number()
@@ -374,14 +376,19 @@ class CxlCacheRouter(CxlRouter):
         vcs_id: int,
         routing_table: RoutingTable,
         usp_device: UpstreamPortDevice,
-        vppb_connections: List[CxlConnection],
+        port_binder: PortBinder,
     ):
         super().__init__(vcs_id, routing_table)
+        usp_connection = usp_device.get_downstream_connection()
         self._usp_device = usp_device
-        usp_connection = self._usp_device.get_downstream_connection()
-        self._upstream_connection = usp_connection.cxl_cache_fifo
-        self._downstream_connections = [
-            vppb_connection.cxl_cache_fifo for vppb_connection in vppb_connections
+        self._port_binder = port_binder
+
+        super().__init__(vcs_id, routing_table)
+        self._upstream_connection_fifo = usp_connection.cxl_cache_fifo
+        self._downstream_connections = port_binder.get_bind_slots()
+        self._downstream_connection_fifos = [
+            self._downstream_connections[i].vppb_connection.cxl_cache_fifo
+            for i in range(len(self._downstream_connections))
         ]
 
     async def _process_host_to_target_packets(self):
@@ -389,6 +396,8 @@ class CxlCacheRouter(CxlRouter):
             packet = await self._upstream_connection_fifo.host_to_target.get()
             if packet is None:
                 break
+
+            print("_process_host_to_target_packets?")
 
             cxl_cache_base_packet = cast(CxlCacheBasePacket, packet)
             if cxl_cache_base_packet.is_h2dreq():
@@ -412,17 +421,22 @@ class CxlCacheRouter(CxlRouter):
             if target_fld_name not in usp_component.get_cache_route_table_options:
                 logger.warning(self._create_message("Received unroutable CXL.cache packet"))
                 continue
-            target_port = usp_component.get_cache_route_table_options[target_fld_name][
+            target_port: int = usp_component.get_cache_route_table_options[target_fld_name][
                 "port_number"
             ]
+            if target_port is None:
+                logger.warning(self._create_message("Received unroutable CXL.cache packet"))
+                continue
+            if target_port >= len(self._downstream_connections):
+                raise Exception("target_port is out of bound")
+            downstream_connection_fifo = self._downstream_connections[
+                target_port
+            ].vppb_connection.cxl_cache_fifo
 
             if target_port >= len(self._downstream_connections):
                 raise Exception("target_port is out of bound")
 
-            downstream_connection = self._downstream_connections[
-                target_port
-            ].vppb_connection.cxl_cache_fifo
-            await downstream_connection.host_to_target.put(packet)
+            await downstream_connection_fifo.host_to_target.put(packet)
 
     async def _process_target_to_host_packets(self, downstream_connection_bind_slot: BindSlot):
         downstream_connection_fifo = downstream_connection_bind_slot.vppb_connection.cxl_cache_fifo
@@ -431,9 +445,13 @@ class CxlCacheRouter(CxlRouter):
         dsp_component = dsp_device.get_cxl_component()
 
         while True:
+            print("WAITING FOR PACKET")
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
+
+            print("_process_target_to_host_packets?")
+            print(packet)
             cxl_cache_base_packet = cast(CxlCacheBasePacket, packet)
 
             # See CXL 3.0 specification: Section 9.15.2
