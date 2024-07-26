@@ -143,8 +143,6 @@ class HomeAgent(RunnableComponent):
             packet = CxlMemMemWrPacket.create(address + (chunk_count * 64), low_64_byte)
             await self._downstream_cxl_mem_fifos.host_to_target.put(packet)
             try:
-                # Does not work since target_to_host queue conflicts with
-                # _process_downstream_target_to_host_packets
                 async with asyncio.timeout(3):
                     packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
             except asyncio.exceptions.TimeoutError:
