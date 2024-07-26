@@ -332,12 +332,16 @@ class CxlMemDcoh(PacketProcessor):
                 await self._cache_to_coh_agent_fifo.response.put(packet)
             elif packet.type == CACHE_REQUEST_TYPE.WRITE:
                 await self._memory_device_component.write_mem(addr, packet.data)
+                packet = CacheResponse(CACHE_RESPONSE_STATUS.OK)
+                await self._cache_to_coh_agent_fifo.response.put(packet)
             else:
                 # host cache snoop filter miss
                 if not self._sf_host_is_hit(addr):
                     if packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
                         sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_OUT)
                         await self._memory_device_component.write_mem(addr, packet.data)
+                        packet = CacheResponse(CACHE_RESPONSE_STATUS.OK)
+                        await self._cache_to_coh_agent_fifo.response.put(packet)
                     else:
                         if packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
                             sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
@@ -355,6 +359,8 @@ class CxlMemDcoh(PacketProcessor):
                     if packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
                         sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_OUT)
                         await self._memory_device_component.write_mem(addr, packet.data)
+                        packet = CacheResponse(CACHE_RESPONSE_STATUS.OK)
+                        await self._cache_to_coh_agent_fifo.response.put(packet)
                     else:
                         if packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
                             sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)

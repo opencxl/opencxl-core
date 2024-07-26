@@ -967,7 +967,7 @@ class CxlCacheH2DDataHeader(UnalignedBitStructure):
         BitField("poison", 13, 13),
         BitField("go_err", 14, 14),
         BitField("cache_id", 15, 18),
-        BitField("rsvd", 19, 27),
+        BitField("rsvd", 19, 23),
     ]
 
 
@@ -1149,13 +1149,16 @@ class CxlCacheCacheD2HDataPacket(CxlCacheD2HDataPacket):
 class CxlCacheCacheH2DReqPacket(CxlCacheH2DReqPacket):
     @staticmethod
     # read length is assumed to be 64 for now
-    def create(addr: int, opcode: CXL_CACHE_H2DREQ_OPCODE) -> "CxlCacheCacheH2DReqPacket":
+    def create(
+        addr: int, cache_id: int, opcode: CXL_CACHE_H2DREQ_OPCODE
+    ) -> "CxlCacheCacheH2DReqPacket":
         packet = CxlCacheCacheH2DReqPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_REQ
         packet.h2dreq_header.valid = 0b1
         packet.h2dreq_header.cache_opcode = opcode
+        packet.h2dreq_header.cache_id = cache_id
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         packet.h2dreq_header.addr = addr >> 6
@@ -1166,7 +1169,7 @@ class CxlCacheCacheH2DRspPacket(CxlCacheH2DRspPacket):
     @staticmethod
     # read length is assumed to be 64 for now
     def create(
-        opcode: CXL_CACHE_H2DRSP_OPCODE, rsp_data: CXL_CACHE_H2DRSP_CACHE_STATE
+        cache_id: int, opcode: CXL_CACHE_H2DRSP_OPCODE, rsp_data: CXL_CACHE_H2DRSP_CACHE_STATE
     ) -> "CxlCacheCacheH2DRspPacket":
         packet = CxlCacheCacheH2DRspPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
@@ -1174,18 +1177,20 @@ class CxlCacheCacheH2DRspPacket(CxlCacheH2DRspPacket):
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_RSP
         packet.h2drsp_header.valid = 0b1
         packet.h2drsp_header.cache_opcode = opcode
+        packet.h2drsp_header.cache_id = cache_id
         packet.h2drsp_header.rsp_data = rsp_data
         return packet
 
 
 class CxlCacheCacheH2DDataPacket(CxlCacheH2DDataPacket):
     @staticmethod
-    def create(data: int) -> "CxlCacheCacheH2DDataPacket":
+    def create(cache_id: int, data: int) -> "CxlCacheCacheH2DDataPacket":
         packet = CxlCacheCacheH2DDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
         packet.h2ddata_header.valid = 0b1
+        packet.h2ddata_header.cache_id = cache_id
         packet.data = data
         return packet
 
