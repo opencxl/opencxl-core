@@ -114,7 +114,7 @@ async def test_cxl_host_type3_complex_host_ete():
         hpa_base = 0xA0000000
         next_available_hpa_base = hpa_base
 
-        print(cxl_mem_driver.get_devices())
+        logger.debug(cxl_mem_driver.get_devices())
         for device in cxl_mem_driver.get_devices():
             size = device.get_memory_size()
             successful = await cxl_mem_driver.attach_single_mem_device(
@@ -122,19 +122,6 @@ async def test_cxl_host_type3_complex_host_ete():
             )
             if successful:
                 next_available_hpa_base += size
-
-        # For testing CXL.mem read/write
-        # Does not work even after setting HDM decoder
-        # Commented for now for the bug fix
-        # data = 0x00000000
-        # for i in range(16):
-        #     data <<= 32
-        #     data |= int(str(f"{i:x}") * 8, 16)
-
-        # await host._root_complex.write_cxl_mem(hpa_base + 0x40, 0x40, data)
-        # data_read = await host._root_complex.read_cxl_mem(hpa_base + 0x40, 0x40)
-
-        # assert data == data_read
 
     test_tasks = [
         asyncio.create_task(test_configs()),

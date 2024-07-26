@@ -153,7 +153,7 @@ class HomeAgent(RunnableComponent):
             value >>= 64 * 8
 
     async def read_cxl_mem(self, address: int, size: int) -> int:
-        if address % 64 != 0 or size % 64 != 0:
+        if address % 64 or size % 64:
             raise Exception("Size and address must be aligned to 64!")
 
         result = 0
