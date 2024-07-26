@@ -320,9 +320,7 @@ class CacheCoherencyBridge(RunnableComponent):
                             opcode = CXL_CACHE_H2DREQ_OPCODE.SNP_DATA
                         elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_CUR:
                             opcode = CXL_CACHE_H2DREQ_OPCODE.SNP_CUR
-                        await self._snoop_read_latest_data(
-                            addr, self._cur_state.cache_list, opcode
-                        )
+                        await self._snoop_read_latest_data(addr, self._cur_state.cache_list, opcode)
                         self._cur_state.state = COH_STATE_MACHINE.COH_STATE_WAIT
 
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
