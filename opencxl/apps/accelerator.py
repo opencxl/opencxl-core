@@ -84,15 +84,15 @@ class MyType1Accelerator(RunnableComponent):
             ]
         )
 
-        # self._train_dataset = datasets.ImageFolder(root="train", transform=self.tensorify)
-        # self._train_dataloader = DataLoader(
-        #    self.train_dataset, batch_size=32, shuffle=True, num_workers=4
-        # )
+        self._train_dataset = datasets.ImageFolder(root="train", transform=self.transform)
+        self._train_dataloader = DataLoader(
+            self._train_dataset, batch_size=32, shuffle=True, num_workers=4
+        )
 
-        # self._test_dataset = datasets.ImageFolder(root="val", transform=self.tensorify)
-        # self._test_dataloader = DataLoader(
-        #    self.test_dataset, batch_size=10, shuffle=True, num_workers=4
-        # )
+        self._test_dataset = datasets.ImageFolder(root="val", transform=self.transform)
+        self._test_dataloader = DataLoader(
+            self._train_dataset, batch_size=10, shuffle=True, num_workers=4
+        )
 
         self._irq_manager = IrqManager(
             server_bind_port=irq_listen_port,
@@ -329,6 +329,7 @@ class MyType2Accelerator(RunnableComponent):
     start training, and read the class probabilities after training concludes.
     """
 
+    # pylint: disable=unused-argument
     def __init__(
         self,
         port_index: int,
@@ -354,37 +355,41 @@ class MyType2Accelerator(RunnableComponent):
         self._cxl_type2_device = CxlType2Device(device_config)
         self.accel_dirname = f"T2Accel@{self._label}"
 
-        # # Model setup
-        # self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
+        # Don't run the following code for now
+        # pylint: disable=unreachable
+        return
 
-        # # Reset the classification head and freeze params
-        # self.model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
-        # for p in self.model.features.parameters():
-        #     p.requires_grad = False
-        # summary(self.model, input_size=(1, 3, 160, 160))
+        # Model setup
+        self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
 
-        # self.transform = transforms.Compose(
-        #     [
-        #         transforms.Resize((160, 160)),
-        #         transforms.ToTensor(),
-        #     ]
-        # )
+        # Reset the classification head and freeze params
+        self.model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
+        for p in self.model.features.parameters():
+            p.requires_grad = False
+        summary(self.model, input_size=(1, 3, 160, 160))
 
-        # self._train_dataset = datasets.ImageFolder(root="train", transform=self.tensorify)
-        # self._train_dataloader = DataLoader(
-        #    self.train_dataset, batch_size=32, shuffle=True, num_workers=4
-        # )
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize((160, 160)),
+                transforms.ToTensor(),
+            ]
+        )
 
-        # self._test_dataset = datasets.ImageFolder(root="val", transform=self.tensorify)
-        # self._test_dataloader = DataLoader(
-        #    self.test_dataset, batch_size=10, shuffle=True, num_workers=4
-        # )
+        self._train_dataset = datasets.ImageFolder(root="train", transform=self.transform)
+        self._train_dataloader = DataLoader(
+            self._train_dataset, batch_size=32, shuffle=True, num_workers=4
+        )
 
-        # self._irq_manager = IrqManager(
-        #     server_bind_port=irq_listen_port,
-        #     client_target_port=[irq_send_port],
-        #     device_name=label,
-        # )
+        self._test_dataset = datasets.ImageFolder(root="val", transform=self.transform)
+        self._test_dataloader = DataLoader(
+            self._train_dataset, batch_size=10, shuffle=True, num_workers=4
+        )
+
+        self._irq_manager = IrqManager(
+            server_bind_port=irq_listen_port,
+            client_target_port=[irq_send_port],
+            device_name=label,
+        )
 
         # self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
         # self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)

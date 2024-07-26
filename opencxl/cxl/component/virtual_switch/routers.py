@@ -13,7 +13,7 @@ from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.util.pci import bdf_to_string
 from opencxl.util.number import tlptoh16
-from opencxl.cxl.component.cxl_connection import CxlConnection, FifoPair
+from opencxl.cxl.component.cxl_connection import FifoPair
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BindSlot
@@ -290,7 +290,7 @@ class CxlMemRouter(CxlRouter):
             packet = await self._upstream_connection_fifo.host_to_target.get()
             if packet is None:
                 break
-            print("_process_host_to_target_packets?")
+
             target_port = None
 
             cxl_mem_base_packet = cast(CxlMemBasePacket, packet)
@@ -338,9 +338,8 @@ class CxlMemRouter(CxlRouter):
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
-            print("_process_target_to_host_packets?")
+
             cxl_mem_base_packet: CxlMemBasePacket = cast(CxlMemBasePacket, packet)
-            print(cxl_mem_base_packet)
             if cxl_mem_base_packet.is_s2mbisnp():
                 # NOTE: Following vars might be uninitialized before while
                 bi_id = dsp_device.get_secondary_bus_number()
@@ -397,8 +396,6 @@ class CxlCacheRouter(CxlRouter):
             if packet is None:
                 break
 
-            print("_process_host_to_target_packets?")
-
             cxl_cache_base_packet = cast(CxlCacheBasePacket, packet)
             if cxl_cache_base_packet.is_h2dreq():
                 cxl_cache_packet = cast(CxlCacheH2DReqPacket, packet)
@@ -449,8 +446,6 @@ class CxlCacheRouter(CxlRouter):
             if packet is None:
                 break
 
-            print("_process_target_to_host_packets?")
-            print(packet)
             cxl_cache_base_packet = cast(CxlCacheBasePacket, packet)
 
             # See CXL 3.0 specification: Section 9.15.2

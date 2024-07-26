@@ -316,7 +316,6 @@ class HomeAgent(RunnableComponent):
                 await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
 
             elif base_packet.is_s2mdrs():
-                print("At this DRS")
                 packet = cast(CxlMemS2MDRSPacket, cxl_packet)
                 cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, packet.data)
                 await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
