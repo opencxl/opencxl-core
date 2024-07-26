@@ -139,7 +139,7 @@ class HomeAgent(RunnableComponent):
         while size > 0:
             message = self._create_message(f"CXL.mem: Writing 0x{value:08x} to 0x{address:08x}")
             logger.debug(message)
-            low_64_byte = value & ((1 << 64) - 1)
+            low_64_byte = value & ((1 << (64 * 8)) - 1)
             packet = CxlMemMemWrPacket.create(address + (chunk_count * 64), low_64_byte)
             await self._downstream_cxl_mem_fifos.host_to_target.put(packet)
             try:
