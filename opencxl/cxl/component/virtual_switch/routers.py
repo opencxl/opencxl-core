@@ -423,15 +423,14 @@ class CxlCacheRouter(CxlRouter):
             ]
             if target_port is None:
                 logger.warning(self._create_message("Received unroutable CXL.cache packet"))
+                logger.warning(self._create_message("Packet details: "))
+                logger.warning(self._create_message(cxl_cache_base_packet.get_pretty_string()))
                 continue
             if target_port >= len(self._downstream_connections):
                 raise Exception("target_port is out of bound")
             downstream_connection_fifo = self._downstream_connections[
                 target_port
             ].vppb_connection.cxl_cache_fifo
-
-            if target_port >= len(self._downstream_connections):
-                raise Exception("target_port is out of bound")
 
             await downstream_connection_fifo.host_to_target.put(packet)
 
