@@ -132,29 +132,35 @@ class HomeAgent(RunnableComponent):
         return packet.data
 
     async def write_cxl_mem(self, address: int, size: int, value: int):
+        if address % 64 != 0 or size % 64 != 0:
+            raise Exception("Size and address must be aligned to 64!")
+
         chunk_count = 0
-        if size % 8 != 0:
-            value <<= 8 * (8 - (size % 8))
         while size > 0:
             message = self._create_message(f"CXL.mem: Writing 0x{value:08x} to 0x{address:08x}")
             logger.debug(message)
-            low_8_byte = value & 0xFFFFFFFFFFFFFFFF
-            packet = CxlMemMemWrPacket.create(address + (chunk_count * 8), low_8_byte)
+            low_64_byte = value & ((1 << (64 * 8)) - 1)
+            packet = CxlMemMemWrPacket.create(address + (chunk_count * 64), low_64_byte)
             await self._downstream_cxl_mem_fifos.host_to_target.put(packet)
-            size -= 8
+            try:
+                async with asyncio.timeout(3):
+                    packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
+            except asyncio.exceptions.TimeoutError:
+                logger.error(self._create_message("CXL.mem Write: Timed-out"))
+                return None
+            size -= 64
             chunk_count += 1
-            value >>= 64
+            value >>= 64 * 8
 
     async def read_cxl_mem(self, address: int, size: int) -> int:
-        diff = 0
-        if size % 8 != 0:
-            diff = 8 - (size % 8)
-            size = size // 8 + 8
+        if address % 64 or size % 64:
+            raise Exception("Size and address must be aligned to 64!")
+
         result = 0
         while size > 0:
             message = self._create_message(f"CXL.mem: Reading data from 0x{address:08x}")
             logger.debug(message)
-            packet = CxlMemMemRdPacket.create(address + (size - 8))
+            packet = CxlMemMemRdPacket.create(address + (size - 64))
             await self._downstream_cxl_mem_fifos.host_to_target.put(packet)
 
             try:
@@ -162,14 +168,14 @@ class HomeAgent(RunnableComponent):
                     packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
                 assert is_cxl_mem_data(packet)
                 mem_data_packet = cast(CxlMemMemDataPacket, packet)
-                size -= 8
+                size -= 64
                 result |= mem_data_packet.data
-                result <<= 64
+                result <<= 64 * 8
             except asyncio.exceptions.TimeoutError:
                 logger.error(self._create_message("CXL.mem Read: Timed-out"))
                 return None
 
-        return result >> (diff * 8)
+        return result
 
     async def _process_memory_io_bridge_requests(self):
         while True:
