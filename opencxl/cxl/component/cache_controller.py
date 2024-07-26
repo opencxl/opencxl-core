@@ -183,7 +183,7 @@ class CacheController(RunnableComponent):
     async def _memory_store(self, address: int, size: int, value: int) -> None:
         packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, address, size, value)
         await self._cache_to_coh_agent_fifo.request.put(packet)
-        packet = await self._cache_to_coh_agent_fifo.response.get()
+        await self._cache_to_coh_agent_fifo.response.get()
 
     # For request: coherency tasks from cache controller to coh module
     async def _cache_to_coh_state_lookup(self, address: int) -> None:

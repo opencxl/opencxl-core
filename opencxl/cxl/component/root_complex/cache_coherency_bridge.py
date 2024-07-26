@@ -348,7 +348,7 @@ class CacheCoherencyBridge(RunnableComponent):
                 break
 
             base_packet = cast(BasePacket, packet)
-            if not base_packet.is_cxl_cache:
+            if not base_packet.is_cxl_cache():
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
 
             # packets are distributed to d2h channels
