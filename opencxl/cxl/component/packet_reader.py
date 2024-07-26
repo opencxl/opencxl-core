@@ -13,6 +13,13 @@ from typing import Optional, Tuple
 from opencxl.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
+    CxlCacheBasePacket,
+    CxlCacheD2HDataPacket,
+    CxlCacheD2HReqPacket,
+    CxlCacheD2HRspPacket,
+    CxlCacheH2DDataPacket,
+    CxlCacheH2DReqPacket,
+    CxlCacheH2DRspPacket,
     SidebandConnectionRequestPacket,
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
@@ -84,6 +91,9 @@ class PacketReader(LabeledComponent):
         if base_packet.is_cxl_mem():
             logger.debug(self._create_message("Received Packet is CXL.mem"))
             return self._get_cxl_mem_packet(payload)
+        if base_packet.is_cxl_cache():
+            logger.debug(self._create_message("Received Packet is CXL.cache"))
+            return self._get_cxl_cache_packet(payload)
         if base_packet.is_sideband():
             logger.debug(self._create_message("Received Packet is sideband"))
             return self._get_sideband_packet(payload)
@@ -152,6 +162,29 @@ class PacketReader(LabeledComponent):
 
         cxl_mem_packet.reset(payload)
         return cxl_mem_packet
+
+    def _get_cxl_cache_packet(self, payload: bytes) -> CxlCacheBasePacket:
+        cxl_cache_base_packet = CxlCacheBasePacket()
+        header_size = len(cxl_cache_base_packet.cxl_cache_header) + BasePacket.get_size()
+        cxl_cache_base_packet.reset(payload[:header_size])
+        if cxl_cache_base_packet.is_d2hreq():
+            cxl_cache_packet = CxlCacheD2HReqPacket()
+        elif cxl_cache_base_packet.is_d2hrsp():
+            cxl_cache_packet = CxlCacheD2HRspPacket()
+        elif cxl_cache_base_packet.is_d2hdata():
+            cxl_cache_packet = CxlCacheD2HDataPacket()
+        elif cxl_cache_base_packet.is_h2dreq():
+            cxl_cache_packet = CxlCacheH2DReqPacket()
+        elif cxl_cache_base_packet.is_h2drsp():
+            cxl_cache_packet = CxlCacheH2DRspPacket()
+        elif cxl_cache_base_packet.is_h2ddata():
+            cxl_cache_packet = CxlCacheH2DDataPacket()
+        else:
+            msg_class = cxl_cache_base_packet.cxl_cache_header.msg_class
+            raise Exception(f"Unsupported CXL.CACHE message class: {msg_class}")
+
+        cxl_cache_packet.reset(payload)
+        return cxl_cache_packet
 
     def _get_sideband_packet(self, payload: bytes) -> BaseSidebandPacket:
         base_sideband_packet = BaseSidebandPacket()

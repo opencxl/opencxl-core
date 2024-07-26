@@ -293,7 +293,7 @@ class PciBusDriver(LabeledComponent):
         logger.info(
             self._create_message(
                 f"Setting prefetchable memory limit of device {bdf_to_string(bdf)}"
-                " to {address_limit:08x}"
+                f" to {address_limit:08x}"
             )
         )
 

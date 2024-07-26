@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.component.cxl_mem_manager import CxlMemManager
@@ -94,6 +95,11 @@ class DownstreamPortDevice(CxlPortDevice):
         self._cxl_mem_manager = CxlMemManager(
             upstream_fifo=self._upstream_connection.cxl_mem_fifo,
             downstream_fifo=transport_connection.cxl_mem_fifo,
+            label=self._get_label(),
+        )
+        self._cxl_cache_manager = CxlCacheManager(
+            upstream_fifo=self._upstream_connection.cxl_cache_fifo,
+            downstream_fifo=transport_connection.cxl_cache_fifo,
             label=self._get_label(),
         )
 

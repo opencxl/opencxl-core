@@ -26,12 +26,14 @@ from opencxl.cxl.component.hdm_decoder import (
     HdmDecoderCapabilities,
     HDM_DECODER_COUNT,
 )
-from opencxl.cxl.component.cache_route_table_manager import (
-    SwitchCacheRouteTable,
-)
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.mmio.component_register.memcache_register.cache_route_table import (
+    CacheIdRTCommitTimeout,
+    CacheIdTargetNOptions,
     CacheRouteTableCapabilityRegisterOptions,
+    CacheRouteTableCapabilityStructureOptions,
+    CacheRouteTableControlRegisterOptions,
+    CacheRouteTableStatusRegisterOptions,
 )
 from opencxl.cxl.mmio.component_register.memcache_register.cache_id_decoder_capability import (
     CxlCacheIdDecoderCapabilityRegisterOptions,
@@ -64,12 +66,23 @@ class CxlUpstreamPortComponent(CxlComponent):
             bi_capable=True,
         )
         self._hdm_decoder_manager = SwitchHdmDecoderManager(hdm_decoder_capabilities, label)
-        self.cache_route_table_capabilities = CacheRouteTableCapabilityRegisterOptions(
-            cache_id_target_count=16,
+        rt_register_opts = CacheRouteTableCapabilityRegisterOptions(
+            cache_id_target_count=0,
             hdmd_type2_device_max_count=8,
             explicit_cache_id_rt_cmt_required=0,
         )
-        self._cache_route_table = SwitchCacheRouteTable(self.cache_route_table_capabilities, label)
+        rt_ctl_opts = CacheRouteTableControlRegisterOptions(cache_id_rt_cmt=0)
+        rt_status_opts = CacheRouteTableStatusRegisterOptions(
+            cache_id_rt_cmtd=0,
+            cache_id_rt_err_not_cmtd=0,
+            cache_id_rt_cmt_timeout_base=0,
+            cache_id_rt_cmt_timeout_scale=CacheIdRTCommitTimeout._1_mS,
+        )
+        self.cache_route_table_capabilities = CacheRouteTableCapabilityStructureOptions(
+            register_options=rt_register_opts,
+            control_options=rt_ctl_opts,
+            status_options=rt_status_opts,
+        )
         self._routing_table = None
 
     def get_component_type(self) -> CXL_COMPONENT_TYPE:
@@ -92,13 +105,24 @@ class CxlUpstreamPortComponent(CxlComponent):
         )
         return options
 
-    def get_cache_route_table_options(self) -> Optional[CacheRouteTableCapabilityRegisterOptions]:
+    def get_cache_route_table_options(self) -> Optional[CacheRouteTableCapabilityStructureOptions]:
         return self.cache_route_table_capabilities
+
+    def add_cache_route_target(self, physical_port_number: int):
+        no_targs = self.cache_route_table_capabilities["register_options"]["cache_id_target_count"]
+        new_targ_options = CacheIdTargetNOptions(
+            valid=1,
+            port_number=physical_port_number,
+        )
+        targ_name = f"target{no_targs}_options"
+        self.cache_route_table_capabilities[targ_name] = new_targ_options
+        self.cache_route_table_capabilities["register_options"]["cache_id_target_count"] = (
+            no_targs + 1
+        )
 
     def set_routing_table(self, routing_table: RoutingTable):
         self._routing_table = routing_table
         self._routing_table.set_hdm_decoder(self._hdm_decoder_manager)
-        self._routing_table.set_cache_route_table(self._cache_route_table)
 
 
 class CxlDownstreamPortComponent(CxlComponent):
