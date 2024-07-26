@@ -221,7 +221,6 @@ class CxlType2Device(RunnableComponent):
         try:
             async with timeout(3):
                 packet = await self._upstream_connection.cxl_cache_fifo.host_to_target.get()
-                print(packet.get_pretty_string())
             assert is_cxl_cache_h2d_data(packet)
             cache_data_packet = cast(CxlCacheH2DDataPacket, packet)
             return cache_data_packet.data
