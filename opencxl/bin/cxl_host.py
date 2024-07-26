@@ -33,9 +33,9 @@ def reinit(port, hpa_base: int):
     logger.info(f"CXL-Host[Port{port}]: Reinit done")
 
 
-def start(port: int):
+def start(port: int = 0, hm_mode: bool = False):
     logger.info(f"Starting CXL Host on Port{port}")
-    host = CxlHost(port)
+    host = CxlHost(port_index=port, hm_mode=hm_mode)
     asyncio.run(host.run())
 
 
