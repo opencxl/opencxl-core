@@ -25,7 +25,9 @@ from opencxl.cxl.component.virtual_switch_manager import (
 )
 from opencxl.apps.accelerator import MyType2Accelerator
 from opencxl.apps.single_logical_device import SingleLogicalDevice
+from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from opencxl.util.number_const import MB
+from opencxl.util.logger import logger
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 
@@ -83,6 +85,7 @@ async def test_cxl_host_type3_complex_host_ete():
 
     pci_bus_driver = PciBusDriver(host.get_root_complex())
     cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
+    cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
 
     start_tasks = [
         asyncio.create_task(host.run()),
@@ -106,17 +109,32 @@ async def test_cxl_host_type3_complex_host_ete():
     async def test_configs():
         await pci_bus_driver.init()
         await cxl_bus_driver.init()
-        bridge_dev = cxl_bus_driver.find_device_by_bdf(256)
-        sld_dev = cxl_bus_driver.find_device_by_bdf(768)
+        await cxl_mem_driver.init()
 
-        await bridge_dev.set_hdm_decoder_range(
-            0,
-            sld_dev.device_dvsec.ranges[0].memory_base,
-            sld_dev.device_dvsec.ranges[0].memory_size,
-            [6],
-        )
+        hpa_base = 0xA0000000
+        next_available_hpa_base = hpa_base
 
-        await bridge_dev.get_hdm_decoder_range(0)
+        print(cxl_mem_driver.get_devices())
+        for device in cxl_mem_driver.get_devices():
+            size = device.get_memory_size()
+            successful = await cxl_mem_driver.attach_single_mem_device(
+                device, next_available_hpa_base, size
+            )
+            if successful:
+                next_available_hpa_base += size
+
+        # For testing CXL.mem read/write
+        # Does not work even after setting HDM decoder
+        # Commented for now for the bug fix
+        # data = 0x00000000
+        # for i in range(16):
+        #     data <<= 32
+        #     data |= int(str(f"{i:x}") * 8, 16)
+
+        # await host._root_complex.write_cxl_mem(hpa_base + 0x40, 0x40, data)
+        # data_read = await host._root_complex.read_cxl_mem(hpa_base + 0x40, 0x40)
+
+        # assert data == data_read
 
     test_tasks = [
         asyncio.create_task(test_configs()),

@@ -10,10 +10,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from opencxl.cxl.component.hdm_decoder import (
     HDM_DECODER_COUNT,
-    HDMCOUNT_TO_NUM,
-    INTERLEAVE_GRANULARITY,
-    INTERLEAVE_WAYS,
-    IW_TO_WAYS,
+    HDM_COUNT_TO_NUM,
 )
 from opencxl.util.component import LabeledComponent, Label
 from opencxl.cxl.component.root_complex.root_complex import RootComplex
@@ -121,7 +118,6 @@ class CxlDeviceDvsecInfo:
 class CxlDeviceInfo:
     root_complex: RootComplex
     pci_device_info: PciDeviceInfo
-    root_complex: RootComplex
     registers: List[CxlRegisterInfo] = field(default_factory=list)
     dvsecs: List[CxlDvsecInfo] = field(default_factory=list)
     cachemem_registers: Dict[int, CxlCacheMemRegisterInfo] = field(default_factory=dict)
@@ -153,18 +149,17 @@ class CxlDeviceInfo:
     # pylint: disable=duplicate-code
 
     async def _get_hdm_decoder_count(self, register_base_address: int) -> int:
-        decoder_counter_map = [1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32]
         hdm_decoder_cap = await self.root_complex.read_mmio(
             register_base_address, CXL_HDM_DECODER_CAPABILITY_REGISTER_SIZE
         )
-        decoder_count_index = hdm_decoder_cap & 0xF
-        if decoder_count_index >= len(decoder_counter_map):
+        decoder_count_index = HDM_DECODER_COUNT(hdm_decoder_cap & 0xF)
+        if decoder_count_index >= len(HDM_DECODER_COUNT):
             logger.warning(
                 f"{self._get_prefix()}HDM Decoder count, 0x{decoder_count_index:X}, "
                 "is not supported"
             )
             return 0
-        decoder_count = decoder_counter_map[decoder_count_index]
+        decoder_count = HDM_COUNT_TO_NUM.calc(decoder_count_index)
         if (
             self.pci_device_info.get_device_port_type() == PCI_DEVICE_PORT_TYPE.PCI_EXPRESS_ENDPOINT
             and decoder_count > 10

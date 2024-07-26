@@ -57,7 +57,7 @@ class IW_TO_WAYS:
         return int((value.name).split("_")[-1])
 
 
-class HDMCOUNT_TO_NUM:
+class HDM_COUNT_TO_NUM:
     @staticmethod
     def calc(value: HDM_DECODER_COUNT) -> int:
         return int((value.name).split("_")[-1])
@@ -130,8 +130,8 @@ class DecoderInfo:
     size: int = 0
     base: int = 0
     dpa_skip: int = 0
-    ig: int = 0
-    iw: int = 0
+    ig: INTERLEAVE_GRANULARITY = INTERLEAVE_GRANULARITY.SIZE_256B
+    iw: INTERLEAVE_WAYS = INTERLEAVE_WAYS.WAY_1
     target_ports: List[int] = field(default_factory=list)
 
 
@@ -215,8 +215,8 @@ class DeviceHdmDecoderManager(HdmDecoderManagerBase):
         decoder.dpa_skip = info.dpa_skip
         decoder.base = info.base
         decoder.size = info.size
-        decoder.ig = info.ig
-        decoder.iw = info.iw
+        decoder.ig = INTERLEAVE_GRANULARITY(info.ig)
+        decoder.iw = INTERLEAVE_WAYS(info.iw)
 
         decoder_commit_info = (
             f"[Decoder Commit] index: {index}, base: 0x{decoder.base:x}, size: 0x{decoder.size:x}, "
@@ -263,13 +263,14 @@ class SwitchHdmDecoderManager(HdmDecoderManagerBase):
         decoder = cast(SwitchHdmDecoder, self._decoders[index])
         decoder.base = info.base
         decoder.size = info.size
-        decoder.ig = info.ig
-        decoder.iw = info.iw
+        decoder.ig = INTERLEAVE_GRANULARITY(info.ig)
+        decoder.iw = INTERLEAVE_WAYS(info.iw)
         decoder.target_ports = info.target_ports
 
         decoder_commit_info = (
             f"[Decoder Commit] index: {index}, base: 0x{decoder.base:x}, size: 0x{decoder.size:x}, "
-            + f"ig: {decoder.ig.name}, iw: {decoder.iw.name}, target ports: {str(decoder.target_ports)}"
+            + f"ig: {decoder.ig.name}, iw: {decoder.iw.name}, "
+            + f"target ports: {str(decoder.target_ports)}"
         )
         logger.info(self._create_message(decoder_commit_info))
         return True
