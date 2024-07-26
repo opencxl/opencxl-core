@@ -417,7 +417,7 @@ class CxlCacheRouter(CxlRouter):
             if target_fld_name not in usp_component.get_cache_route_table_options():
                 logger.warning(self._create_message("Received unroutable CXL.cache packet"))
                 continue
-            target_port: int = usp_component.get_cache_route_table_options()[target_fld_name][
+            target_port = usp_component.get_cache_route_table_options()[target_fld_name][
                 "port_number"
             ]
             if target_port is None:
