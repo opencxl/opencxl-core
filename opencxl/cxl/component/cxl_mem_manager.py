@@ -106,7 +106,6 @@ class CxlMemManager(PacketProcessor):
             logger.debug(self._create_message("Received incoming packet"))
             cxl_mem_packet = cast(CxlMemBasePacket, packet)
 
-            print(self._create_message("DEV Received incoming packet"))
             if cxl_mem_packet.is_m2sreq():
                 m2sreq_packet = cast(CxlMemM2SReqPacket, packet)
                 if m2sreq_packet.is_mem_rd() or m2sreq_packet.is_mem_inv():
