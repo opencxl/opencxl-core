@@ -239,6 +239,8 @@ class HomeAgent(RunnableComponent):
                 cxl_packet = self._create_m2s_rwd_packet(
                     opcode, meta_field, meta_value, snp_type, addr, data
                 )
+                packet = CacheResponse(CACHE_RESPONSE_STATUS.OK)
+                await self._upstream_cache_to_home_agent_fifos.response.put(packet)
             else:
                 # HDM-H Normal Read
                 if cache_packet.type == CACHE_REQUEST_TYPE.READ:
