@@ -382,7 +382,6 @@ class CxlCacheRouter(CxlRouter):
         self._usp_device = usp_device
         self._port_binder = port_binder
 
-        super().__init__(vcs_id, routing_table)
         self._upstream_connection_fifo = usp_connection.cxl_cache_fifo
         self._downstream_connections = port_binder.get_bind_slots()
         self._downstream_connection_fifos = [
@@ -431,7 +430,6 @@ class CxlCacheRouter(CxlRouter):
             downstream_connection_fifo = self._downstream_connections[
                 target_port
             ].vppb_connection.cxl_cache_fifo
-
             await downstream_connection_fifo.host_to_target.put(packet)
 
     async def _process_target_to_host_packets(self, downstream_connection_bind_slot: BindSlot):
@@ -444,7 +442,6 @@ class CxlCacheRouter(CxlRouter):
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
-
             cxl_cache_base_packet = cast(CxlCacheBasePacket, packet)
 
             # See CXL 3.0 specification: Section 9.15.2
