@@ -31,7 +31,7 @@ from opencxl.cxl.config_space.dvsec.register_locator import (
 
 
 class CombinedMmioRegiterOptions(TypedDict):
-    cxl_component: CxlComponent
+    cxl_component: CxlComponent  # this shouldn't be here
 
 
 class CombinedMmioRegister(BitMaskedBitStructure):
