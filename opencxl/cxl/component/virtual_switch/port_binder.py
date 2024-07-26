@@ -49,6 +49,14 @@ class BindProcessor(RunnableComponent):
                 self._usc.cxl_mem_fifo.target_to_host,
                 self._dsc.cxl_mem_fifo.target_to_host,
             ),
+            BindPair(
+                self._dsc.cxl_cache_fifo.host_to_target,
+                self._usc.cxl_cache_fifo.host_to_target,
+            ),
+            BindPair(
+                self._usc.cxl_cache_fifo.target_to_host,
+                self._dsc.cxl_cache_fifo.target_to_host,
+            ),
         ]
 
     def _create_message(self, message):

@@ -13,7 +13,7 @@ from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.util.pci import bdf_to_string
 from opencxl.util.number import tlptoh16
-from opencxl.cxl.component.cxl_connection import CxlConnection, FifoPair
+from opencxl.cxl.component.cxl_connection import FifoPair
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BindSlot
@@ -338,6 +338,7 @@ class CxlMemRouter(CxlRouter):
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
+
             cxl_mem_base_packet: CxlMemBasePacket = cast(CxlMemBasePacket, packet)
             if cxl_mem_base_packet.is_s2mbisnp():
                 # NOTE: Following vars might be uninitialized before while
@@ -374,14 +375,18 @@ class CxlCacheRouter(CxlRouter):
         vcs_id: int,
         routing_table: RoutingTable,
         usp_device: UpstreamPortDevice,
-        vppb_connections: List[CxlConnection],
+        port_binder: PortBinder,
     ):
         super().__init__(vcs_id, routing_table)
+        usp_connection = usp_device.get_downstream_connection()
         self._usp_device = usp_device
-        usp_connection = self._usp_device.get_downstream_connection()
-        self._upstream_connection = usp_connection.cxl_cache_fifo
-        self._downstream_connections = [
-            vppb_connection.cxl_cache_fifo for vppb_connection in vppb_connections
+        self._port_binder = port_binder
+
+        self._upstream_connection_fifo = usp_connection.cxl_cache_fifo
+        self._downstream_connections = port_binder.get_bind_slots()
+        self._downstream_connection_fifos = [
+            self._downstream_connections[i].vppb_connection.cxl_cache_fifo
+            for i in range(len(self._downstream_connections))
         ]
 
     async def _process_host_to_target_packets(self):
@@ -409,20 +414,23 @@ class CxlCacheRouter(CxlRouter):
 
             target_fld_name = f"target{cache_id}_options"
 
-            if target_fld_name not in usp_component.get_cache_route_table_options:
+            if target_fld_name not in usp_component.get_cache_route_table_options():
                 logger.warning(self._create_message("Received unroutable CXL.cache packet"))
                 continue
-            target_port = usp_component.get_cache_route_table_options[target_fld_name][
+            target_port = usp_component.get_cache_route_table_options()[target_fld_name][
                 "port_number"
             ]
-
+            if target_port is None:
+                logger.warning(self._create_message("Received unroutable CXL.cache packet"))
+                logger.warning(self._create_message("Packet details: "))
+                logger.warning(self._create_message(cxl_cache_base_packet.get_pretty_string()))
+                continue
             if target_port >= len(self._downstream_connections):
                 raise Exception("target_port is out of bound")
-
-            downstream_connection = self._downstream_connections[
+            downstream_connection_fifo = self._downstream_connections[
                 target_port
             ].vppb_connection.cxl_cache_fifo
-            await downstream_connection.host_to_target.put(packet)
+            await downstream_connection_fifo.host_to_target.put(packet)
 
     async def _process_target_to_host_packets(self, downstream_connection_bind_slot: BindSlot):
         downstream_connection_fifo = downstream_connection_bind_slot.vppb_connection.cxl_cache_fifo

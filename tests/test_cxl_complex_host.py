@@ -35,7 +35,7 @@ BASE_TEST_PORT = 9300
 
 
 @pytest.mark.asyncio
-async def test_cxl_host_type3_complex_host_ete():
+async def test_cxl_host_type2_complex_host_ete():
     # pylint: disable=protected-access
     host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 155
     util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 156
@@ -55,7 +55,7 @@ async def test_cxl_host_type3_complex_host_ete():
         switch_configs=switch_configs, physical_port_manager=physical_port_manager
     )
 
-    sld = SingleLogicalDevice(
+    sld = MyType2Accelerator(
         port_index=1,
         memory_size=1024 * MB,  # min 256MB, or will cause error for DVSEC
         memory_file=f"mem{switch_port}.bin",
@@ -123,9 +123,12 @@ async def test_cxl_host_type3_complex_host_ete():
             if successful:
                 next_available_hpa_base += size
 
-    test_tasks = [
-        asyncio.create_task(test_configs()),
-    ]
+        # TODO: Not working right now. Make it work in the future.
+        # await host._host_simple_processor.store(hpa_base, 0x40, 0xAAAAAAAA)
+        # await sld._cxl_type2_device.cxl_cache_readline(0x00000000)
+        # await sld._cxl_type2_device._cxl_cache_manager.send_d2h_req_test()
+
+    test_tasks = [asyncio.create_task(test_configs()), asyncio.create_task(asyncio.sleep(4))]
     await asyncio.gather(*test_tasks)
 
     stop_tasks = [

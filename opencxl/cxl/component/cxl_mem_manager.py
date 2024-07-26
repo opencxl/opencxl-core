@@ -78,7 +78,7 @@ class CxlMemManager(PacketProcessor):
 
     async def _process_cxl_mem_bisnp_packet(self, mem_bisnp_packet: CxlMemBISnpPacket):
         if self._upstream_fifo is not None:
-            print(self._create_message("Forwarding CXL.mem MEM_BISNP packet"))
+            logger.debug(self._create_message("Forwarding CXL.mem MEM_BISNP packet"))
             await self._upstream_fifo.target_to_host.put(mem_bisnp_packet)
             return
 
@@ -108,11 +108,11 @@ class CxlMemManager(PacketProcessor):
 
             if cxl_mem_packet.is_m2sreq():
                 m2sreq_packet = cast(CxlMemM2SReqPacket, packet)
-                if m2sreq_packet.is_mem_rd():
+                if m2sreq_packet.is_mem_rd() or m2sreq_packet.is_mem_inv():
                     await self._process_cxl_mem_rd_packet(cast(CxlMemMemRdPacket, m2sreq_packet))
                 else:
                     raise Exception(
-                        f"Unsupported MEM Opcode: {m2sreq_packet.m2sreq_header.mem_opcode}"
+                        f"Unsupported MEM Opcode for Req: {m2sreq_packet.m2sreq_header.mem_opcode}"
                     )
             elif cxl_mem_packet.is_m2srwd():
                 m2srwd_packet = cast(CxlMemM2SRwDPacket, packet)
@@ -120,7 +120,7 @@ class CxlMemManager(PacketProcessor):
                     await self._process_cxl_mem_wr_packet(cast(CxlMemMemWrPacket, m2srwd_packet))
                 else:
                     raise Exception(
-                        f"Unsupported MEM Opcode: {m2srwd_packet.m2srwd_header.mem_opcode}"
+                        f"Unsupported MEM Opcode for RwD: {m2srwd_packet.m2srwd_header.mem_opcode}"
                     )
             elif cxl_mem_packet.is_m2sbirsp():
                 m2sbirsp_packet = cast(CxlMemM2SBIRspPacket, packet)

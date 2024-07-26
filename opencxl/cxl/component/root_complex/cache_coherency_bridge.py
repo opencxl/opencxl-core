@@ -342,7 +342,7 @@ class CacheCoherencyBridge(RunnableComponent):
             if packet is None:
                 logger.debug(
                     self._create_message(
-                        "Stopped processing downstream target to host CXL.mem packets"
+                        "Stopped processing downstream target to host CXL.cache packets"
                     )
                 )
                 break

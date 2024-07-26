@@ -7,6 +7,7 @@
 
 import re
 
+from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 from opencxl.util.logger import logger
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.device.port_device import CxlPortDevice
@@ -72,6 +73,11 @@ class UpstreamPortDevice(CxlPortDevice):
         self._cxl_mem_manager = CxlMemManager(
             self._transport_connection.cxl_mem_fifo,
             self._downstream_connection.cxl_mem_fifo,
+            label=label,
+        )
+        self._cxl_cache_manager = CxlCacheManager(
+            self._transport_connection.cxl_cache_fifo,
+            self._downstream_connection.cxl_cache_fifo,
             label=label,
         )
 

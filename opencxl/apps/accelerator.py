@@ -84,15 +84,15 @@ class MyType1Accelerator(RunnableComponent):
             ]
         )
 
-        # self._train_dataset = datasets.ImageFolder(root="train", transform=self.tensorify)
-        # self._train_dataloader = DataLoader(
-        #    self.train_dataset, batch_size=32, shuffle=True, num_workers=4
-        # )
+        self._train_dataset = datasets.ImageFolder(root="train", transform=self.transform)
+        self._train_dataloader = DataLoader(
+            self._train_dataset, batch_size=32, shuffle=True, num_workers=4
+        )
 
-        # self._test_dataset = datasets.ImageFolder(root="val", transform=self.tensorify)
-        # self._test_dataloader = DataLoader(
-        #    self.test_dataset, batch_size=10, shuffle=True, num_workers=4
-        # )
+        self._test_dataset = datasets.ImageFolder(root="val", transform=self.transform)
+        self._test_dataloader = DataLoader(
+            self._train_dataset, batch_size=10, shuffle=True, num_workers=4
+        )
 
         self._irq_manager = IrqManager(
             server_bind_port=irq_listen_port,
@@ -329,6 +329,7 @@ class MyType2Accelerator(RunnableComponent):
     start training, and read the class probabilities after training concludes.
     """
 
+    # pylint: disable=unused-argument
     def __init__(
         self,
         port_index: int,
@@ -354,6 +355,10 @@ class MyType2Accelerator(RunnableComponent):
         self._cxl_type2_device = CxlType2Device(device_config)
         self.accel_dirname = f"T2Accel@{self._label}"
 
+        # Don't run the following code for now
+        # pylint: disable=unreachable
+        return
+
         # Model setup
         self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
 
@@ -370,15 +375,15 @@ class MyType2Accelerator(RunnableComponent):
             ]
         )
 
-        # self._train_dataset = datasets.ImageFolder(root="train", transform=self.tensorify)
-        # self._train_dataloader = DataLoader(
-        #    self.train_dataset, batch_size=32, shuffle=True, num_workers=4
-        # )
+        self._train_dataset = datasets.ImageFolder(root="train", transform=self.transform)
+        self._train_dataloader = DataLoader(
+            self._train_dataset, batch_size=32, shuffle=True, num_workers=4
+        )
 
-        # self._test_dataset = datasets.ImageFolder(root="val", transform=self.tensorify)
-        # self._test_dataloader = DataLoader(
-        #    self.test_dataset, batch_size=10, shuffle=True, num_workers=4
-        # )
+        self._test_dataset = datasets.ImageFolder(root="val", transform=self.transform)
+        self._test_dataloader = DataLoader(
+            self._train_dataset, batch_size=10, shuffle=True, num_workers=4
+        )
 
         self._irq_manager = IrqManager(
             server_bind_port=irq_listen_port,
@@ -386,8 +391,8 @@ class MyType2Accelerator(RunnableComponent):
             device_name=label,
         )
 
-        self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
-        self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
+        # self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
+        # self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
 
     def _train_one_epoch(self, train_dataloader, test_dataloader, device, optimizer, loss_fn):
         # pylint: disable=unused-variable
@@ -580,11 +585,11 @@ class MyType2Accelerator(RunnableComponent):
         tasks = [
             create_task(self._sw_conn_client.run()),
             create_task(self._cxl_type2_device.run()),
-            create_task(self._irq_manager.run()),
+            # create_task(self._irq_manager.run()),
         ]
         await self._sw_conn_client.wait_for_ready()
         await self._cxl_type2_device.wait_for_ready()
-        await self._irq_manager.wait_for_ready()
+        # await self._irq_manager.wait_for_ready()
         await self._change_status_to_running()
         await gather(*tasks)
 
@@ -592,7 +597,7 @@ class MyType2Accelerator(RunnableComponent):
         tasks = [
             create_task(self._sw_conn_client.stop()),
             create_task(self._cxl_type2_device.stop()),
-            create_task(self._irq_manager.stop()),
+            # create_task(self._irq_manager.stop()),
         ]
         await gather(*tasks)
         # await self._app_shutdown()
