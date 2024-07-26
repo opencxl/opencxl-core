@@ -289,8 +289,6 @@ class CxlPacketProcessor(RunnableComponent):
         logger.debug(self._create_message("Starting outgoing CXL.cache FIFO processor"))
         while True:
             packet = await self._outgoing.cxl_cache.get()
-            print("_process_outgoing_cxl_cache_packets")
-            print(packet.get_pretty_string())
             if self._is_disconnection_notification(packet):
                 break
             self._writer.write(bytes(packet))

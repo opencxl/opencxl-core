@@ -445,7 +445,6 @@ class CxlCacheRouter(CxlRouter):
         dsp_component = dsp_device.get_cxl_component()
 
         while True:
-            print("WAITING FOR PACKET")
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
