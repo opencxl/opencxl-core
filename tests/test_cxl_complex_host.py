@@ -14,7 +14,10 @@ from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
 from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
-from opencxl.cxl.component.root_complex.root_port_switch import ROOT_PORT_SWITCH_TYPE
+from opencxl.cxl.component.root_complex.root_port_switch import (
+    COH_POLICY_TYPE,
+    ROOT_PORT_SWITCH_TYPE,
+)
 from opencxl.apps.cxl_host import CxlHostManager
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
@@ -78,6 +81,7 @@ async def test_cxl_host_type2_complex_host_ete():
         memory_controller,
         memory_ranges,
         root_ports,
+        coh_type=COH_POLICY_TYPE.DotCache,
     )
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
