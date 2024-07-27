@@ -385,6 +385,7 @@ class CxlImageClassificationHost(RunnableComponent):
             base_addr=0x290000000,
             device_count=4,
             interleave_gran=0x100,
+            device_type=CXL_COMPONENT_TYPE.T1,
         )
         self._host_simple_processor = HostTrainIoGen(host_processor_config)
 
