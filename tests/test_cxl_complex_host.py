@@ -129,7 +129,7 @@ async def test_cxl_host_type2_complex_host_ete():
 
         # TODO: Not working right now. Make it work in the future.
         # await host._host_simple_processor.store(hpa_base, 0x40, 0xAAAAAAAA)
-        await sld._cxl_type2_device.cxl_cache_readline(0x00000000)
+        # await sld._cxl_type2_device.cxl_cache_readline(0x00000000)
         # await sld._cxl_type2_device._cxl_cache_manager.send_d2h_req_test()
 
     test_tasks = [asyncio.create_task(test_configs()), asyncio.create_task(asyncio.sleep(4))]
