@@ -28,6 +28,21 @@ from opencxl.cxl.transport.cache_fifo import (
 from opencxl.util.logger import logger
 
 
+class COH_STATE_MACHINE(Enum):
+    COH_STATE_INIT = auto()
+    COH_STATE_START = auto()
+    COH_STATE_WAIT = auto()
+    COH_STATE_DONE = auto()
+
+
+@dataclass
+class CohStateMachine:
+    state: COH_STATE_MACHINE
+    packet: None
+    cache_rsp: CACHE_RESPONSE_STATUS
+    cache_list: list
+
+
 class CacheCheck(Enum):
     CACHE_HIT = auto()
     CACHE_MISS = auto()
