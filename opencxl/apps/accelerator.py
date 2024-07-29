@@ -176,8 +176,6 @@ class MyType1Accelerator(RunnableComponent):
 
         METADATA_INFO_CACHELINE_HPA = 0x40  # 64-byte-aligned address
 
-        CACHELINE_LENGTH = 64
-
         metadata_cacheline = await self._cxl_type1_device.cxl_cache_readline(
             METADATA_INFO_CACHELINE_HPA
         )
@@ -185,15 +183,13 @@ class MyType1Accelerator(RunnableComponent):
         metadata_addr, metadata_size, *_ = split_int(metadata_cacheline)
 
         with open("noisy_imagenette.csv", "wb") as md_file:
-            for cacheline_offset in range(metadata_addr, metadata_size, CACHELINE_LENGTH):
-                cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
-                cacheline = cast(int, cacheline)
-                md_file.write(cacheline.to_bytes(CACHELINE_LENGTH))
+            data = await self._cxl_type1_device.cxl_cache_readlines(
+                metadata_addr, metadata_size, True
+            )
+            md_file.write(data.to_bytes(metadata_size))
 
     async def _get_test_image(self) -> Image.Image:
         IMAGE_INFO_CACHELINE_HPA = 0x40
-
-        CACHELINE_LENGTH = 64
 
         image_info_cacheline = await self._cxl_type1_device.cxl_cache_readline(
             IMAGE_INFO_CACHELINE_HPA
@@ -203,10 +199,8 @@ class MyType1Accelerator(RunnableComponent):
         im = None
 
         with BytesIO() as imgbuf:
-            for cacheline_offset in range(image_addr, image_size, CACHELINE_LENGTH):
-                cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
-                cacheline = cast(int, cacheline)
-                imgbuf.write(cacheline.to_bytes(CACHELINE_LENGTH))
+            data = await self._cxl_type1_device.cxl_cache_readlines(image_addr, image_size, True)
+            imgbuf.write(data.to_bytes(image_size))
             im = Image.open(imgbuf)
 
         return im
@@ -584,11 +578,11 @@ class MyType2Accelerator(RunnableComponent):
     async def _run(self):
         tasks = [
             create_task(self._sw_conn_client.run()),
-            create_task(self._cxl_type2_device.run()),
+            # create_task(self._cxl_type2_device.run()),
             # create_task(self._irq_manager.run()),
         ]
         await self._sw_conn_client.wait_for_ready()
-        await self._cxl_type2_device.wait_for_ready()
+        # await self._cxl_type2_device.wait_for_ready()
         # await self._irq_manager.wait_for_ready()
         await self._change_status_to_running()
         await gather(*tasks)
@@ -596,7 +590,7 @@ class MyType2Accelerator(RunnableComponent):
     async def _stop(self):
         tasks = [
             create_task(self._sw_conn_client.stop()),
-            create_task(self._cxl_type2_device.stop()),
+            # create_task(self._cxl_type2_device.stop()),
             # create_task(self._irq_manager.stop()),
         ]
         await gather(*tasks)

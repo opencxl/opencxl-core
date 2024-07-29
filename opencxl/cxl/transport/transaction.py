@@ -1173,7 +1173,10 @@ class CxlCacheCacheH2DRspPacket(CxlCacheH2DRspPacket):
     @staticmethod
     # read length is assumed to be 64 for now
     def create(
-        cache_id: int, opcode: CXL_CACHE_H2DRSP_OPCODE, rsp_data: CXL_CACHE_H2DRSP_CACHE_STATE
+        cache_id: int,
+        opcode: CXL_CACHE_H2DRSP_OPCODE,
+        rsp_data: CXL_CACHE_H2DRSP_CACHE_STATE,
+        cqid: int = 0,
     ) -> "CxlCacheCacheH2DRspPacket":
         packet = CxlCacheCacheH2DRspPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
@@ -1183,18 +1186,20 @@ class CxlCacheCacheH2DRspPacket(CxlCacheH2DRspPacket):
         packet.h2drsp_header.cache_opcode = opcode
         packet.h2drsp_header.cache_id = cache_id
         packet.h2drsp_header.rsp_data = rsp_data
+        packet.h2drsp_header.cqid = cqid
         return packet
 
 
 class CxlCacheCacheH2DDataPacket(CxlCacheH2DDataPacket):
     @staticmethod
-    def create(cache_id: int, data: int) -> "CxlCacheCacheH2DDataPacket":
+    def create(cache_id: int, data: int, cqid: int = 0) -> "CxlCacheCacheH2DDataPacket":
         packet = CxlCacheCacheH2DDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
         packet.h2ddata_header.valid = 0b1
         packet.h2ddata_header.cache_id = cache_id
+        packet.h2ddata_header.cqid = cqid
         packet.data = data
         return packet
 

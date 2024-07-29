@@ -60,57 +60,6 @@ class CxlCacheManager(PacketProcessor):
     def set_memory_device_component(self, cache_device_component: CxlMemoryDeviceComponent):
         self._cache_device_component = cache_device_component
 
-    async def register_cqid_listener(
-        self,
-        cqid: int,
-        cb: Callable[[BasePacket], None],
-        _timeout: Optional[int] = None,
-        _one_use: bool = True,
-    ):
-        """
-        Registers a callback action upon reception of a H2DRSP/H2DREQ packet with matching CQID.
-        Used to emulate the "device entry" model in CXL.cache spec. The listener should accept
-        a single CxlBasePacket parameter, which will contain the H2D packet object.
-
-        If `_one_use` is True, the callback action will automatically unregister itself after
-        one call. Note that if `_one_use` is false, the caller will have to manually handle
-        cancelling by raising CancelledError, just as they would for a generic asyncio Task.
-
-        If the operation times out, the callback action unconditionally unregisters itself.
-        """
-        async with self.device_entry_lock:
-            # two threads accessing self.device_entries simultaneously
-            # has the potential to SERIOUSLY break the emulator
-            if cqid in self.device_entries:
-                # cancel any currently running listeners, if they exist
-                self.device_entries[cqid].cancel()
-
-        loop = get_running_loop()
-        fut_pckt = loop.create_future()
-
-        async def _tracker_entry(fut: Future):
-            while True:
-                if _timeout:
-                    try:
-                        async with timeout(_timeout):
-                            await fut
-                    except TimeoutError:
-                        # this request was apparently lost by the host
-                        # clear the cqid entry for reuse
-                        async with self.device_entry_lock:
-                            del self.device_entries[cqid]
-                        current_task().cancel()  # intentionally cancel the current task
-                else:
-                    await fut
-                cb(fut.result())
-                if _one_use:
-                    async with self.device_entry_lock:
-                        del self.device_entries[cqid]
-                    break
-
-        self.device_entries[cqid] = fut_pckt
-        create_task(_tracker_entry(fut_pckt))
-
     async def _process_cxl_cache_h2d_data_packet(self, cache_data_packet: CxlCacheH2DDataPacket):
         await self._upstream_fifo.host_to_target.put(cache_data_packet)
 
@@ -121,26 +70,6 @@ class CxlCacheManager(PacketProcessor):
         # Some arbitrary opcode
         packet = CxlCacheCacheD2HReqPacket.create(
             addr=0x40, cache_id=0b1010, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_ANY
-        )
-        await self._upstream_fifo.target_to_host.put(packet)
-
-    async def send_d2h_req_rdown(self, addr: int):
-        # Cache ID is "filled in" by the switch
-        packet = CxlCacheCacheD2HReqPacket.create(
-            addr=addr, cache_id=0, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN
-        )
-        await self._upstream_fifo.target_to_host.put(packet)
-
-    async def send_d2h_req_itomwr(self, addr: int, cqid: int):
-        packet = CxlCacheCacheD2HReqPacket.create(
-            addr=addr, cache_id=0, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_I_TO_M_WR, cqid=cqid
-        )
-        await self._upstream_fifo.target_to_host.put(packet)
-
-    async def send_d2h_data(self, data: int, uqid: int):
-        packet = CxlCacheCacheD2HDataPacket.create(
-            uqid=uqid,
-            data=data,
         )
         await self._upstream_fifo.target_to_host.put(packet)
 
