@@ -6,7 +6,15 @@
 """
 
 # pylint: disable=duplicate-code
-from asyncio import CancelledError, Future, Lock, create_task, gather, get_running_loop
+from asyncio import (
+    CancelledError,
+    Future,
+    Lock,
+    create_task,
+    current_task,
+    gather,
+    get_running_loop,
+)
 from itertools import cycle
 import math
 from typing import Optional
@@ -242,7 +250,7 @@ class CxlType1Device(RunnableComponent):
                 or pckt.h2drsp_header.rsp_data
                 in (CXL_CACHE_H2DRSP_CACHE_STATE.INVALID, CXL_CACHE_H2DRSP_CACHE_STATE.ERROR)
             ):
-                raise CancelledError  # terminate the listener and free the cqid
+                current_task().cancel()  # terminate the listener and free the cqid
 
         await self._cxl_cache_manager.send_d2h_req_rdown(addr)
 
@@ -270,7 +278,7 @@ class CxlType1Device(RunnableComponent):
             # don't need to perform the type check twice
             # just trust in ourselves!
             if pckt.h2drsp_header.cache_opcode == CXL_CACHE_H2DRSP_OPCODE.GO_ERR_WRITE_PUL:
-                raise CancelledError  # terminate the listener and free the cqid
+                current_task().cancel()  # terminate the listener and free the cqid
             self._cxl_cache_manager.send_d2h_data(data, pckt.h2drsp_header.rsp_data)
 
         await self._cxl_cache_manager.send_d2h_req_itomwr(addr, cqid)
@@ -286,25 +294,51 @@ class CxlType1Device(RunnableComponent):
             _timeout=20,
         )
 
-    async def cxl_cache_readlines(self, addr: int, howmuch: int) -> int:
+    async def cxl_cache_readlines(self, addr: int, length: int, parallel: bool = False) -> int:
         # pylint: disable=not-an-iterable
         CACHELINE_LENGTH = 64
-        lines = bytearray(max(howmuch, 64))
-        async for l_idx in range(math.ceil(howmuch / CACHELINE_LENGTH)):
-            lines[l_idx * CACHELINE_LENGTH : (l_idx + 1) * CACHELINE_LENGTH] = bytes(
-                await self.cxl_cache_readline(
-                    addr + l_idx * CACHELINE_LENGTH, await self.get_next_cqid()
+        lines = bytearray(max(length, 64))
+        if parallel:
+            tasks = []
+            async for l_idx in range(math.ceil(length / CACHELINE_LENGTH)):
+                tasks.append(
+                    create_task(
+                        self.cxl_cache_readline(
+                            addr + l_idx * CACHELINE_LENGTH, await self.get_next_cqid()
+                        )
+                    )
                 )
-            )
+            await gather(*tasks)
+            for l_idx, l_offset in enumerate(range(0, length, CACHELINE_LENGTH)):
+                lines[l_offset : l_offset + CACHELINE_LENGTH] = bytes(tasks[l_idx])
+        else:
+            async for l_idx in range(math.ceil(length / CACHELINE_LENGTH)):
+                lines[l_idx * CACHELINE_LENGTH : (l_idx + 1) * CACHELINE_LENGTH] = bytes(
+                    await self.cxl_cache_readline(
+                        addr + l_idx * CACHELINE_LENGTH, await self.get_next_cqid()
+                    )
+                )
         return int.from_bytes(lines)
 
-    async def cxl_cache_writelines(self, addr: int, data: int, howmuch: int):
+    async def cxl_cache_writelines(
+        self, addr: int, data: int, length: int, parallel: bool = False
+    ):
         # pylint: disable=not-an-iterable
         CACHELINE_LENGTH = 64
-        async for l_idx, line in enumerate(split_int(data, howmuch, CACHELINE_LENGTH)):
-            await self.cxl_cache_writeline(
-                addr + l_idx * CACHELINE_LENGTH, line, await self.get_next_cqid()
+        if parallel:
+            tasks = []
+        async for l_idx, line in enumerate(split_int(data, length, CACHELINE_LENGTH)):
+            write_task = create_task(
+                self.cxl_cache_writeline(
+                    addr + l_idx * CACHELINE_LENGTH, line, await self.get_next_cqid()
+                )
             )
+            if parallel:
+                tasks.append(write_task)
+            else:
+                await write_task
+        if parallel:
+            await gather(*tasks)
 
     async def _run(self):
         # pylint: disable=duplicate-code

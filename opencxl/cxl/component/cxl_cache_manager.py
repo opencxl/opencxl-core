@@ -6,7 +6,16 @@
 """
 
 # pylint: disable=unused-import
-from asyncio import CancelledError, Event, Future, Lock, create_task, get_running_loop, timeout
+from asyncio import (
+    CancelledError,
+    Event,
+    Future,
+    Lock,
+    create_task,
+    current_task,
+    get_running_loop,
+    timeout,
+)
 from typing import Callable, Optional, cast
 
 from opencxl.cxl.component.cxl_memory_device_component import CxlMemoryDeviceComponent
@@ -79,18 +88,18 @@ class CxlCacheManager(PacketProcessor):
         loop = get_running_loop()
         fut_pckt = loop.create_future()
 
-        async def _callback(fut: Future):
+        async def _tracker_entry(fut: Future):
             while True:
                 if _timeout:
                     try:
                         async with timeout(_timeout):
                             await fut
-                    except TimeoutError as err:
+                    except TimeoutError:
                         # this request was apparently lost by the host
                         # clear the cqid entry for reuse
                         async with self.device_entry_lock:
                             del self.device_entries[cqid]
-                        raise CancelledError from err  # intentionally cancel the current task
+                        current_task().cancel()  # intentionally cancel the current task
                 else:
                     await fut
                 cb(fut.result())
@@ -100,7 +109,7 @@ class CxlCacheManager(PacketProcessor):
                     break
 
         self.device_entries[cqid] = fut_pckt
-        create_task(_callback(fut_pckt))
+        create_task(_tracker_entry(fut_pckt))
 
     async def _process_cxl_cache_h2d_data_packet(self, cache_data_packet: CxlCacheH2DDataPacket):
         await self._upstream_fifo.host_to_target.put(cache_data_packet)
@@ -184,7 +193,7 @@ class CxlCacheManager(PacketProcessor):
                 # TODO: Move this logic out into a generalized process_h2d_rsp method.
 
                 # notify matching cqid listener, if one exists
-                cqid = h2drsp_packet.h2drsp_header.cq_id
+                cqid = h2drsp_packet.h2drsp_header.cqid
                 async with self.device_entry_lock:
                     if cqid in self.device_entries:
                         self.device_entries[cqid].set_result(h2drsp_packet)
@@ -193,7 +202,7 @@ class CxlCacheManager(PacketProcessor):
                 h2drsp_packet.get_pretty_string()
             elif cxl_cache_packet.is_h2ddata():
                 h2ddata_packet = cast(CxlCacheCacheH2DDataPacket, packet)
-                cqid = h2ddata_packet.h2drsp_header.cq_id
+                cqid = h2ddata_packet.h2drsp_header.cqid
                 async with self.device_entry_lock:
                     if cqid in self.device_entries:
                         self.device_entries[cqid].set_result(h2ddata_packet)
