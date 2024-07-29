@@ -10,6 +10,7 @@ import asyncio
 import pytest
 
 from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
+from opencxl.apps.cxl_image_classification_host import CxlImageClassificationHostConfig
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
 from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
@@ -26,8 +27,7 @@ from opencxl.cxl.component.virtual_switch_manager import (
     VirtualSwitchManager,
     VirtualSwitchConfig,
 )
-from opencxl.apps.accelerator import MyType2Accelerator
-from opencxl.apps.single_logical_device import SingleLogicalDevice
+from opencxl.apps.accelerator import MyType1Accelerator, MyType2Accelerator
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from opencxl.util.number_const import MB
 from opencxl.util.logger import logger
@@ -38,7 +38,7 @@ BASE_TEST_PORT = 9300
 
 
 @pytest.mark.asyncio
-async def test_cxl_host_type2_complex_host_ete():
+async def test_cxl_host_type1_image_classification_host_ete():
     # pylint: disable=protected-access
     host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 155
     util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 156
@@ -48,6 +48,8 @@ async def test_cxl_host_type2_complex_host_ete():
         PortConfig(PORT_TYPE.USP),
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
+        PortConfig(PORT_TYPE.DSP),
+        PortConfig(PORT_TYPE.DSP),
     ]
     sw_conn_manager = SwitchConnectionManager(port_configs, port=switch_port)
     physical_port_manager = PhysicalPortManager(
@@ -55,25 +57,16 @@ async def test_cxl_host_type2_complex_host_ete():
     )
 
     switch_configs = [
-        VirtualSwitchConfig(upstream_port_index=0, vppb_counts=2, initial_bounds=[1, 2])
+        VirtualSwitchConfig(upstream_port_index=0, vppb_counts=4, initial_bounds=[1, 2, 3, 4])
     ]
     virtual_switch_manager = VirtualSwitchManager(
         switch_configs=switch_configs, physical_port_manager=physical_port_manager
     )
 
-    dev1 = MyType2Accelerator(
-        port_index=1,
-        memory_size=1024 * MB,  # min 256MB, or will cause error for DVSEC
-        memory_file=f"mem{switch_port}.bin",
-        port=switch_port,
-    )
-
-    dev2 = MyType2Accelerator(
-        port_index=2,
-        memory_size=1024 * MB,  # min 256MB, or will cause error for DVSEC
-        memory_file=f"mem{switch_port+1}.bin",
-        port=switch_port,
-    )
+    dev1 = MyType1Accelerator(port_index=1, port=switch_port, irq_listen_port=9100)
+    dev2 = MyType1Accelerator(port_index=2, port=switch_port, irq_listen_port=9101)
+    dev3 = MyType1Accelerator(port_index=3, port=switch_port, irq_listen_port=9102)
+    dev4 = MyType1Accelerator(port_index=4, port=switch_port, irq_listen_port=9103)
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     host_mem_size = 0x8000  # Needs to be big enough to test cache eviction
@@ -84,7 +77,7 @@ async def test_cxl_host_type2_complex_host_ete():
     root_ports = [RootPortClientConfig(0, "localhost", switch_port)]
     memory_ranges = [MemoryRange(MEMORY_RANGE_TYPE.DRAM, 0x0, host_mem_size)]
 
-    config = CxlComplexHostConfig(
+    config = CxlImageClassificationHostConfig(
         host_name,
         0,
         root_port_switch_type,
@@ -109,6 +102,8 @@ async def test_cxl_host_type2_complex_host_ete():
         asyncio.create_task(virtual_switch_manager.run()),
         asyncio.create_task(dev1.run()),
         asyncio.create_task(dev2.run()),
+        asyncio.create_task(dev3.run()),
+        asyncio.create_task(dev4.run()),
     ]
 
     wait_tasks = [
@@ -119,6 +114,8 @@ async def test_cxl_host_type2_complex_host_ete():
         asyncio.create_task(host.wait_for_ready()),
         asyncio.create_task(dev1.wait_for_ready()),
         asyncio.create_task(dev2.wait_for_ready()),
+        asyncio.create_task(dev3.wait_for_ready()),
+        asyncio.create_task(dev4.wait_for_ready()),
     ]
     await asyncio.gather(*wait_tasks)
 
@@ -127,21 +124,14 @@ async def test_cxl_host_type2_complex_host_ete():
         await cxl_bus_driver.init()
         await cxl_mem_driver.init()
 
-        hpa_base = 0xA0000000
-        next_available_hpa_base = hpa_base
-
         logger.debug(cxl_mem_driver.get_devices())
         for device in cxl_mem_driver.get_devices():
-            size = device.get_memory_size()
-            successful = await cxl_mem_driver.attach_single_mem_device(
-                device, next_available_hpa_base, size
+            # NOTE: The list should match the dev order
+            # Not tested, though
+            # otherwise the dev base may not match the IRQ ports
+            host.append_dev_mmio_range(
+                device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
             )
-            if successful:
-                host.append_dev_mmio_range(
-                    device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
-                )
-                host.append_dev_mem_range(next_available_hpa_base, size)
-                next_available_hpa_base += size
 
         # TODO: Not working right now. Make it work in the future.
         # await host._host_simple_processor.store(hpa_base, 0x40, 0xAAAAAAAA)
@@ -159,6 +149,8 @@ async def test_cxl_host_type2_complex_host_ete():
         asyncio.create_task(host.stop()),
         asyncio.create_task(dev1.stop()),
         asyncio.create_task(dev2.stop()),
+        asyncio.create_task(dev3.stop()),
+        asyncio.create_task(dev4.stop()),
     ]
     await asyncio.gather(*stop_tasks)
     await asyncio.gather(*start_tasks)
