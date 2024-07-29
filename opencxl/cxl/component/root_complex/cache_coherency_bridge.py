@@ -6,7 +6,7 @@
 """
 
 from dataclasses import dataclass
-from asyncio import create_task, gather, Queue
+from asyncio import create_task, gather, Queue, sleep
 from itertools import cycle
 from typing import cast
 from enum import Enum, auto
@@ -364,6 +364,7 @@ class CacheCoherencyBridge(RunnableComponent):
 
     # process from host/device channels one by one in state machine
     async def _cache_coherency_bridege_main_loop(self):
+        await sleep(0)
         _stop_process = False
         _fc_run = False
         _fc_host_run = False
