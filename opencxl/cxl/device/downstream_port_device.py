@@ -97,7 +97,7 @@ class DownstreamPortDevice(CxlPortDevice):
             downstream_fifo=transport_connection.cxl_mem_fifo,
             label=self._get_label(),
         )
-        self._cxl_cache_manager = CxlCacheDcoh(
+        self._cxl_cache_manager = CxlCacheManager(
             upstream_fifo=self._upstream_connection.cxl_cache_fifo,
             downstream_fifo=transport_connection.cxl_cache_fifo,
             label=self._get_label(),
