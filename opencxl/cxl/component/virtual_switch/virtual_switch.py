@@ -119,7 +119,7 @@ class CxlVirtualSwitch(RunnableComponent):
             self._bi_forward_override_for_test,
         )
         self._cxl_cache_router = CxlCacheRouter(
-            self._id, self._routing_table, self._usp_device, self._vppb_connections
+            self._id, self._routing_table, self._usp_device, self._port_binder
         )
 
     def _create_message(self, message: str):
@@ -155,11 +155,13 @@ class CxlVirtualSwitch(RunnableComponent):
             create_task(self._start_dummy_devices()),
             create_task(self._cxl_io_router.run()),
             create_task(self._cxl_mem_router.run()),
+            create_task(self._cxl_cache_router.run()),
             create_task(self._port_binder.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_router.wait_for_ready()),
             create_task(self._cxl_mem_router.wait_for_ready()),
+            create_task(self._cxl_cache_router.wait_for_ready()),
             create_task(self._port_binder.wait_for_ready()),
         ]
         await gather(*wait_tasks)
@@ -171,6 +173,7 @@ class CxlVirtualSwitch(RunnableComponent):
             create_task(self._stop_dummy_devices()),
             create_task(self._cxl_io_router.stop()),
             create_task(self._cxl_mem_router.stop()),
+            create_task(self._cxl_cache_router.stop()),
             create_task(self._port_binder.stop()),
         ]
         await gather(*tasks)

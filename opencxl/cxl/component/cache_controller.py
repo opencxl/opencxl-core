@@ -28,6 +28,21 @@ from opencxl.cxl.transport.cache_fifo import (
 from opencxl.util.logger import logger
 
 
+class COH_STATE_MACHINE(Enum):
+    COH_STATE_INIT = auto()
+    COH_STATE_START = auto()
+    COH_STATE_WAIT = auto()
+    COH_STATE_DONE = auto()
+
+
+@dataclass
+class CohStateMachine:
+    state: COH_STATE_MACHINE
+    packet: None
+    cache_rsp: CACHE_RESPONSE_STATUS
+    cache_list: list
+
+
 class CacheCheck(Enum):
     CACHE_HIT = auto()
     CACHE_MISS = auto()
@@ -183,13 +198,13 @@ class CacheController(RunnableComponent):
     async def _memory_store(self, address: int, size: int, value: int) -> None:
         packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, address, size, value)
         await self._cache_to_coh_agent_fifo.request.put(packet)
+        await self._cache_to_coh_agent_fifo.response.get()
 
     # For request: coherency tasks from cache controller to coh module
     async def _cache_to_coh_state_lookup(self, address: int) -> None:
         packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, address)
         await self._cache_to_coh_agent_fifo.request.put(packet)
         packet = await self._cache_to_coh_agent_fifo.response.get()
-
         assert packet.status == CACHE_RESPONSE_STATUS.RSP_I
 
     # For response: coherency tasks from coh module to cache controller

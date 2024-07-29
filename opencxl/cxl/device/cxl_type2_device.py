@@ -221,7 +221,7 @@ class CxlType2Device(RunnableComponent):
         await self._cxl_cache_manager.send_d2h_req_rdown(hpa)
         try:
             async with timeout(3):
-                packet = await self._upstream_connection.cxl_cache_fifo.target_to_host.get()
+                packet = await self._upstream_connection.cxl_cache_fifo.host_to_target.get()
             assert is_cxl_cache_h2d_data(packet)
             cache_data_packet = cast(CxlCacheH2DDataPacket, packet)
             return cache_data_packet.data
@@ -249,12 +249,14 @@ class CxlType2Device(RunnableComponent):
             create_task(self._cxl_mem_dcoh.run()),
             create_task(self._cache_controller.run()),
             create_task(self._device_simple_processor.run()),
+            create_task(self._cxl_cache_manager.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
             create_task(self._cxl_mem_dcoh.wait_for_ready()),
             create_task(self._cache_controller.wait_for_ready()),
             create_task(self._device_simple_processor.wait_for_ready()),
+            create_task(self._cxl_cache_manager.wait_for_ready()),
         ]
         await gather(*wait_tasks)
         await self._change_status_to_running()
@@ -267,5 +269,6 @@ class CxlType2Device(RunnableComponent):
             create_task(self._cxl_mem_dcoh.stop()),
             create_task(self._cache_controller.stop()),
             create_task(self._device_simple_processor.stop()),
+            create_task(self._cxl_cache_manager.stop()),
         ]
         await gather(*tasks)

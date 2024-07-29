@@ -185,8 +185,8 @@ class CxlCacheManager(PacketProcessor):
 
             if cxl_cache_packet.is_h2dreq():
                 h2dreq_packet = cast(CxlCacheCacheH2DReqPacket, packet)
-                print("Received h2dreq_packet:")
-                h2dreq_packet.get_pretty_string()
+                logger.debug("Received h2dreq_packet:")
+                logger.debug(h2dreq_packet.get_pretty_string())
             elif cxl_cache_packet.is_h2drsp():
                 h2drsp_packet = cast(CxlCacheCacheH2DRspPacket, packet)
 
