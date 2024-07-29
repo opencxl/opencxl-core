@@ -40,6 +40,10 @@ from opencxl.cxl.transport.transaction import (
     CXL_CACHE_D2HREQ_OPCODE,
     CXL_CACHE_D2HRSP_OPCODE,
 )
+from opencxl.cxl.component.cache_controller import (
+    CohStateMachine,
+    COH_STATE_MACHINE,
+)
 
 
 # snoop filter update type definition
@@ -47,21 +51,6 @@ from opencxl.cxl.transport.transaction import (
 class SF_UPDATE_TYPE(Enum):
     SF_DEVICE_IN = auto()
     SF_DEVICE_OUT = auto()
-
-
-class COH_STATE_MACHINE(Enum):
-    COH_STATE_INIT = auto()
-    COH_STATE_START = auto()
-    COH_STATE_WAIT = auto()
-    COH_STATE_DONE = auto()
-
-
-@dataclass
-class CohStateMachine:
-    state: COH_STATE_MACHINE
-    packet: None
-    cache_rsp: CACHE_RESPONSE_STATUS
-    cache_list: list
 
 
 @dataclass
@@ -266,6 +255,8 @@ class CacheCoherencyBridge(RunnableComponent):
             addr = self._cur_state.packet.address
             self._snoop_filter_update(addr, cache_id, sf_update_list)
 
+    # .cache h2d packet process
+    # pylint: disable=duplicate-code
     async def _process_upstream_host_to_target_packets(self, cache_packet: CacheRequest):
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_WAIT:
             return
@@ -336,6 +327,7 @@ class CacheCoherencyBridge(RunnableComponent):
             await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_packet)
             self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 
+    # .cache d2h packet process
     async def _process_downstream_target_to_host_packets(self):
         while True:
             packet = await self._downstream_cxl_cache_fifos.target_to_host.get()
@@ -362,41 +354,34 @@ class CacheCoherencyBridge(RunnableComponent):
             else:
                 raise Exception(f"Received unexpected packet: {cxl_packet.get_type()}")
 
+    # process from host/device channels one by one in state machine
     async def _cache_coherency_bridege_main_loop(self):
         _stop_process = False
         _fc_run = False
-        _fc_host_cur = True
-        _fc_host_run = None
+        _fc_host_run = False
 
         while not _stop_process:
             await sleep(0)
-            # processing channel packets
+            # flow control for host/device packets
+            # link state machine and function to the current request
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_INIT:
-                if _fc_host_cur is True:
+                _fc_run = False
+                if _fc_host_run is False:
                     if not self._upstream_cache_to_coh_bridge_fifo.request.empty():
                         _fc_run = True
                         _fc_host_run = True
-                        _fc_host_cur = False
                     elif not self._cxl_channel["d2h_req"].empty():
                         _fc_run = True
                         _fc_host_run = False
-                        _fc_host_cur = True
-                    else:
-                        _fc_run = False
                 else:
                     if not self._cxl_channel["d2h_req"].empty():
                         _fc_run = True
                         _fc_host_run = False
-                        _fc_host_cur = True
                     elif not self._upstream_cache_to_coh_bridge_fifo.request.empty():
                         _fc_run = True
                         _fc_host_run = True
-                        _fc_host_cur = False
-                    else:
-                        _fc_run = False
 
                 if _fc_run:
-                    self._cur_state.state = COH_STATE_MACHINE.COH_STATE_START
                     if _fc_host_run:
                         self._cur_state.packet = (
                             await self._upstream_cache_to_coh_bridge_fifo.request.get()
@@ -413,6 +398,10 @@ class CacheCoherencyBridge(RunnableComponent):
                         self._cur_state.packet = await self._cxl_channel["d2h_req"].get()
                         fn = self._process_cxl_d2h_req_packet
 
+                    self._cur_state.state = COH_STATE_MACHINE.COH_STATE_START
+
+            # run request processing and response checking code continuously until state changed
+            # data packets are extracted and consumed in request processing code
             else:
                 await fn(self._cur_state.packet)
 
