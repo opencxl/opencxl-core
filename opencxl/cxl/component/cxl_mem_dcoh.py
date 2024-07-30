@@ -76,6 +76,7 @@ class CxlMemDcoh(PacketProcessor):
             packet=None,
             cache_rsp=CACHE_RESPONSE_STATUS.RSP_I,
             cache_list=[],
+            birsp_sched=False,
         )
         self._sf_host = set()
         self._bi_id = 0

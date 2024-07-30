@@ -64,6 +64,7 @@ class CxlCacheDcoh(PacketProcessor):
             cache_list=[
                 0,
             ],
+            birsp_sched=False,
         )
 
         # emulated .cache d2h channels

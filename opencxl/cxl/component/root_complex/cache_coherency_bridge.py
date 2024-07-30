@@ -79,6 +79,7 @@ class CacheCoherencyBridge(RunnableComponent):
             packet=None,
             cache_rsp=CACHE_RESPONSE_STATUS.RSP_I,
             cache_list=[],
+            birsp_sched=False,
         )
         self._sf_device = [set() for _ in range(self._num_cache_devices)]
 

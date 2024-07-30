@@ -95,11 +95,11 @@ class HomeAgent(RunnableComponent):
             packet=None,
             cache_rsp=CXL_MEM_M2SBIRSP_OPCODE.BIRSP_I,
             cache_list=[],
+            birsp_sched=False,
         )
 
         # emulated .mem s2m channels
         self._cxl_channel = {"s2m_ndr": Queue(), "s2m_drs": Queue(), "s2m_bisnp": Queue()}
-        self._cur_state.cache_list = False
 
     def _create_m2s_req_packet(
         self,
@@ -233,12 +233,12 @@ class HomeAgent(RunnableComponent):
         elif s2mndr_packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_M:
             pass
         else:
-            if self._cur_state.cache_list is True:
+            if self._cur_state.birsp_sched:
                 bi_id = self._cur_state.packet.s2mbisnp_header.bi_id
                 bi_tag = self._cur_state.packet.s2mbisnp_header.bi_tag
                 cxl_packet = CxlMemBIRspPacket.create(self._cur_state.cache_rsp, bi_id, bi_tag)
                 await self._downstream_cxl_mem_fifos.host_to_target.put(cxl_packet)
-                self._cur_state.cache_list = False
+                self._cur_state.birsp_sched = False
             self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
             return
 
@@ -280,7 +280,7 @@ class HomeAgent(RunnableComponent):
                     self._cur_state.cache_rsp = CXL_MEM_M2SBIRSP_OPCODE.BIRSP_S
                 else:
                     self._cur_state.cache_rsp = CXL_MEM_M2SBIRSP_OPCODE.BIRSP_I
-                self._cur_state.cache_list = True
+                self._cur_state.birsp_sched = True
                 opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR
                 meta_field = CXL_MEM_META_FIELD.META0_STATE
                 meta_value = CXL_MEM_META_VALUE.INVALID
