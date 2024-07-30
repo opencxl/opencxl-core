@@ -578,11 +578,11 @@ class MyType2Accelerator(RunnableComponent):
     async def _run(self):
         tasks = [
             create_task(self._sw_conn_client.run()),
-            # create_task(self._cxl_type2_device.run()),
+            create_task(self._cxl_type2_device.run()),
             # create_task(self._irq_manager.run()),
         ]
         await self._sw_conn_client.wait_for_ready()
-        # await self._cxl_type2_device.wait_for_ready()
+        await self._cxl_type2_device.wait_for_ready()
         # await self._irq_manager.wait_for_ready()
         await self._change_status_to_running()
         await gather(*tasks)
@@ -590,7 +590,7 @@ class MyType2Accelerator(RunnableComponent):
     async def _stop(self):
         tasks = [
             create_task(self._sw_conn_client.stop()),
-            # create_task(self._cxl_type2_device.stop()),
+            create_task(self._cxl_type2_device.stop()),
             # create_task(self._irq_manager.stop()),
         ]
         await gather(*tasks)

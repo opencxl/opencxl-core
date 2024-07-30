@@ -459,11 +459,9 @@ class CxlCacheDcoh(PacketProcessor):
                             continue
                     await self._process_cxl_h2d_req_packet(packet)
 
-
                 if not self._cxl_channel["h2d_data"].empty():
                     packet = await self._cxl_channel["h2d_data"].get()
                     await self._process_cxl_h2d_data_packet(packet)
-
 
     # pylint: disable=duplicate-code
     async def _run(self):

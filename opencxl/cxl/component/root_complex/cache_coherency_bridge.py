@@ -364,12 +364,12 @@ class CacheCoherencyBridge(RunnableComponent):
 
     # process from host/device channels one by one in state machine
     async def _cache_coherency_bridege_main_loop(self):
-        await sleep(0)
         _stop_process = False
         _fc_run = False
         _fc_host_run = False
 
         while not _stop_process:
+            await sleep(0)
             # flow control for host/device packets
             # link state machine and function to the current request
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_INIT:

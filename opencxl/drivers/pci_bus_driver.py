@@ -496,7 +496,7 @@ class PciBusDriver(LabeledComponent):
     ) -> Tuple[int, int]:
         logger.debug(self._create_message(f"Scanning PCI Bus {bus}"))
         bdf_list = generate_bdfs_for_bus(bus)
-        multi_function_devices = set() 
+        multi_function_devices = set()
 
         for bdf in bdf_list:
             device_number = extract_device_from_bdf(bdf)
@@ -555,7 +555,7 @@ class PciBusDriver(LabeledComponent):
                 await self._set_secondary_bus(bdf, bus + 1)
                 await self._set_subordinate_bus(bdf, 0xFF)
 
-                (bus, memory_end) = await self._scan_bus(bus + 1, memory_start, pci_device_info) # this call hangs
+                (bus, memory_end) = await self._scan_bus(bus + 1, memory_start, pci_device_info)
 
                 if memory_start != memory_end:
                     await self._set_memory_base(bdf, memory_start)
