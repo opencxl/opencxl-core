@@ -65,7 +65,7 @@ async def test_cxl_host_type1_image_classification_host_ete():
         VirtualSwitchConfig(
             upstream_port_index=0,
             vppb_counts=NUM_DEVS,
-            initial_bounds=[i for i in range(1, NUM_DEVS + 1)],
+            initial_bounds=list(range(1, NUM_DEVS + 1)),
         )
     ]
     virtual_switch_manager = VirtualSwitchManager(
