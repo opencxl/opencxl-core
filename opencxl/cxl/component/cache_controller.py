@@ -41,6 +41,7 @@ class CohStateMachine:
     packet: None
     cache_rsp: CACHE_RESPONSE_STATUS
     cache_list: list
+    birsp_sched: bool
 
 
 class CacheCheck(Enum):

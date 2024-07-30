@@ -47,7 +47,7 @@ from opencxl.cxl.component.cache_controller import (
 
 
 # snoop filter update type definition
-# both cache's snoop filter insertion/deletion
+# device cache's snoop filter insertion/deletion
 class SF_UPDATE_TYPE(Enum):
     SF_DEVICE_IN = auto()
     SF_DEVICE_OUT = auto()
@@ -79,6 +79,7 @@ class CacheCoherencyBridge(RunnableComponent):
             packet=None,
             cache_rsp=CACHE_RESPONSE_STATUS.RSP_I,
             cache_list=[],
+            birsp_sched=False,
         )
         self._sf_device = [set() for _ in range(self._num_cache_devices)]
 
