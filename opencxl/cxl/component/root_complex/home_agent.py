@@ -6,7 +6,7 @@
 """
 
 from dataclasses import dataclass
-from asyncio import create_task, gather
+from asyncio import create_task, gather, sleep, Queue
 import asyncio
 from enum import Enum, auto
 from typing import List, cast
@@ -47,6 +47,10 @@ from opencxl.cxl.transport.transaction import (
     CXL_MEM_M2S_SNP_TYPE,
     is_cxl_mem_data,
 )
+from opencxl.cxl.component.cache_controller import (
+    CohStateMachine,
+    COH_STATE_MACHINE,
+)
 
 
 class MEMORY_RANGE_TYPE(Enum):
@@ -86,7 +90,16 @@ class HomeAgent(RunnableComponent):
         self._upstream_home_agent_to_cache_fifos = config.upstream_home_agent_to_cache_fifo
         self._downstream_cxl_mem_fifos = config.downstream_cxl_mem_fifos
 
-        self._bi_sync = False
+        self._cur_state = CohStateMachine(
+            state=COH_STATE_MACHINE.COH_STATE_INIT,
+            packet=None,
+            cache_rsp=CXL_MEM_M2SBIRSP_OPCODE.BIRSP_I,
+            cache_list=[],
+            birsp_sched=False,
+        )
+
+        # emulated .mem s2m channels
+        self._cxl_channel = {"s2m_ndr": Queue(), "s2m_drs": Queue(), "s2m_bisnp": Queue()}
 
     def _create_m2s_req_packet(
         self,
@@ -211,16 +224,80 @@ class HomeAgent(RunnableComponent):
                 response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
                 await self._memory_consumer_coh_fifos.response.put(response)
 
-    async def _process_upstream_host_to_target_packets(self):
-        while True:
-            cache_packet = await self._upstream_cache_to_home_agent_fifos.request.get()
-            if cache_packet is None:
-                logger.debug(
-                    self._create_message(
-                        "Stopped processing memory access requests from upstream packets"
-                    )
+    # .mem s2m rsp handler
+    async def _process_cxl_s2m_rsp_packet(self, s2mndr_packet: CxlMemS2MNDRPacket):
+        if s2mndr_packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_S:
+            status = CACHE_RESPONSE_STATUS.RSP_S
+        elif s2mndr_packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_E:
+            status = CACHE_RESPONSE_STATUS.RSP_I
+        elif s2mndr_packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_M:
+            pass
+        else:
+            if self._cur_state.birsp_sched:
+                bi_id = self._cur_state.packet.s2mbisnp_header.bi_id
+                bi_tag = self._cur_state.packet.s2mbisnp_header.bi_tag
+                cxl_packet = CxlMemBIRspPacket.create(self._cur_state.cache_rsp, bi_id, bi_tag)
+                await self._downstream_cxl_mem_fifos.host_to_target.put(cxl_packet)
+                self._cur_state.birsp_sched = False
+            self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
+            return
+
+        if not self._cxl_channel["s2m_drs"].empty():
+            cxl_packet = await self._cxl_channel["s2m_drs"].get()
+            assert cast(CxlMemBasePacket, cxl_packet).is_s2mdrs()
+            cache_packet = CacheResponse(status, cxl_packet.data)
+        else:
+            cache_packet = CacheResponse(status)
+        await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
+        self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
+
+    # .mem s2m bisnp handler
+    async def _process_cxl_s2m_bisnp_packet(self, s2mbisnp_packet: CxlMemS2MBISnpPacket):
+        if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_WAIT:
+            return
+
+        if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
+            addr = s2mbisnp_packet.get_address()
+
+            if s2mbisnp_packet.s2mbisnp_header.opcode == CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA:
+                cache_packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, addr)
+            elif s2mbisnp_packet.s2mbisnp_header.opcode == CXL_MEM_S2MBISNP_OPCODE.BISNP_INV:
+                cache_packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, addr)
+            await self._upstream_home_agent_to_cache_fifos.request.put(cache_packet)
+            bi_id = s2mbisnp_packet.s2mbisnp_header.bi_id
+            bi_tag = s2mbisnp_packet.s2mbisnp_header.bi_tag
+
+            packet = await self._upstream_home_agent_to_cache_fifos.response.get()
+
+            if packet.status == CACHE_RESPONSE_STATUS.RSP_MISS:
+                # corner case handling
+                # the cacheline w/ same address is currently write back to device
+                rsp_state = CXL_MEM_M2SBIRSP_OPCODE.BIRSP_I
+                cxl_packet = CxlMemBIRspPacket.create(rsp_state, bi_id, bi_tag)
+                self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
+            else:
+                if packet.status == CACHE_RESPONSE_STATUS.RSP_S:
+                    self._cur_state.cache_rsp = CXL_MEM_M2SBIRSP_OPCODE.BIRSP_S
+                else:
+                    self._cur_state.cache_rsp = CXL_MEM_M2SBIRSP_OPCODE.BIRSP_I
+                self._cur_state.birsp_sched = True
+                opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR
+                meta_field = CXL_MEM_META_FIELD.META0_STATE
+                meta_value = CXL_MEM_META_VALUE.INVALID
+                snp_type = CXL_MEM_M2S_SNP_TYPE.NO_OP
+
+                cxl_packet = self._create_m2s_rwd_packet(
+                    opcode, meta_field, meta_value, snp_type, addr, packet.data
                 )
-                break
+                self._cur_state.state = COH_STATE_MACHINE.COH_STATE_WAIT
+            await self._downstream_cxl_mem_fifos.host_to_target.put(cxl_packet)
+
+    # .mem m2s packet process
+    async def _process_upstream_host_to_target_packets(self, cache_packet: CacheRequest):
+        if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_WAIT:
+            return
+
+        if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
             meta_field = CXL_MEM_META_FIELD.NO_OP
             meta_value = CXL_MEM_META_VALUE.INVALID
             snp_type = CXL_MEM_M2S_SNP_TYPE.NO_OP
@@ -266,97 +343,103 @@ class HomeAgent(RunnableComponent):
                     meta_field = CXL_MEM_META_FIELD.META0_STATE
                     snp_type = CXL_MEM_M2S_SNP_TYPE.SNP_CUR
                 else:
-                    logger.debug(self._create_message("Invalid M2S RwD Command"))
-                    break
+                    raise Exception(f"Invalid M2S Opcode Type: {cache_packet.type}")
 
                 cxl_packet = self._create_m2s_req_packet(
                     opcode, meta_field, meta_value, snp_type, addr
                 )
+
+            self._cur_state.state = COH_STATE_MACHINE.COH_STATE_WAIT
             await self._downstream_cxl_mem_fifos.host_to_target.put(cxl_packet)
 
+    # .mem s2m packet process
     async def _process_downstream_target_to_host_packets(self):
         while True:
-            cxl_packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
-            if cxl_packet is None:
+            packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
+            if packet is None:
                 logger.debug(
                     self._create_message(
                         "Stopped processing memory access requests from downstream packets"
                     )
                 )
                 break
-            base_packet = cast(CxlMemBasePacket, cxl_packet)
 
-            if base_packet.is_s2mndr():
-                packet = cast(CxlMemS2MNDRPacket, cxl_packet)
-                if packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_S:
-                    status = CACHE_RESPONSE_STATUS.RSP_S
-                elif packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_E:
-                    status = CACHE_RESPONSE_STATUS.RSP_I
-                elif packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_M:
-                    pass
-                else:
-                    if self._bi_sync is True:
-                        cxl_packet = CxlMemBIRspPacket.create(CXL_MEM_M2SBIRSP_OPCODE.BIRSP_S)
-                        await self._downstream_cxl_mem_fifos.host_to_target.put(cxl_packet)
-                        self._bi_sync = False
-                    continue
+            base_packet = cast(CxlMemBasePacket, packet)
+            if not base_packet.is_cxl_mem():
+                raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
 
-                if not self._downstream_cxl_mem_fifos.target_to_host.empty():
-                    cxl_packet = await self._downstream_cxl_mem_fifos.target_to_host.get()
-                    base_packet = cast(CxlMemBasePacket, cxl_packet)
-                    if base_packet.is_s2mbisnp():
-                        await self._downstream_cxl_mem_fifos.target_to_host.put(cxl_packet)
-                        cache_packet = CacheResponse(status)
-                    else:
-                        assert base_packet.is_s2mdrs()
-                        packet = cast(CxlMemS2MDRSPacket, cxl_packet)
-                        cache_packet = CacheResponse(status, packet.data)
-                else:
-                    cache_packet = CacheResponse(status)
-                await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
-
-            elif base_packet.is_s2mdrs():
-                packet = cast(CxlMemS2MDRSPacket, cxl_packet)
-                cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, packet.data)
-                await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
-
-            elif base_packet.is_s2mbisnp():
-                packet = cast(CxlMemS2MBISnpPacket, cxl_packet)
-                addr = packet.get_address()
-
-                if packet.s2mbisnp_header.opcode == CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA:
-                    cache_packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, addr)
-                elif packet.s2mbisnp_header.opcode == CXL_MEM_S2MBISNP_OPCODE.BISNP_INV:
-                    cache_packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, addr)
-                await self._upstream_home_agent_to_cache_fifos.request.put(cache_packet)
-                bi_id = packet.s2mbisnp_header.bi_id
-                bi_tag = packet.s2mbisnp_header.bi_tag
-
-                packet = await self._upstream_home_agent_to_cache_fifos.response.get()
-                if packet.status == CACHE_RESPONSE_STATUS.RSP_S:
-                    self._bi_sync = True
-                    opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR
-                    meta_field = CXL_MEM_META_FIELD.META0_STATE
-                    meta_value = CXL_MEM_META_VALUE.INVALID
-                    snp_type = CXL_MEM_M2S_SNP_TYPE.NO_OP
-                    cxl_packet = self._create_m2s_rwd_packet(
-                        opcode, meta_field, meta_value, snp_type, addr, packet.data
-                    )
-                else:
-                    rsp_state = CXL_MEM_M2SBIRSP_OPCODE.BIRSP_I
-                    cxl_packet = CxlMemBIRspPacket.create(rsp_state, bi_id=bi_id, bi_tag=bi_tag)
-                await self._downstream_cxl_mem_fifos.host_to_target.put(cxl_packet)
-
+            # packets are distributed to s2m channels
+            cxl_packet = cast(CxlMemBasePacket, packet)
+            if cxl_packet.is_s2mndr():
+                await self._cxl_channel["s2m_ndr"].put(cast(CxlMemS2MNDRPacket, packet))
+            elif cxl_packet.is_s2mdrs():
+                await self._cxl_channel["s2m_drs"].put(cast(CxlMemS2MDRSPacket, packet))
+            elif cxl_packet.is_s2mbisnp():
+                await self._cxl_channel["s2m_bisnp"].put(cast(CxlMemS2MBISnpPacket, packet))
             else:
-                logger.info(self._create_message(packet.cxl_mem_header.msg_class))
-                assert False
+                raise Exception(f"Received unexpected packet: {cxl_packet.get_type()}")
+
+    # process from host/device channels one by one in state machine
+    async def _home_agent_coherency_main_loop(self):
+        _stop_process = False
+        _fc_run = False
+        _fc_host_run = False
+
+        while not _stop_process:
+            await sleep(0)
+            # flow control for host/device packets
+            # link state machine and function to the current request
+            if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_INIT:
+                _fc_run = False
+                if _fc_host_run is False:
+                    if not self._upstream_cache_to_home_agent_fifos.request.empty():
+                        _fc_run = True
+                        _fc_host_run = True
+                    elif not self._cxl_channel["s2m_bisnp"].empty():
+                        _fc_run = True
+                        _fc_host_run = False
+                else:
+                    if not self._cxl_channel["s2m_bisnp"].empty():
+                        _fc_run = True
+                        _fc_host_run = False
+                    elif not self._upstream_cache_to_home_agent_fifos.request.empty():
+                        _fc_run = True
+                        _fc_host_run = True
+
+                if _fc_run:
+                    if _fc_host_run:
+                        self._cur_state.packet = (
+                            await self._upstream_cache_to_home_agent_fifos.request.get()
+                        )
+                        if self._cur_state.packet is None:
+                            logger.debug(
+                                self._create_message(
+                                    "Stop processing home agent coherency main loop"
+                                )
+                            )
+                            _stop_process = True
+                        fn = self._process_upstream_host_to_target_packets
+                    else:
+                        self._cur_state.packet = await self._cxl_channel["s2m_bisnp"].get()
+                        fn = self._process_cxl_s2m_bisnp_packet
+
+                    self._cur_state.state = COH_STATE_MACHINE.COH_STATE_START
+
+            # run request processing and response checking code continuously until state changed
+            # drs packets are extracted and consumed in ndr processing code
+            else:
+                await fn(self._cur_state.packet)
+
+                if not self._cxl_channel["s2m_ndr"].empty():
+                    packet = await self._cxl_channel["s2m_ndr"].get()
+                    await self._process_cxl_s2m_rsp_packet(packet)
 
     async def _run(self):
         tasks = [
             create_task(self._process_memory_io_bridge_requests()),
             create_task(self._process_memory_coh_bridge_requests()),
-            create_task(self._process_upstream_host_to_target_packets()),
             create_task(self._process_downstream_target_to_host_packets()),
+            create_task(self._home_agent_coherency_main_loop()),
         ]
         await self._change_status_to_running()
         await gather(*tasks)
