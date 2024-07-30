@@ -47,7 +47,7 @@ from opencxl.cxl.component.cache_controller import (
 
 
 # snoop filter update type definition
-# both cache's snoop filter insertion/deletion
+# device cache's snoop filter insertion/deletion
 class SF_UPDATE_TYPE(Enum):
     SF_DEVICE_IN = auto()
     SF_DEVICE_OUT = auto()

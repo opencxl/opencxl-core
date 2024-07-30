@@ -1686,13 +1686,17 @@ class CxlMemBISnpPacket(CxlMemS2MBISnpPacket):
         return old_tag
 
     @staticmethod
-    def create(addr: int, opcode: CXL_MEM_S2MBISNP_OPCODE) -> "CxlMemBISnpPacket":
+    def create(
+        addr: int, opcode: CXL_MEM_S2MBISNP_OPCODE, bi_id: int = 0, bi_tag: int = 0
+    ) -> "CxlMemBISnpPacket":
         packet = CxlMemBISnpPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_BISNP
         packet.s2mbisnp_header.valid = 0b1
         packet.s2mbisnp_header.opcode = opcode
+        packet.s2mbisnp_header.bi_tag = bi_tag
+        packet.s2mbisnp_header.bi_id = bi_id
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         packet.s2mbisnp_header.addr = addr >> 6
