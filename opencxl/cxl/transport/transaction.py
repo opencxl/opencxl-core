@@ -820,7 +820,7 @@ class CXL_CACHE_NON_TEMPORAL_ENCODINGS(IntEnum):
 class CxlCacheD2HReqHeader(UnalignedBitStructure):
     valid: int
     cache_opcode: CXL_CACHE_D2HREQ_OPCODE
-    cq_id: int
+    cqid: int
     nt: CXL_CACHE_NON_TEMPORAL_ENCODINGS
     cache_id: int
     addr: int
@@ -828,7 +828,7 @@ class CxlCacheD2HReqHeader(UnalignedBitStructure):
     _fields = [
         BitField("valid", 0, 0),
         BitField("cache_opcode", 1, 5),
-        BitField("cq_id", 6, 17),
+        BitField("cqid", 6, 17),
         BitField("nt", 18, 18),
         BitField("cache_id", 19, 22),
         BitField("addr", 23, 68),
@@ -939,7 +939,7 @@ class CxlCacheH2DRspHeader(UnalignedBitStructure):
     cache_opcode: CXL_CACHE_H2DRSP_OPCODE
     rsp_data: int  # Could be CXL_CACHE_H2DRSP_CACHE_STATE
     rsp_pre: CXL_CACHE_H2DRSP_PRE
-    cq_id: int
+    cqid: int
     cache_id: int
     rsvd: int
     _fields = [
@@ -947,7 +947,7 @@ class CxlCacheH2DRspHeader(UnalignedBitStructure):
         BitField("cache_opcode", 1, 4),
         BitField("rsp_data", 5, 16),
         BitField("rsp_pre", 17, 18),
-        BitField("cq_id", 19, 30),
+        BitField("cqid", 19, 30),
         BitField("cache_id", 31, 34),
         BitField("rsvd", 35, 39),
     ]
@@ -956,14 +956,14 @@ class CxlCacheH2DRspHeader(UnalignedBitStructure):
 # Table 3-21
 class CxlCacheH2DDataHeader(UnalignedBitStructure):
     valid: int
-    cq_id: int
+    cqid: int
     poison: int
     go_err: int
     cache_id: int
     rsvd: int
     _fields = [
         BitField("valid", 0, 0),
-        BitField("cq_id", 1, 12),
+        BitField("cqid", 1, 12),
         BitField("poison", 13, 13),
         BitField("go_err", 14, 14),
         BitField("cache_id", 15, 18),
@@ -1092,7 +1092,7 @@ class CxlCacheH2DDataPacket(CxlCacheBasePacket):
     ]
 
     def get_cqid(self) -> int:
-        return self.h2ddata_header.cq_id
+        return self.h2ddata_header.cqid
 
     def get_cache_id(self) -> int:
         return self.h2ddata_header.cache_id
@@ -1103,7 +1103,10 @@ class CxlCacheCacheD2HReqPacket(CxlCacheD2HReqPacket):
     @staticmethod
     # read length is assumed to be 64 for now
     def create(
-        addr: int, cache_id: int, opcode: CXL_CACHE_D2HREQ_OPCODE
+        addr: int,
+        cache_id: int,
+        opcode: CXL_CACHE_D2HREQ_OPCODE,
+        cqid: int = 0,
     ) -> "CxlCacheCacheD2HReqPacket":
         packet = CxlCacheCacheD2HReqPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
@@ -1111,6 +1114,7 @@ class CxlCacheCacheD2HReqPacket(CxlCacheD2HReqPacket):
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_REQ
         packet.d2hreq_header.valid = 0b1
         packet.d2hreq_header.cache_opcode = opcode
+        packet.d2hreq_header.cqid = cqid
         packet.d2hreq_header.cache_id = cache_id
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
@@ -1169,7 +1173,10 @@ class CxlCacheCacheH2DRspPacket(CxlCacheH2DRspPacket):
     @staticmethod
     # read length is assumed to be 64 for now
     def create(
-        cache_id: int, opcode: CXL_CACHE_H2DRSP_OPCODE, rsp_data: CXL_CACHE_H2DRSP_CACHE_STATE
+        cache_id: int,
+        opcode: CXL_CACHE_H2DRSP_OPCODE,
+        rsp_data: CXL_CACHE_H2DRSP_CACHE_STATE,
+        cqid: int = 0,
     ) -> "CxlCacheCacheH2DRspPacket":
         packet = CxlCacheCacheH2DRspPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
@@ -1179,18 +1186,20 @@ class CxlCacheCacheH2DRspPacket(CxlCacheH2DRspPacket):
         packet.h2drsp_header.cache_opcode = opcode
         packet.h2drsp_header.cache_id = cache_id
         packet.h2drsp_header.rsp_data = rsp_data
+        packet.h2drsp_header.cqid = cqid
         return packet
 
 
 class CxlCacheCacheH2DDataPacket(CxlCacheH2DDataPacket):
     @staticmethod
-    def create(cache_id: int, data: int) -> "CxlCacheCacheH2DDataPacket":
+    def create(cache_id: int, data: int, cqid: int = 0) -> "CxlCacheCacheH2DDataPacket":
         packet = CxlCacheCacheH2DDataPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
         packet.h2ddata_header.valid = 0b1
         packet.h2ddata_header.cache_id = cache_id
+        packet.h2ddata_header.cqid = cqid
         packet.data = data
         return packet
 

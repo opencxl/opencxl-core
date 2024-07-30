@@ -556,9 +556,11 @@ class PciBusDriver(LabeledComponent):
                 await self._set_subordinate_bus(bdf, 0xFF)
 
                 (bus, memory_end) = await self._scan_bus(bus + 1, memory_start, pci_device_info)
+
                 if memory_start != memory_end:
                     await self._set_memory_base(bdf, memory_start)
                     await self._set_memory_limit(bdf, memory_end - 1)
+
                 memory_start = memory_end
                 await self._set_subordinate_bus(bdf, bus)
 
