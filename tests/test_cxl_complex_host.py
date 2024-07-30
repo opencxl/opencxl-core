@@ -91,8 +91,6 @@ async def test_cxl_host_type2_complex_host_ete():
     cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
     cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
 
-    ### ERROR BELOW THIS POINT
-
     start_tasks = [
         asyncio.create_task(host.run()),
         asyncio.create_task(host_manager.run()),
@@ -111,8 +109,6 @@ async def test_cxl_host_type2_complex_host_ete():
         asyncio.create_task(sld.wait_for_ready()),
     ]
     await asyncio.gather(*wait_tasks)
-
-    ### BELOW???
 
     async def test_configs():
         await pci_bus_driver.init()
@@ -138,8 +134,6 @@ async def test_cxl_host_type2_complex_host_ete():
 
     test_tasks = [asyncio.create_task(test_configs()), asyncio.create_task(asyncio.sleep(4))]
     await asyncio.gather(*test_tasks)
-
-    ### ERROR ABOVE THIS POINT
 
     stop_tasks = [
         asyncio.create_task(sw_conn_manager.stop()),
