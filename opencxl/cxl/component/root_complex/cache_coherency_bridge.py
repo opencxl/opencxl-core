@@ -6,7 +6,8 @@
 """
 
 from dataclasses import dataclass
-from asyncio import create_task, gather, sleep, Queue
+from asyncio import create_task, gather, Queue, sleep
+from itertools import cycle
 from typing import cast
 from enum import Enum, auto
 
@@ -86,6 +87,11 @@ class CacheCoherencyBridge(RunnableComponent):
         # emulated .cache d2h channels
         self._cxl_channel = {"d2h_req": Queue(), "d2h_rsp": Queue(), "d2h_data": Queue()}
 
+        self._uqid_gen = cycle(range(0, 4096))
+
+    def get_next_uqid(self) -> int:
+        return next(self._uqid_gen)
+
     def _snoop_filter_update(self, addr: int, cache_id: int, sf_update_list: list) -> None:
         for sf_type in sf_update_list:
             if sf_type == SF_UPDATE_TYPE.SF_DEVICE_IN:
@@ -133,6 +139,7 @@ class CacheCoherencyBridge(RunnableComponent):
 
         addr = d2hreq_packet.get_address()
         cache_id = d2hreq_packet.d2hreq_header.cache_id
+        cqid = d2hreq_packet.d2hreq_header.cqid
         sf_update_list = []
 
         if d2hreq_packet.d2hreq_header.cache_opcode == CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN_NO_DATA:
@@ -164,7 +171,8 @@ class CacheCoherencyBridge(RunnableComponent):
                 cxl_packet = CxlCacheCacheH2DRspPacket.create(
                     cache_id,
                     CXL_CACHE_H2DRSP_OPCODE.GO_WRITE_PULL,
-                    CXL_CACHE_H2DRSP_CACHE_STATE.INVALID,
+                    self.get_next_uqid(),  # fake UQID allocation
+                    cqid=cqid,
                 )
                 await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_DONE
@@ -216,7 +224,7 @@ class CacheCoherencyBridge(RunnableComponent):
                 sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
                 await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
 
-                cxl_packet = CxlCacheCacheH2DDataPacket.create(cache_id, data)
+                cxl_packet = CxlCacheCacheH2DDataPacket.create(cache_id, data, cqid)
                 await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 

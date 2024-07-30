@@ -21,10 +21,10 @@ from opencxl.cxl.component.bi_decoder import (
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import HdmDecoderManagerBase
 from opencxl.util.component import LabeledComponent
-from opencxl.cxl.mmio.component_register.memcache_register.cache_route_table import (
+from opencxl.cxl.component.cache_route_table import (
     CacheRouteTableCapabilityStructureOptions,
 )
-from opencxl.cxl.mmio.component_register.memcache_register.cache_id_decoder_capability import (
+from opencxl.cxl.component.cache_id_decoder_capability import (
     CxlCacheIdDecoderCapabilityStructureOptions,
 )
 

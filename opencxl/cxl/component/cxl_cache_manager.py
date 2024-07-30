@@ -6,7 +6,17 @@
 """
 
 # pylint: disable=unused-import
-from typing import Optional, cast
+from asyncio import (
+    CancelledError,
+    Event,
+    Future,
+    Lock,
+    create_task,
+    current_task,
+    get_running_loop,
+    timeout,
+)
+from typing import Callable, Optional, cast
 
 from opencxl.cxl.component.cxl_memory_device_component import CxlMemoryDeviceComponent
 from opencxl.util.logger import logger
@@ -42,6 +52,9 @@ class CxlCacheManager(PacketProcessor):
         self._upstream_fifo: FifoPair
         self._cache_device_component = None
 
+        self.device_entries = {}  # maps CQID -> received future packets associated with CQID
+        self.device_entry_lock = Lock()  # locks the above mapping
+
         super().__init__(upstream_fifo, downstream_fifo, label)
 
     def set_memory_device_component(self, cache_device_component: CxlMemoryDeviceComponent):
@@ -57,13 +70,6 @@ class CxlCacheManager(PacketProcessor):
         # Some arbitrary opcode
         packet = CxlCacheCacheD2HReqPacket.create(
             addr=0x40, cache_id=0b1010, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_ANY
-        )
-        await self._upstream_fifo.target_to_host.put(packet)
-
-    async def send_d2h_req_rdonly(self, addr: int):
-        # Cache ID is "filled in" by the switch
-        packet = CxlCacheCacheD2HReqPacket.create(
-            addr=addr, cache_id=0, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_SHARED
         )
         await self._upstream_fifo.target_to_host.put(packet)
 
@@ -112,10 +118,23 @@ class CxlCacheManager(PacketProcessor):
                 logger.debug(h2dreq_packet.get_pretty_string())
             elif cxl_cache_packet.is_h2drsp():
                 h2drsp_packet = cast(CxlCacheCacheH2DRspPacket, packet)
-                logger.debug("Received h2drsp_packet:")
-                logger.debug(h2drsp_packet.get_pretty_string())
+
+                # TODO: Move this logic out into a generalized process_h2d_rsp method.
+
+                # notify matching cqid listener, if one exists
+                cqid = h2drsp_packet.h2drsp_header.cqid
+                async with self.device_entry_lock:
+                    if cqid in self.device_entries:
+                        self.device_entries[cqid].set_result(h2drsp_packet)
+
+                print("Received h2drsp_packet:")
+                h2drsp_packet.get_pretty_string()
             elif cxl_cache_packet.is_h2ddata():
                 h2ddata_packet = cast(CxlCacheCacheH2DDataPacket, packet)
+                cqid = h2ddata_packet.h2drsp_header.cqid
+                async with self.device_entry_lock:
+                    if cqid in self.device_entries:
+                        self.device_entries[cqid].set_result(h2ddata_packet)
                 await self._process_cxl_cache_h2d_data_packet(h2ddata_packet)
             else:
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
