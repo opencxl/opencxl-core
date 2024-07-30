@@ -137,21 +137,23 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
                     await self.store(pic_data_mem_loc, pic_data_len, pic_data_int)
-                    for dev in range(self._device_count):
+                    for dev_id in range(self._device_count):
                         # Remember to configure the device when starting the app
-                        # Should make sure to_device_addr returns correct mmio for that dev
+                        # Should make sure to_device_addr returns correct mmio for that dev_id
                         # In fact, we can use a fixed host memory addr
                         # and we only need to write the length to the device
                         await self.write_mmio(
-                            self.to_device_mmio_addr(dev, 0x810), 8, pic_data_mem_loc
+                            self.to_device_mmio_addr(dev_id, 0x810), 8, pic_data_mem_loc
                         )
-                        await self.write_mmio(self.to_device_mmio_addr(dev, 0x818), 8, pic_data_len)
+                        await self.write_mmio(
+                            self.to_device_mmio_addr(dev_id, 0x818), 8, pic_data_len
+                        )
                         event = asyncio.Event()
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
-                            self._save_validation_result_type1(dev, pic_id, event),
+                            self._save_validation_result_type1(dev_id, pic_id, event),
                         )
-                        await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev)
+                        await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
                         await event.wait()
                         # Currently we don't send the picture information
                         # (e.g., pic_id) to the device
@@ -160,12 +162,12 @@ class HostTrainIoGen(RunnableComponent):
                     pic_id += 1
         self._merge_validation_results()
 
-    def _save_validation_result_type1(self, dev: int, pic_id: int, event: asyncio.Event):
+    def _save_validation_result_type1(self, dev_id: int, pic_id: int, event: asyncio.Event):
         async def _func():
             # We can use a fixed host_result_addr, say 0x0A000000
             # Only length is needed
-            host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev, 0x820), 8)
-            host_result_len = await self.load(self.to_device_mmio_addr(dev, 0x828), 8)
+            host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x820), 8)
+            host_result_len = await self.load(self.to_device_mmio_addr(dev_id, 0x828), 8)
             data = await self.load(host_result_addr, host_result_len)
             data_bytes = data.data.to_bytes(host_result_len, "little")
             validate_result = json.loads(data_bytes)
@@ -216,23 +218,23 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data = f.read()
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
-                    for dev in range(self._device_count):
+                    for dev_id in range(self._device_count):
                         event = asyncio.Event()
                         await self.store(
-                            self.to_device_mem_addr(dev, 0x00008000), pic_data_len, pic_data_int
+                            self.to_device_mem_addr(dev_id, 0x00008000), pic_data_len, pic_data_int
                         )
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
-                            self._save_validation_result_type2(dev, pic_id, event),
+                            self._save_validation_result_type2(dev_id, pic_id, event),
                         )
-                        await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev)
+                        await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
                         event.wait()
                         # Currently we don't send the picture information to the device
                         # and to prevent race condition, we need to send pics synchronously
                     pic_id += 1
         self._merge_validation_results()
 
-    def _save_validation_result_type2(self, dev: int, pic_id: int, event: asyncio.Event):
+    def _save_validation_result_type2(self, dev_id: int, pic_id: int, event: asyncio.Event):
         pass
 
     async def _host_process_llc_iogen(self):
@@ -257,10 +259,10 @@ class HostTrainIoGen(RunnableComponent):
         else:
             raise Exception("Only T1 and T2 devices are allowed!")
 
-        for dev in range(self._device_count):
-            await self.write_mmio(self.to_device_mmio_addr(dev, 0x800), 8, csv_data_mem_loc)
-            await self.write_mmio(self.to_device_mmio_addr(dev, 0x808), 8, csv_data_len)
-            await self._irq_handler.send_irq_request(Irq.HOST_READY, dev)
+        for dev_id in range(self._device_count):
+            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x800), 8, csv_data_mem_loc)
+            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x808), 8, csv_data_len)
+            await self._irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
 
     async def _run(self):
         tasks = [

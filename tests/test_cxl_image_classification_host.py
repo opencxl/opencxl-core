@@ -44,29 +44,33 @@ async def test_cxl_host_type1_image_classification_host_ete():
     util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 156
     switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 157
 
-    port_configs = [
-        PortConfig(PORT_TYPE.USP),
-        PortConfig(PORT_TYPE.DSP),
-        PortConfig(PORT_TYPE.DSP),
-        PortConfig(PORT_TYPE.DSP),
-        PortConfig(PORT_TYPE.DSP),
-    ]
+    NUM_DEVS = 4
+
+    port_configs = [PortConfig(PORT_TYPE.USP)]
+
+    dev_list: list[MyType1Accelerator] = []
+
+    for i in range(0, NUM_DEVS):
+        port_configs.append(PortConfig(PORT_TYPE.DSP))
+        dev_list.append(
+            MyType1Accelerator(port_index=i + 1, port=switch_port, irq_listen_port=9100 + i)
+        )
+
     sw_conn_manager = SwitchConnectionManager(port_configs, port=switch_port)
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=sw_conn_manager, port_configs=port_configs
     )
 
     switch_configs = [
-        VirtualSwitchConfig(upstream_port_index=0, vppb_counts=4, initial_bounds=[1, 2, 3, 4])
+        VirtualSwitchConfig(
+            upstream_port_index=0,
+            vppb_counts=NUM_DEVS,
+            initial_bounds=[i for i in range(1, NUM_DEVS + 1)],
+        )
     ]
     virtual_switch_manager = VirtualSwitchManager(
         switch_configs=switch_configs, physical_port_manager=physical_port_manager
     )
-
-    dev1 = MyType1Accelerator(port_index=1, port=switch_port, irq_listen_port=9100)
-    dev2 = MyType1Accelerator(port_index=2, port=switch_port, irq_listen_port=9101)
-    dev3 = MyType1Accelerator(port_index=3, port=switch_port, irq_listen_port=9102)
-    dev4 = MyType1Accelerator(port_index=4, port=switch_port, irq_listen_port=9103)
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     host_mem_size = 0x8000  # Needs to be big enough to test cache eviction
@@ -100,11 +104,9 @@ async def test_cxl_host_type1_image_classification_host_ete():
         asyncio.create_task(sw_conn_manager.run()),
         asyncio.create_task(physical_port_manager.run()),
         asyncio.create_task(virtual_switch_manager.run()),
-        asyncio.create_task(dev1.run()),
-        asyncio.create_task(dev2.run()),
-        asyncio.create_task(dev3.run()),
-        asyncio.create_task(dev4.run()),
     ]
+    for dev in dev_list:
+        start_tasks.append(asyncio.create_task(dev.run()))
 
     wait_tasks = [
         asyncio.create_task(sw_conn_manager.wait_for_ready()),
@@ -112,11 +114,9 @@ async def test_cxl_host_type1_image_classification_host_ete():
         asyncio.create_task(virtual_switch_manager.wait_for_ready()),
         asyncio.create_task(host_manager.wait_for_ready()),
         asyncio.create_task(host.wait_for_ready()),
-        asyncio.create_task(dev1.wait_for_ready()),
-        asyncio.create_task(dev2.wait_for_ready()),
-        asyncio.create_task(dev3.wait_for_ready()),
-        asyncio.create_task(dev4.wait_for_ready()),
     ]
+    for dev in dev_list:
+        wait_tasks.append(asyncio.create_task(dev.wait_for_ready()))
     await asyncio.gather(*wait_tasks)
 
     async def test_configs():
@@ -124,7 +124,6 @@ async def test_cxl_host_type1_image_classification_host_ete():
         await cxl_bus_driver.init()
         await cxl_mem_driver.init()
 
-        logger.debug(cxl_mem_driver.get_devices())
         for device in cxl_mem_driver.get_devices():
             # NOTE: The list should match the dev order
             # Not tested, though
@@ -147,10 +146,8 @@ async def test_cxl_host_type1_image_classification_host_ete():
         asyncio.create_task(virtual_switch_manager.stop()),
         asyncio.create_task(host_manager.stop()),
         asyncio.create_task(host.stop()),
-        asyncio.create_task(dev1.stop()),
-        asyncio.create_task(dev2.stop()),
-        asyncio.create_task(dev3.stop()),
-        asyncio.create_task(dev4.stop()),
     ]
+    for dev in dev_list:
+        stop_tasks.append(asyncio.create_task(dev.stop()))
     await asyncio.gather(*stop_tasks)
     await asyncio.gather(*start_tasks)
