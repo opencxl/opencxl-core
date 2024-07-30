@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional, List
 from random import sample
 
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.logger import logger
 from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
@@ -56,6 +57,7 @@ class HostTrainIoGenConfig:
     base_addr: int
     device_count: int
     interleave_gran: int
+    device_type: CXL_COMPONENT_TYPE.T1
 
 
 class HostTrainIoGen(RunnableComponent):
@@ -67,7 +69,6 @@ class HostTrainIoGen(RunnableComponent):
         self._irq_handler = config.irq_handler
         self._validation_results = []
         self._device_finished_training = 0
-        self._total_validation_finished = 0
         self._sample_from_each_category = sample_from_each_category
         self._sampled_file_categories = []
         self._total_samples: int = 0
@@ -75,8 +76,16 @@ class HostTrainIoGen(RunnableComponent):
         self._base_addr = config.base_addr
         self._device_count = config.device_count
         self._interleave_gran = config.interleave_gran
+        self._dev_type = config.device_type
         self._train_data_path = "/Users/zhxq/Downloads/imagenette2-160"
-        self._lock = asyncio.Lock()
+        self._dev_mmio_ranges: list[tuple[int, int]] = []
+        self._dev_mem_ranges: list[tuple[int, int]] = []
+
+    def append_dev_mmio_range(self, base, size):
+        self._dev_mmio_ranges.append((base, size))
+
+    def append_dev_mem_range(self, base, size):
+        self._dev_mem_ranges.append((base, size))
 
     # pylint: disable=duplicate-code
     async def load(self, address: int, size: int) -> MemoryResponse:
@@ -103,30 +112,20 @@ class HostTrainIoGen(RunnableComponent):
     async def read_mmio(self, address: int, size: int) -> int:
         return await self._root_complex.read_mmio(address, size)
 
-    async def write_cxl_mem(self, address: int, size: int, value: int):
-        await self._root_complex.write_cxl_mem(address, size, value)
+    def to_device_mmio_addr(self, device: int, addr: int) -> int:
+        assert addr < self._dev_mmio_ranges[device][1]
+        return self._dev_mmio_ranges[device][0] + addr
 
-    async def read_cxl_mem(self, address: int, size: int) -> int:
-        return await self._root_complex.read_cxl_mem(address, size)
+    def to_device_mem_addr(self, device: int, addr: int) -> int:
+        assert addr < self._dev_mem_ranges[device][1]
+        return self._dev_mem_ranges[device][0] + addr
 
-    def to_device_addr(self, device: int, addr: int) -> int:
-        unaligned_offset = addr % self._interleave_gran
-        dev_offset = (addr - unaligned_offset) * self._device_count + (
-            device * self._interleave_gran
-        )
-        return self._base_addr + dev_offset + unaligned_offset
-
-    async def _host_process_validation(self):
-        self._lock.acquire()
-        self._device_finished_training += 1
-        if self._device_finished_training != self._device_count:
-            self._lock.release()
-            return
-        self._lock.release()
+    async def _host_process_validation_type1(self):
         categories = glob.glob(self._train_data_path + "/val/*")
         self._total_samples = len(categories) * self._sample_from_each_category
         self._validation_results: List[List[Dict[str, float]]] = [[] for _ in self._total_samples]
-        pic_count = 0
+        pic_id = 0
+        pic_data_mem_loc = 0x00008000
         for c in categories:
             category_pics = glob.glob(f"{c}/*.JPEG")
             sample_pics = sample(category_pics, self._sample_from_each_category)
@@ -135,21 +134,108 @@ class HostTrainIoGen(RunnableComponent):
             for s in sample_pics:
                 with open(s, "rb") as f:
                     pic_data = f.read()
-                    pic_data_int = int.from_bytes(pic_data, "big")
+                    pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
-                    for dev in range(self._device_count):
-                        self.write_cxl_mem(
-                            self.to_device_addr(dev, 0x00008000), pic_data_len, pic_data_int
+                    await self.store(pic_data_mem_loc, pic_data_len, pic_data_int)
+                    for dev_id in range(self._device_count):
+                        # Remember to configure the device when starting the app
+                        # Should make sure to_device_addr returns correct mmio for that dev_id
+                        # In fact, we can use a fixed host memory addr
+                        # and we only need to write the length to the device
+                        await self.write_mmio(
+                            self.to_device_mmio_addr(dev_id, 0x810), 8, pic_data_mem_loc
+                        )
+                        await self.write_mmio(
+                            self.to_device_mmio_addr(dev_id, 0x818), 8, pic_data_len
+                        )
+                        event = asyncio.Event()
+                        self._irq_handler.register_interrupt_handler(
+                            Irq.ACCEL_VALIDATION_FINISHED,
+                            self._save_validation_result_type1(dev_id, pic_id, event),
+                        )
+                        await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
+                        await event.wait()
+                        # Currently we don't send the picture information
+                        # (e.g., pic_id) to the device
+                        # and to prevent race condition, we need to send pics synchronously
+                    pic_data_mem_loc += pic_data_len
+                    pic_id += 1
+        self._merge_validation_results()
+
+    def _save_validation_result_type1(self, dev_id: int, pic_id: int, event: asyncio.Event):
+        async def _func():
+            # We can use a fixed host_result_addr, say 0x0A000000
+            # Only length is needed
+            host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x820), 8)
+            host_result_len = await self.load(self.to_device_mmio_addr(dev_id, 0x828), 8)
+            data = await self.load(host_result_addr, host_result_len)
+            data_bytes = data.data.to_bytes(host_result_len, "little")
+            validate_result = json.loads(data_bytes)
+            self._validation_results[pic_id].append(validate_result)
+            event.set()
+
+        return _func
+
+    def _merge_validation_results(self):
+        merged_result = {}
+        max_v = 0
+        max_k = 0
+        for pic_id in range(self._total_samples):
+            assert len(self._validation_results[pic_id]) == self._device_count
+            real_category = self._sampled_file_categories[pic_id]
+            for dev_result in self._validation_results[pic_id]:
+                for k, v in dev_result.items():
+                    if k not in merged_result:
+                        merged_result[k] = v
+                    else:
+                        merged_result[k] += v
+                    if merged_result[k] > max_v:
+                        max_v = merged_result[k]
+                        max_k = k
+            if max_k == real_category:
+                self._correct_validation += 1
+
+            print(f"Picture category: Real: {real_category}, validated: {max_k}")
+
+        print("Validation finished. Results:")
+        print(
+            f"Correct/Total: {self._correct_validation}/{self._total_samples} "
+            f"({self._correct_validation/self._total_samples:.2f}%)"
+        )
+
+    async def _host_process_validation_type2(self):
+        categories = glob.glob(self._train_data_path + "/val/*")
+        self._total_samples = len(categories) * self._sample_from_each_category
+        self._validation_results: List[List[Dict[str, float]]] = [[] for _ in self._total_samples]
+        pic_id = 0
+        for c in categories:
+            category_pics = glob.glob(f"{c}/*.JPEG")
+            sample_pics = sample(category_pics, self._sample_from_each_category)
+            category_name = c.split(os.path.sep)[-1]
+            self._sampled_file_categories += [category_name] * self._sample_from_each_category
+            for s in sample_pics:
+                with open(s, "rb") as f:
+                    pic_data = f.read()
+                    pic_data_int = int.from_bytes(pic_data, "little")
+                    pic_data_len = len(pic_data)
+                    for dev_id in range(self._device_count):
+                        event = asyncio.Event()
+                        await self.store(
+                            self.to_device_mem_addr(dev_id, 0x00008000), pic_data_len, pic_data_int
                         )
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
-                            self._save_validation_result(dev, category_name, pic_count),
+                            self._save_validation_result_type2(dev_id, pic_id, event),
                         )
-                        await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev)
+                        await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
+                        event.wait()
                         # Currently we don't send the picture information to the device
                         # and to prevent race condition, we need to send pics synchronously
-                        self._lock.acquire()
-                    pic_count += 1
+                    pic_id += 1
+        self._merge_validation_results()
+
+    def _save_validation_result_type2(self, dev_id: int, pic_id: int, event: asyncio.Event):
+        pass
 
     async def _host_process_llc_iogen(self):
         # Pass init-info mem location to the remote using MMIO
@@ -157,55 +243,26 @@ class HostTrainIoGen(RunnableComponent):
         csv_data = b""
         with open(f"{self._train_data_path}/noisy_imagenette.csv", "rb") as f:
             csv_data = f.read()
-        csv_data_int = int.from_bytes(csv_data, "big")
+        csv_data_int = int.from_bytes(csv_data, "little")
         csv_data_len = len(csv_data)
-        self.store(csv_data_mem_loc, csv_data_len, csv_data_int)
 
-        for dev in range(self._device_count):
-            self.write_mmio(self.to_device_addr(dev, 0x40), 8, csv_data_mem_loc)
-            self.write_mmio(self.to_device_addr(dev, 0x48), 8, csv_data_len)
+        await self.store(csv_data_mem_loc, csv_data_len, csv_data_int)
 
+        if self._dev_type == CXL_COMPONENT_TYPE.T1:
             self._irq_handler.register_interrupt_handler(
-                Irq.ACCEL_TRAINING_FINISHED, self._host_process_validation
+                Irq.ACCEL_TRAINING_FINISHED, self._host_process_validation_type1
             )
+        elif self._dev_type == CXL_COMPONENT_TYPE.T2:
+            self._irq_handler.register_interrupt_handler(
+                Irq.ACCEL_TRAINING_FINISHED, self._host_process_validation_type2
+            )
+        else:
+            raise Exception("Only T1 and T2 devices are allowed!")
 
-            await self._irq_handler.send_irq_request(Irq.HOST_READY, dev)
-
-    def _save_validation_result(self, device, real_category, pic_count: int):
-        def _func():
-            self._lock.release()
-            dma = self.read_mmio(self.to_device_addr(device, 0x50), 8)
-            dma_len = self.read_mmio(self.to_device_addr(device, 0x58), 8)
-            validate_result = json.loads(self.read_cxl_mem(dma, dma_len))
-            self._lock.acquire()
-            self._validation_results[pic_count].append(validate_result)
-            self._total_validation_finished += 1
-            merged_result = {}
-            max_v = 0
-            max_k = 0
-            if len(self._validation_results[pic_count]) == self._device_count:
-                for dev_result in self._validation_results[pic_count]:
-                    for k, v in dev_result.items():
-                        if k not in merged_result:
-                            merged_result[k] = v
-                        else:
-                            merged_result[k] += v
-                        if merged_result[k] > max_v:
-                            max_v = merged_result[k]
-                            max_k = k
-                if max_k == real_category:
-                    self._correct_validation += 1
-
-                print(f"Picture category: Real: {real_category}, validated: {max_k}")
-                if self._total_validation_finished == self._total_samples:
-                    print("Validation finished. Results:")
-                    print(
-                        f"Correct/Total: {self._correct_validation}/{self._total_samples} "
-                        f"({self._correct_validation/self._total_samples:.2f}%)"
-                    )
-            self._lock.release()
-
-        return _func
+        for dev_id in range(self._device_count):
+            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x800), 8, csv_data_mem_loc)
+            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x808), 8, csv_data_len)
+            await self._irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
 
     async def _run(self):
         tasks = [
@@ -268,7 +325,7 @@ class CxlImageClassificationHost(RunnableComponent):
             cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
             coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
             memory_controller=config.memory_controller,
-            memory_ranges=[],
+            memory_ranges=config.memory_ranges,
             root_ports=root_complex_root_ports,
         )
         self._root_complex = RootComplex(root_complex_config)
@@ -298,6 +355,7 @@ class CxlImageClassificationHost(RunnableComponent):
             base_addr=0x290000000,
             device_count=4,
             interleave_gran=0x100,
+            device_type=CXL_COMPONENT_TYPE.T1,
         )
         self._host_simple_processor = HostTrainIoGen(host_processor_config)
 
