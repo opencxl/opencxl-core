@@ -80,7 +80,7 @@ class CxlComplexHost(RunnableComponent):
             cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
             coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
             memory_controller=config.memory_controller,
-            memory_ranges=[],
+            memory_ranges=config.memory_ranges,
             root_ports=root_complex_root_ports,
         )
         self._root_complex = RootComplex(root_complex_config)
@@ -107,6 +107,15 @@ class CxlComplexHost(RunnableComponent):
             processor_to_cache_fifo=processor_to_cache_fifo,
         )
         self._host_simple_processor = HostLlcIoGen(host_processor_config)
+
+        self._dev_mmio_ranges: list[tuple[int, int]] = []
+        self._dev_mem_ranges: list[tuple[int, int]] = []
+
+    def append_dev_mmio_range(self, base, size):
+        self._dev_mmio_ranges.append((base, size))
+
+    def append_dev_mem_range(self, base, size):
+        self._dev_mem_ranges.append((base, size))
 
     def get_root_complex(self):
         return self._root_complex

@@ -146,6 +146,16 @@ class MmioManager(PacketProcessor):
         logger.debug(self._create_message("Forwarding request to the next child device"))
         await self._downstream_fifo.host_to_target.put(packet)
 
+    async def read_mmio(self, addr: int, size: int, bar_id: int = 0):
+        addr = self._bar_entries[bar_id].base_address + addr
+        register, offset = self._get_register_and_offset(addr, size)
+        return register.read_bytes(offset, offset + size - 1)
+
+    async def write_mmio(self, addr: int, size: int, data: int, bar_id: int = 0):
+        addr = self._bar_entries[bar_id].base_address + addr
+        register, offset = self._get_register_and_offset(addr, size)
+        register.write_bytes(offset, offset + size - 1, data)
+
     async def _process_mmio_packet(self, mem_req_packet: CxlIoMemReqPacket):
         address = mem_req_packet.get_address()
         size = mem_req_packet.get_data_size()

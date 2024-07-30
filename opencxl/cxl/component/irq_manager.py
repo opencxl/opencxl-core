@@ -73,7 +73,7 @@ class IrqManager(RunnableComponent):
 
         async def _callback():
             await ev.wait()
-            irq_recv_cb()
+            await irq_recv_cb()
 
         self._callbacks.append(_callback)
         self._msg_to_interrupt_event[irq_msg] = ev
