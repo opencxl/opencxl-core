@@ -292,7 +292,9 @@ class CxlMemDcoh(PacketProcessor):
                         bi_opcode = CXL_MEM_S2MBISNP_OPCODE.BISNP_INV
                     elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_CUR:
                         bi_opcode = CXL_MEM_S2MBISNP_OPCODE.BISNP_CUR
-                    cxl_packet = CxlMemBISnpPacket.create(addr, bi_opcode, self._bi_id, self._bi_tag)
+                    cxl_packet = CxlMemBISnpPacket.create(
+                        addr, bi_opcode, self._bi_id, self._bi_tag
+                    )
                     await self._upstream_fifo.target_to_host.put(cxl_packet)
 
                     if sf_update_list:
@@ -323,6 +325,7 @@ class CxlMemDcoh(PacketProcessor):
                 raise Exception(f"Received unexpected packet: {cxl_packet.get_type()}")
 
     # process from host/device channels simultaneously
+    # pylint: disable=duplicate-code
     async def _cxl_mem_dcoh_main_loop(self):
         _stop_process = False
 
@@ -350,12 +353,12 @@ class CxlMemDcoh(PacketProcessor):
                 # process host request regardless of device processing state
                 if not self._cxl_channel["m2s_req"].empty():
                     packet = await self._cxl_channel["m2s_req"].get()
-                    await  self._process_cxl_m2s_req_packet(packet)
+                    await self._process_cxl_m2s_req_packet(packet)
 
                 # process host request regardless of device processing state
                 if not self._cxl_channel["m2s_rwd"].empty():
                     packet = await self._cxl_channel["m2s_rwd"].get()
-                    await  self._process_cxl_m2s_rwd_packet(packet)
+                    await self._process_cxl_m2s_rwd_packet(packet)
 
     # pylint: disable=duplicate-code
     async def _run(self):
