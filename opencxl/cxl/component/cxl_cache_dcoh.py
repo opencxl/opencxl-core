@@ -5,8 +5,20 @@
  See LICENSE for details.
 """
 
-from typing import Optional, cast
-from asyncio import create_task, gather, sleep, Queue
+from itertools import cycle
+import math
+from typing import Callable, Optional, cast
+from asyncio import (
+    Future,
+    Lock,
+    create_task,
+    current_task,
+    gather,
+    get_running_loop,
+    sleep,
+    Queue,
+    timeout,
+)
 
 from opencxl.util.logger import logger
 from opencxl.pci.component.fifo_pair import FifoPair
@@ -37,6 +49,7 @@ from opencxl.cxl.component.cache_controller import (
     COH_STATE_MACHINE,
 )
 from opencxl.pci.component.packet_processor import PacketProcessor
+from opencxl.util.number import split_int
 
 
 class CxlCacheDcoh(PacketProcessor):
@@ -69,6 +82,206 @@ class CxlCacheDcoh(PacketProcessor):
 
         # emulated .cache d2h channels
         self._cxl_channel = {"h2d_req": Queue(), "h2d_rsp": Queue(), "h2d_data": Queue()}
+
+        self.device_entries = {}  # maps CQID -> received future packets associated with CQID
+        self.device_entry_lock = Lock()  # locks the above mapping
+
+        self._cqid_gen = cycle(range(0, 4096))
+        self._cqid_assign_lock = Lock()
+
+    async def get_next_cqid(self) -> int:
+        cqid: int
+        async with self._cqid_assign_lock:
+            cqid = next(self._cqid_gen)
+        return cqid
+
+    async def register_cqid_listener(
+        self,
+        cqid: int,
+        cb: Callable[[BasePacket], None],
+        _timeout: Optional[int] = None,
+        _one_use: bool = True,
+    ):
+        """
+        Registers a callback action upon reception of a H2DRSP/H2DREQ packet with matching CQID.
+        Used to emulate the "device entry" model in CXL.cache spec. The listener should accept
+        a single CxlBasePacket parameter, which will contain the H2D packet object.
+
+        If `_one_use` is True, the callback action will automatically unregister itself after
+        one call. Note that if `_one_use` is false, the caller will have to manually handle
+        cancelling by raising CancelledError, just as they would for a generic asyncio Task.
+
+        If the operation times out, the callback action unconditionally unregisters itself.
+        """
+        async with self.device_entry_lock:
+            # two threads accessing self.device_entries simultaneously
+            # has the potential to SERIOUSLY break the emulator
+            if cqid in self.device_entries:
+                # cancel any currently running listeners, if they exist
+                self.device_entries[cqid].cancel()
+
+        loop = get_running_loop()
+        fut_pckt = loop.create_future()
+
+        async def _tracker_entry(fut: Future):
+            while True:
+                if _timeout:
+                    try:
+                        async with timeout(_timeout):
+                            await fut
+                    except TimeoutError:
+                        # this request was apparently lost by the host
+                        # clear the cqid entry for reuse
+                        async with self.device_entry_lock:
+                            del self.device_entries[cqid]
+                        current_task().cancel()  # intentionally cancel the current task
+                else:
+                    await fut
+                cb(fut.result())
+                if _one_use:
+                    async with self.device_entry_lock:
+                        del self.device_entries[cqid]
+                    break
+
+        self.device_entries[cqid] = fut_pckt
+        create_task(_tracker_entry(fut_pckt))
+
+    async def send_d2h_req_rdown(self, addr: int, cqid: int):
+        # Cache ID is "filled in" by the switch
+        packet = CxlCacheCacheD2HReqPacket.create(
+            addr=addr, cache_id=0, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN, cqid=cqid
+        )
+        await self._upstream_fifo.target_to_host.put(packet)
+
+    async def send_d2h_req_rdshared(self, addr: int, cqid: int):
+        packet = CxlCacheCacheD2HReqPacket.create(
+            addr=addr, cache_id=0, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_SHARED, cqid=cqid
+        )
+        await self._upstream_fifo.target_to_host.put(packet)
+
+    async def send_d2h_req_itomwr(self, addr: int, cqid: int):
+        packet = CxlCacheCacheD2HReqPacket.create(
+            addr=addr, cache_id=0, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_I_TO_M_WR, cqid=cqid
+        )
+        await self._upstream_fifo.target_to_host.put(packet)
+
+    async def send_d2h_req_dirtyevict(self, addr: int, cqid: int):
+        packet = CxlCacheCacheD2HReqPacket.create(
+            addr=addr, cache_id=0, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_DIRTY_EVICT, cqid=cqid
+        )
+        await self._upstream_fifo.target_to_host.put(packet)
+
+    async def send_d2h_data(self, data: int, uqid: int):
+        packet = CxlCacheCacheD2HDataPacket.create(
+            uqid=uqid,
+            data=data,
+        )
+        await self._upstream_fifo.target_to_host.put(packet)
+
+    async def cxl_cache_readline(self, addr: int, cqid: Optional[int] = None) -> Future[int]:
+        loop = get_running_loop()
+        fut_data = loop.create_future()  # ugly solution
+
+        def _listen_check_set_fut(pckt: CxlCacheH2DRspPacket | CxlCacheH2DDataPacket):
+            # for now, ignore the 32B transfer case.
+            if isinstance(pckt, CxlCacheH2DDataPacket):
+                # received a data packet
+                # since we're ignoring the 32B transfer case,
+                # we can just assume this data packet contains everything we want
+                fut_data.set_result(pckt.data)
+                current_task().cancel()
+            if (
+                pckt.h2drsp_header.cache_opcode != CXL_CACHE_H2DRSP_OPCODE.GO
+                or pckt.h2drsp_header.rsp_data
+                in (CXL_CACHE_H2DRSP_CACHE_STATE.INVALID, CXL_CACHE_H2DRSP_CACHE_STATE.ERROR)
+            ):
+                current_task().cancel()  # terminate the listener and free the cqid
+
+        if not cqid:
+            cqid = await self.get_next_cqid()
+
+        await self.send_d2h_req_rdshared(addr, cqid)
+
+        # avoid sequential cacheline writes by maintaining callbacks which are
+        # executed upon retrieval of a Rsp with matching cqid.
+
+        self.register_cqid_listener(
+            cqid=cqid,
+            cb=_listen_check_set_fut,
+            _timeout=20,
+        )
+
+        return fut_data
+
+    async def cxl_cache_writeline(self, addr: int, data: int, cqid: Optional[int] = None):
+        def _listen_check_send(pckt: CxlCacheH2DRspPacket):
+            """
+            Callback registered to listen for the given CQID.
+            Checks if the host response packet represents an error.
+            If not, sends the requested cacheline write.
+            """
+            # don't need to perform the type check twice
+            # just trust in ourselves!
+            if pckt.h2drsp_header.cache_opcode == CXL_CACHE_H2DRSP_OPCODE.GO_ERR_WRITE_PUL:
+                current_task().cancel()  # terminate the listener and free the cqid
+            self.send_d2h_data(data, pckt.h2drsp_header.rsp_data)
+
+        if not cqid:
+            cqid = await self.get_next_cqid()
+
+        await self.send_d2h_req_dirtyevict(addr, cqid)
+
+        # avoid sequential cacheline writes by maintaining callbacks which are
+        # executed upon retrieval of a Rsp with matching cqid.
+        self.register_cqid_listener(
+            cqid=cqid,
+            cb=_listen_check_send,
+            _timeout=20,
+        )
+
+    async def cxl_cache_readlines(self, addr: int, length: int, parallel: bool = False) -> int:
+        # pylint: disable=not-an-iterable
+        CACHELINE_LENGTH = 64
+        lines = bytearray(max(length, 64))
+        if parallel:
+            tasks = []
+            async for l_idx in range(math.ceil(length / CACHELINE_LENGTH)):
+                tasks.append(
+                    create_task(
+                        self.cxl_cache_readline(
+                            addr + l_idx * CACHELINE_LENGTH, await self.get_next_cqid()
+                        )
+                    )
+                )
+            await gather(*tasks)
+            for l_idx, l_offset in enumerate(range(0, length, CACHELINE_LENGTH)):
+                lines[l_offset : l_offset + CACHELINE_LENGTH] = bytes(tasks[l_idx])
+        else:
+            async for l_idx in range(math.ceil(length / CACHELINE_LENGTH)):
+                lines[l_idx * CACHELINE_LENGTH : (l_idx + 1) * CACHELINE_LENGTH] = bytes(
+                    await self.cxl_cache_readline(
+                        addr + l_idx * CACHELINE_LENGTH, await self.get_next_cqid()
+                    )
+                )
+        return int.from_bytes(lines)
+
+    async def cxl_cache_writelines(self, addr: int, data: int, length: int, parallel: bool = False):
+        # pylint: disable=not-an-iterable
+        CACHELINE_LENGTH = 64
+        if parallel:
+            tasks = []
+        async for l_idx, line in enumerate(split_int(data, length, CACHELINE_LENGTH)):
+            write_task = create_task(
+                self.cxl_cache_writeline(
+                    addr + l_idx * CACHELINE_LENGTH, line, await self.get_next_cqid()
+                )
+            )
+            if parallel:
+                tasks.append(write_task)
+            else:
+                await write_task
+        if parallel:
+            await gather(*tasks)
 
     # .cache h2d req handler
     async def _process_cxl_h2d_req_packet(self, h2dreq_packet: CxlCacheH2DReqPacket):
@@ -117,6 +330,16 @@ class CxlCacheDcoh(PacketProcessor):
         if self._downstream_fifo is not None:
             raise Exception(f"CXL Endpoint Device: {self._label}")
 
+        # Forward packet to listening tracket entry
+
+        cqid = h2drsp_packet.h2drsp_header.cqid
+        async with self.device_entry_lock:
+            if cqid in self.device_entries:
+                self.device_entries[cqid].set_result(h2drsp_packet)
+                return
+
+        # Handle H2DRSP without matching CQID
+
         if h2drsp_packet.h2drsp_header.cache_opcode == CXL_CACHE_H2DRSP_OPCODE.GO:
             if h2drsp_packet.h2drsp_header.rsp_data == CXL_CACHE_H2DRSP_CACHE_STATE.EXCLUSIVE:
                 cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I)
@@ -139,6 +362,14 @@ class CxlCacheDcoh(PacketProcessor):
             await self._cache_to_coh_agent_fifo.response.put(cache_packet)
 
         self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
+
+    async def _process_cxl_h2d_data_packet(self, h2ddata_packet: CxlCacheH2DDataPacket):
+        # Forward packet to listening tracker entry
+
+        cqid = h2ddata_packet.h2drsp_header.cqid
+        async with self.device_entry_lock:
+            if cqid in self.device_entries:
+                self.device_entries[cqid].set_result(h2ddata_packet)
 
     # .cache d2h device req handler
     async def _process_cache_to_dcoh(self, cache_packet: CacheRequest):
@@ -228,6 +459,10 @@ class CxlCacheDcoh(PacketProcessor):
                             await self._upstream_fifo.target_to_host.put(cxl_packet)
                             continue
                     await self._process_cxl_h2d_req_packet(packet)
+
+                if not self._cxl_channel["h2d_data"].empty():
+                    packet = await self._cxl_channel["h2d_data"].get()
+                    await self._process_cxl_h2d_data_packet(packet)
 
     # pylint: disable=duplicate-code
     async def _run(self):

@@ -8,7 +8,7 @@
 from dataclasses import dataclass
 from typing import List
 
-from opencxl.cxl.mmio.component_register.memcache_register.cache_route_table import (
+from opencxl.cxl.component.cache_route_table import (
     CacheRouteTableCapabilityRegisterOptions,
 )
 from opencxl.util.component import LabeledComponent
