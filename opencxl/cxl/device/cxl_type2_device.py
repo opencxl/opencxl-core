@@ -6,10 +6,10 @@
 """
 
 # pylint: disable=duplicate-code
-from asyncio import create_task, gather, timeout
-from asyncio.exceptions import TimeoutError
+from asyncio import create_task, gather
 from dataclasses import dataclass
-from typing import Optional, cast
+from typing import Optional
+from opencxl.cxl.component.cxl_cache_dcoh import CxlCacheDcoh
 
 from opencxl.cxl.config_space.dvsec.cxl_devices import (
     DvsecCxlCacheableRangeOptions,
@@ -19,7 +19,6 @@ from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.cxl_io_manager import CxlIoManager
-from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 from opencxl.cxl.mmio import CombinedMmioRegister, CombinedMmioRegiterOptions
 from opencxl.cxl.config_space.dvsec import (
     CXL_DEVICE_TYPE,
@@ -55,10 +54,6 @@ from opencxl.cxl.component.cache_controller import (
 )
 from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
-from opencxl.cxl.transport.transaction import (
-    CxlCacheH2DDataPacket,
-    is_cxl_cache_h2d_data,
-)
 from opencxl.cxl.component.device_llc_iogen import (
     DeviceLlcIoGen,
     DeviceLlcIoGenConfig,
@@ -105,7 +100,9 @@ class CxlType2Device(RunnableComponent):
             label=self._label,
         )
 
-        self._cxl_cache_manager = CxlCacheManager(
+        self._cxl_cache_dcoh = CxlCacheDcoh(
+            cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
+            coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
             upstream_fifo=self._upstream_connection.cxl_cache_fifo,
             label=self._label,
         )
@@ -216,17 +213,9 @@ class CxlType2Device(RunnableComponent):
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
 
+    # TODO: change to match more efficient/accurate versions in cxl_type1_device.py
     async def cxl_cache_readline(self, hpa: int) -> Optional[int]:
-        await self._cxl_cache_manager.send_d2h_req_rdonly(hpa)
-        try:
-            async with timeout(3):
-                packet = await self._upstream_connection.cxl_cache_fifo.host_to_target.get()
-            assert is_cxl_cache_h2d_data(packet)
-            cache_data_packet = cast(CxlCacheH2DDataPacket, packet)
-            return cache_data_packet.data
-        except TimeoutError:
-            logger.error(self._create_message("CXL.mem Read: Timed-out"))
-            return None
+        raise NotImplementedError()
 
     async def cxl_cache_writeline(self, hpa: int, data: int):
         raise NotImplementedError()
@@ -248,14 +237,14 @@ class CxlType2Device(RunnableComponent):
             create_task(self._cxl_mem_dcoh.run()),
             create_task(self._cache_controller.run()),
             create_task(self._device_simple_processor.run()),
-            create_task(self._cxl_cache_manager.run()),
+            create_task(self._cxl_cache_dcoh.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
             create_task(self._cxl_mem_dcoh.wait_for_ready()),
             create_task(self._cache_controller.wait_for_ready()),
             create_task(self._device_simple_processor.wait_for_ready()),
-            create_task(self._cxl_cache_manager.wait_for_ready()),
+            create_task(self._cxl_cache_dcoh.wait_for_ready()),
         ]
         await gather(*wait_tasks)
         await self._change_status_to_running()
@@ -268,6 +257,6 @@ class CxlType2Device(RunnableComponent):
             create_task(self._cxl_mem_dcoh.stop()),
             create_task(self._cache_controller.stop()),
             create_task(self._device_simple_processor.stop()),
-            create_task(self._cxl_cache_manager.stop()),
+            create_task(self._cxl_cache_dcoh.stop()),
         ]
         await gather(*tasks)

@@ -27,7 +27,7 @@ from opencxl.cxl.component.hdm_decoder import (
     HDM_DECODER_COUNT,
 )
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
-from opencxl.cxl.mmio.component_register.memcache_register.cache_route_table import (
+from opencxl.cxl.component.cache_route_table import (
     CacheIdRTCommitTimeout,
     CacheIdTargetNOptions,
     CacheRouteTableCapabilityRegisterOptions,
@@ -35,7 +35,7 @@ from opencxl.cxl.mmio.component_register.memcache_register.cache_route_table imp
     CacheRouteTableControlRegisterOptions,
     CacheRouteTableStatusRegisterOptions,
 )
-from opencxl.cxl.mmio.component_register.memcache_register.cache_id_decoder_capability import (
+from opencxl.cxl.component.cache_id_decoder_capability import (
     CxlCacheIdDecoderCapabilityRegisterOptions,
     CxlCacheIdDecoderCapabilityStructureOptions,
     CxlCacheIdDecoderControlOptions,
