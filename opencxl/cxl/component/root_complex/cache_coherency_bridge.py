@@ -74,7 +74,7 @@ class CacheCoherencyBridge(RunnableComponent):
 
         # snoop filter defined as set structure
         # max sf size will be the same as each cache size
-        self._num_cache_devices = 4
+        self._num_cache_devices = 1
         self._cur_state = CohStateMachine(
             state=COH_STATE_MACHINE.COH_STATE_INIT,
             packet=None,
@@ -88,6 +88,10 @@ class CacheCoherencyBridge(RunnableComponent):
         self._cxl_channel = {"d2h_req": Queue(), "d2h_rsp": Queue(), "d2h_data": Queue()}
 
         self._uqid_gen = cycle(range(0, 4096))
+
+    def set_cache_coh_dev_count(self, count: int):
+        self._num_cache_devices = count
+        self._sf_device = [set() for _ in range(self._num_cache_devices)]
 
     def get_next_uqid(self) -> int:
         return next(self._uqid_gen)

@@ -65,13 +65,13 @@ from opencxl.util.number_const import KB, MB
 @dataclass
 class CxlType2DeviceConfig:
     device_name: str
-    device_id: int = 0
     transport_connection: CxlConnection
     memory_size: int
     memory_file: str
     decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_4
     cache_line_count: int = 32
     cache_line_size: int = 64 * KB
+    device_id: int = 0
 
 
 class CxlType2Device(RunnableComponent):

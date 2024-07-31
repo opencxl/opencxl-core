@@ -10,7 +10,10 @@ import asyncio
 import pytest
 
 from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
-from opencxl.apps.cxl_image_classification_host import CxlImageClassificationHostConfig
+from opencxl.apps.cxl_image_classification_host import (
+    CxlImageClassificationHost,
+    CxlImageClassificationHostConfig,
+)
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
 from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
@@ -94,6 +97,7 @@ async def test_cxl_host_type1_image_classification_host_ete():
     )
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    # TODO: change to CxlImageClassificationHost in the future
     host = CxlComplexHost(config)
 
     pci_bus_driver = PciBusDriver(host.get_root_complex())
@@ -126,6 +130,13 @@ async def test_cxl_host_type1_image_classification_host_ete():
         await cxl_bus_driver.init()
         await cxl_mem_driver.init()
 
+        cache_dev_count = 0
+        for device in cxl_bus_driver.get_devices():
+            if device.device_dvsec:
+                if device.device_dvsec.cache_capable:
+                    cache_dev_count += 1
+        host.get_root_complex().set_cache_coh_dev_count(cache_dev_count)
+
         for device in cxl_mem_driver.get_devices():
             # NOTE: The list should match the dev order
             # Not tested, though
@@ -153,9 +164,9 @@ async def test_cxl_host_type1_image_classification_host_ete():
 
         # TODO: multi-device does not work for now.
         # Works for one single device when there are multiple. Fix in the future.
-        # last_dev_rcvd = await dev_list[-1]._cxl_type1_device.cxl_cache_readline(0x00008000, step)
-        # logger.debug(f"Last device reads: {last_dev_rcvd:x}")
-        # assert last_dev_rcvd == data
+        last_dev_rcvd = await dev_list[-1]._cxl_type1_device.cxl_cache_readline(0x00008000, step)
+        logger.debug(f"Last device reads: {last_dev_rcvd:x}")
+        assert last_dev_rcvd == data
 
     test_tasks = [asyncio.create_task(test_configs()), asyncio.create_task(asyncio.sleep(4))]
     await asyncio.gather(*test_tasks)
