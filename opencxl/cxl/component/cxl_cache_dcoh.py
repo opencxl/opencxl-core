@@ -459,19 +459,22 @@ class CxlCacheDcoh(PacketProcessor):
                     packet = await self._cxl_channel["h2d_rsp"].get()
                     await self._process_cxl_h2d_rsp_packet(packet)
 
-                # process host request regardless of device processing state
-                if not self._cxl_channel["h2d_req"].empty():
-                    packet = await self._cxl_channel["h2d_req"].get()
-                    # corner case handling
-                    if packet.get_address() == self._cur_state.packet.address:
-                        assert self._cur_state.packet.type == CACHE_REQUEST_TYPE.WRITE_BACK
-                        if packet.h2dreq_header.cache_opcode == CXL_CACHE_H2DREQ_OPCODE.SNP_INV:
-                            cxl_packet = CxlCacheCacheD2HRspPacket.create(
-                                0, CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I
-                            )
-                            await self._upstream_fifo.target_to_host.put(cxl_packet)
-                            continue
-                    await self._process_cxl_h2d_req_packet(packet)
+            # process host request regardless of device processing state
+            if not self._cxl_channel["h2d_req"].empty():
+                packet = await self._cxl_channel["h2d_req"].get()
+                # corner case handling
+                if (
+                    self._cur_state.state != COH_STATE_MACHINE.COH_STATE_INIT
+                    and packet.get_address() == self._cur_state.packet.address
+                ):
+                    assert self._cur_state.packet.type == CACHE_REQUEST_TYPE.WRITE_BACK
+                    if packet.h2dreq_header.cache_opcode == CXL_CACHE_H2DREQ_OPCODE.SNP_INV:
+                        cxl_packet = CxlCacheCacheD2HRspPacket.create(
+                            0, CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I
+                        )
+                        await self._upstream_fifo.target_to_host.put(cxl_packet)
+                        continue
+                await self._process_cxl_h2d_req_packet(packet)
 
     # pylint: disable=duplicate-code
     async def _run(self):

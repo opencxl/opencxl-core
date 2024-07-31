@@ -351,15 +351,15 @@ class CxlMemDcoh(PacketProcessor):
                     packet = await self._cxl_channel["m2s_birsp"].get()
                     await self._process_cxl_m2s_birsp_packet(packet)
 
-                # process host request regardless of device processing state
-                if not self._cxl_channel["m2s_req"].empty():
-                    packet = await self._cxl_channel["m2s_req"].get()
-                    await self._process_cxl_m2s_req_packet(packet)
+            # process host request regardless of device processing state
+            if not self._cxl_channel["m2s_req"].empty():
+                packet = await self._cxl_channel["m2s_req"].get()
+                await self._process_cxl_m2s_req_packet(packet)
 
-                # process host request regardless of device processing state
-                if not self._cxl_channel["m2s_rwd"].empty():
-                    packet = await self._cxl_channel["m2s_rwd"].get()
-                    await self._process_cxl_m2s_rwd_packet(packet)
+            # process host request regardless of device processing state
+            if not self._cxl_channel["m2s_rwd"].empty():
+                packet = await self._cxl_channel["m2s_rwd"].get()
+                await self._process_cxl_m2s_rwd_packet(packet)
 
     # pylint: disable=duplicate-code
     async def _run(self):
