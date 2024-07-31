@@ -53,6 +53,7 @@ class MyType1Accelerator(RunnableComponent):
         port: int = 8000,
         irq_listen_port: int = 9100,
         irq_send_port: int = 9000,
+        device_id: int = 0,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
@@ -63,6 +64,7 @@ class MyType1Accelerator(RunnableComponent):
             CxlType1DeviceConfig(
                 transport_connection=self._sw_conn_client.get_cxl_connection(),
                 device_name=label,
+                device_id=device_id,
             )
         )
 

@@ -368,14 +368,14 @@ class CxlImageClassificationHost(RunnableComponent):
             asyncio.create_task(self._root_complex.run()),
             asyncio.create_task(self._cache_controller.run()),
             asyncio.create_task(self._host_simple_processor.run()),
-            asyncio.create_task(self._irq_handler.run()),
+            # asyncio.create_task(self._irq_handler.run()),
         ]
         wait_tasks = [
             asyncio.create_task(self._root_port_client_manager.wait_for_ready()),
             asyncio.create_task(self._root_complex.wait_for_ready()),
             asyncio.create_task(self._cache_controller.wait_for_ready()),
             asyncio.create_task(self._host_simple_processor.wait_for_ready()),
-            asyncio.create_task(self._irq_handler.wait_for_ready()),
+            # asyncio.create_task(self._irq_handler.wait_for_ready()),
         ]
         await asyncio.gather(*wait_tasks)
         await self._change_status_to_running()
@@ -387,6 +387,6 @@ class CxlImageClassificationHost(RunnableComponent):
             asyncio.create_task(self._root_complex.stop()),
             asyncio.create_task(self._cache_controller.stop()),
             asyncio.create_task(self._host_simple_processor.stop()),
-            asyncio.create_task(self._irq_handler.stop()),
+            # asyncio.create_task(self._irq_handler.stop()),
         ]
         await asyncio.gather(*tasks)

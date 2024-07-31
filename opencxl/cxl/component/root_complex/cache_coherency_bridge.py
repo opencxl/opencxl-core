@@ -89,6 +89,10 @@ class CacheCoherencyBridge(RunnableComponent):
 
         self._uqid_gen = cycle(range(0, 4096))
 
+    def set_cache_coh_dev_count(self, count: int):
+        self._num_cache_devices = count
+        self._sf_device = [set() for _ in range(self._num_cache_devices)]
+
     def get_next_uqid(self) -> int:
         return next(self._uqid_gen)
 

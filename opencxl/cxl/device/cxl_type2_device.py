@@ -71,6 +71,7 @@ class CxlType2DeviceConfig:
     decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_4
     cache_line_count: int = 32
     cache_line_size: int = 64 * KB
+    device_id: int = 0
 
 
 class CxlType2Device(RunnableComponent):
@@ -105,6 +106,7 @@ class CxlType2Device(RunnableComponent):
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
             upstream_fifo=self._upstream_connection.cxl_cache_fifo,
             label=self._label,
+            device_id=config.device_id,
         )
 
         self._cxl_mem_dcoh = CxlMemDcoh(

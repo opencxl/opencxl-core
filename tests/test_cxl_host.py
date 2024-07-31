@@ -287,7 +287,7 @@ async def test_cxl_host_util_client():
 @pytest.mark.asyncio
 async def test_cxl_host_type3_ete():
     # pylint: disable=protected-access
-    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5
+    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 49
     util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 50
     switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 51
 
