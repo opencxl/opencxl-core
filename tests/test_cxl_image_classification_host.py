@@ -162,8 +162,6 @@ async def test_cxl_host_type1_image_classification_host_ete():
         logger.debug(f"First device reads: {first_dev_rcvd:x}")
         assert first_dev_rcvd == data
 
-        # TODO: multi-device does not work for now.
-        # Works for one single device when there are multiple. Fix in the future.
         last_dev_rcvd = await dev_list[-1]._cxl_type1_device.cxl_cache_readline(0x00008000, step)
         logger.debug(f"Last device reads: {last_dev_rcvd:x}")
         assert last_dev_rcvd == data
