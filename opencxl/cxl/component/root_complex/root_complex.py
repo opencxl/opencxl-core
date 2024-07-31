@@ -150,6 +150,9 @@ class RootComplex(RunnableComponent):
     async def read_cxl_mem(self, address: int, size: int) -> int:
         return await self._home_agent.read_cxl_mem(address, size)
 
+    def set_cache_coh_dev_count(self, count: int):
+        self._cache_coherency_bridge.set_cache_coh_dev_count(count)
+
     async def _run(self):
         run_tasks = [
             asyncio.create_task(self._root_port_switch.run()),

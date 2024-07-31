@@ -102,6 +102,7 @@ class CxlVirtualSwitch(RunnableComponent):
             label = f"VCS{self._id}:vPPB{vppb_index}(EP)"
             dummy_ep_device = PciDevice(cxl_connection, bar_size=4096, label=label)
             self._dummy_ep_devices.append(dummy_ep_device)
+            self._usp_device.get_cxl_component().add_cache_route_target(vppb_index)
 
         # NOTE: Make PortBinder
         self._port_binder = PortBinder(self._id, self._vppb_connections)
