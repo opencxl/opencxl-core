@@ -40,9 +40,9 @@ BASE_TEST_PORT = 9300
 @pytest.mark.asyncio
 async def test_cxl_host_type1_image_classification_host_ete():
     # pylint: disable=protected-access
-    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 155
-    util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 156
-    switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 157
+    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 165
+    util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 166
+    switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 167
 
     NUM_DEVS = 4
 
