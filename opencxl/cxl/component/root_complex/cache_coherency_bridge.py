@@ -74,7 +74,7 @@ class CacheCoherencyBridge(RunnableComponent):
 
         # snoop filter defined as set structure
         # max sf size will be the same as each cache size
-        self._num_cache_devices = 1
+        self._num_cache_devices = 4
         self._cur_state = CohStateMachine(
             state=COH_STATE_MACHINE.COH_STATE_INIT,
             packet=None,

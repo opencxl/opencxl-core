@@ -53,7 +53,9 @@ async def test_cxl_host_type1_image_classification_host_ete():
     for i in range(0, NUM_DEVS):
         port_configs.append(PortConfig(PORT_TYPE.DSP))
         dev_list.append(
-            MyType1Accelerator(port_index=i + 1, port=switch_port, irq_listen_port=9100 + i)
+            MyType1Accelerator(
+                port_index=i + 1, port=switch_port, irq_listen_port=9100 + i, device_id=i
+            )
         )
 
     sw_conn_manager = SwitchConnectionManager(port_configs, port=switch_port)

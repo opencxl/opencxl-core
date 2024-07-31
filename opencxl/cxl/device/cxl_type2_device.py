@@ -65,6 +65,7 @@ from opencxl.util.number_const import KB, MB
 @dataclass
 class CxlType2DeviceConfig:
     device_name: str
+    device_id: int = 0
     transport_connection: CxlConnection
     memory_size: int
     memory_file: str
@@ -105,6 +106,7 @@ class CxlType2Device(RunnableComponent):
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
             upstream_fifo=self._upstream_connection.cxl_cache_fifo,
             label=self._label,
+            device_id=config.device_id,
         )
 
         self._cxl_mem_dcoh = CxlMemDcoh(

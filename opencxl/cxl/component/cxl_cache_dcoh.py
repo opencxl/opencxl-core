@@ -62,6 +62,7 @@ class CxlCacheDcoh(PacketProcessor):
         upstream_fifo: FifoPair,
         downstream_fifo: Optional[FifoPair] = None,
         label: Optional[str] = None,
+        device_id: int = 0,
     ):
         # pylint: disable=duplicate-code
         self._label = label
@@ -77,7 +78,7 @@ class CxlCacheDcoh(PacketProcessor):
             packet=None,
             cache_rsp=CACHE_RESPONSE_STATUS.RSP_I,
             cache_list=[
-                0,
+                device_id,
             ],
             birsp_sched=False,
         )
