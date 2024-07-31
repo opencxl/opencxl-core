@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code,unused-import
 from asyncio import (
     create_task,
     gather,
@@ -213,17 +213,20 @@ class CxlType1Device(RunnableComponent):
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
 
-    async def cxl_cache_readlines(self, addr: int, length: int, parallel: bool = False) -> int:
-        return await self._cxl_cache_dcoh.cxl_cache_readlines(addr, length, parallel)
+    # pylint: disable=line-too-long
+    # async def cxl_cache_readlines(self, addr: int, length: int, parallel: bool = False) -> int:
+    #     return await self._cxl_cache_dcoh.cxl_cache_readlines(addr, length, parallel)
 
-    async def cxl_cache_writelines(self, addr: int, data: int, length: int, parallel: bool = False):
-        await self._cxl_cache_dcoh.cxl_cache_writelines(addr, data, length, parallel)
+    # async def cxl_cache_writelines(self, addr: int, data: int, length: int, parallel: bool = False):
+    #     await self._cxl_cache_dcoh.cxl_cache_writelines(addr, data, length, parallel)
 
     async def cxl_cache_readline(self, addr: int, cqid: Optional[int] = None) -> int:
-        return await self._cxl_cache_dcoh.cxl_cache_readline(addr, cqid)
+        logger.debug(f"Beware: cqid {cqid} is not currently implemented.")
+        return await self._cache_controller.cache_coherent_load(addr, 64)
 
     async def cxl_cache_writeline(self, addr: int, data: int, cqid: Optional[int] = None):
-        await self._cxl_cache_dcoh.cxl_cache_writeline(addr, data, cqid)
+        logger.debug(f"Beware: cqid {cqid} is not currently implemented.")
+        await self._cache_controller.cache_coherent_store(addr, 64, data)
 
     async def _run(self):
         # pylint: disable=duplicate-code
