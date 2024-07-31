@@ -132,10 +132,32 @@ async def test_cxl_host_type1_image_classification_host_ete():
                 device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
             )
 
-        # TODO: Not working right now. Make it work in the future.
-        # await host._host_simple_processor.store(hpa_base, 0x40, 0xAAAAAAAA)
-        # await dev1._cxl_type2_device.cxl_cache_readline(0x00000000)
-        # await dev1._cxl_type2_device._cxl_cache_manager.send_d2h_req_test()
+        data = 0x00000000
+        for i in range(16):
+            data <<= 32
+            data |= int(str(f"{i:x}") * 8, 16)
+
+        step = 64
+        for addr in range(0x00000000, 0x00010000, step):
+            if addr % 0x800 == 0:
+                logger.debug(f"Writing 0x{addr:x}")
+            await dev_list[0]._cxl_type1_device._cache_controller.cache_coherent_store(
+                addr, step, data
+            )
+
+        first_dev_rcvd = await dev_list[0]._cxl_type1_device._cache_controller.cache_coherent_load(
+            0x00000000, step
+        )
+        logger.debug(f"First device reads: {first_dev_rcvd:x}")
+        assert first_dev_rcvd == data
+
+        # TODO: multi-device does not work for now.
+        # Works for one single device when there are multiple. Fix in the future.
+        # last_dev_rcvd = await dev_list[-1]._cxl_type1_device._cache_controller.cache_coherent_load(
+        #     0x00008000, step
+        # )
+        # logger.debug(f"Last device reads: {last_dev_rcvd:x}")
+        # assert last_dev_rcvd == data
 
     test_tasks = [asyncio.create_task(test_configs()), asyncio.create_task(asyncio.sleep(4))]
     await asyncio.gather(*test_tasks)

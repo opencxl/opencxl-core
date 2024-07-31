@@ -20,6 +20,7 @@ from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BindSlo
 from opencxl.cxl.transport.transaction import (
     BasePacket,
     CxlCacheD2HReqPacket,
+    CxlCacheH2DDataPacket,
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
@@ -402,6 +403,9 @@ class CxlCacheRouter(CxlRouter):
             elif cxl_cache_base_packet.is_h2drsp():
                 cxl_cache_packet = cast(CxlCacheH2DRspPacket, packet)
                 cache_id = cxl_cache_packet.h2drsp_header.cache_id
+            elif cxl_cache_base_packet.is_h2ddata():
+                cxl_cache_packet = cast(CxlCacheH2DDataPacket, packet)
+                cache_id = cxl_cache_packet.h2ddata_header.cache_id
             else:
                 raise Exception("Received unexpected packet")
 
