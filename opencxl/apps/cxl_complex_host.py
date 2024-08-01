@@ -45,7 +45,7 @@ class CxlComplexHostConfig:
     memory_controller: RootComplexMemoryControllerConfig
     memory_ranges: List[MemoryRange] = field(default_factory=list)
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
-    coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.DotMemBI
+    coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.NonCache
 
 
 class CxlComplexHost(RunnableComponent):
@@ -82,13 +82,14 @@ class CxlComplexHost(RunnableComponent):
             memory_controller=config.memory_controller,
             memory_ranges=config.memory_ranges,
             root_ports=root_complex_root_ports,
+            coh_type=config.coh_type,
         )
         self._root_complex = RootComplex(root_complex_config)
 
         if config.coh_type == COH_POLICY_TYPE.DotCache:
             cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
             coh_agent_to_cache_fifo = coh_bridge_to_cache_fifo
-        elif config.coh_type == COH_POLICY_TYPE.DotMemBI:
+        elif config.coh_type in (COH_POLICY_TYPE.NonCache, COH_POLICY_TYPE.DotMemBI):
             cache_to_coh_agent_fifo = cache_to_home_agent_fifo
             coh_agent_to_cache_fifo = home_agent_to_cache_fifo
 
