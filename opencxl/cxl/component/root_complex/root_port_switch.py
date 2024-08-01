@@ -16,6 +16,7 @@ from opencxl.pci.component.packet_processor import PacketProcessor
 
 
 class COH_POLICY_TYPE(Enum):
+    NonCache = auto()
     DotCache = auto()
     DotMemBI = auto()
 
