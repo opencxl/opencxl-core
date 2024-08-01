@@ -14,6 +14,7 @@ from typing import List, cast
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.pci.component.fifo_pair import FifoPair
+from opencxl.cxl.component.root_complex.root_port_switch import COH_POLICY_TYPE
 from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
     MemoryRequest,
@@ -76,6 +77,7 @@ class HomeAgentConfig:
     upstream_cache_to_home_agent_fifo: CacheFifoPair
     upstream_home_agent_to_cache_fifo: CacheFifoPair
     downstream_cxl_mem_fifos: FifoPair
+    coh_type: COH_POLICY_TYPE
 
 
 class HomeAgent(RunnableComponent):
@@ -100,6 +102,7 @@ class HomeAgent(RunnableComponent):
 
         # emulated .mem s2m channels
         self._cxl_channel = {"s2m_ndr": Queue(), "s2m_drs": Queue(), "s2m_bisnp": Queue()}
+        self._non_cache = config.coh_type is COH_POLICY_TYPE.NonCache
 
     def _create_m2s_req_packet(
         self,
@@ -251,6 +254,15 @@ class HomeAgent(RunnableComponent):
         await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
         self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 
+    # .mem s2m drs handler
+    # method is only used for non cacheable devices like memory expander
+    async def _process_cxl_s2m_drs_packet(self, s2mdrs_packet: CxlMemS2MDRSPacket):
+        assert s2mdrs_packet.s2mdrs_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP
+
+        cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, s2mdrs_packet.data)
+        await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
+        self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
+
     # .mem s2m bisnp handler
     async def _process_cxl_s2m_bisnp_packet(self, s2mbisnp_packet: CxlMemS2MBISnpPacket):
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_WAIT:
@@ -312,8 +324,11 @@ class HomeAgent(RunnableComponent):
                     meta_value = CXL_MEM_META_VALUE.ANY
                 # HDM-DB Flush Write (Cmp: I/I)
                 elif cache_packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
-                    meta_field = CXL_MEM_META_FIELD.META0_STATE
-                    meta_value = CXL_MEM_META_VALUE.INVALID
+                    if self._non_cache:
+                        meta_value = CXL_MEM_META_VALUE.ANY
+                    else:
+                        meta_field = CXL_MEM_META_FIELD.META0_STATE
+                        meta_value = CXL_MEM_META_VALUE.INVALID
 
                 cxl_packet = self._create_m2s_rwd_packet(
                     opcode, meta_field, meta_value, snp_type, addr, data
@@ -328,11 +343,20 @@ class HomeAgent(RunnableComponent):
                 # HDM-DB Device Shared Read (Cmp-S: S/S, Cmp-E: A/I)
                 elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
                     opcode = CXL_MEM_M2SREQ_OPCODE.MEM_RD
-                    meta_field = CXL_MEM_META_FIELD.META0_STATE
-                    meta_value = CXL_MEM_META_VALUE.SHARED
-                    snp_type = CXL_MEM_M2S_SNP_TYPE.SNP_DATA
+                    if self._non_cache:
+                        meta_value = CXL_MEM_META_VALUE.ANY
+                    else:
+                        meta_field = CXL_MEM_META_FIELD.META0_STATE
+                        meta_value = CXL_MEM_META_VALUE.SHARED
+                        snp_type = CXL_MEM_M2S_SNP_TYPE.SNP_DATA
                 # HDM-DB Non-Data, Host Ownership Device Invalidation (Cmp-E: A/I)
                 elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_INV:
+                    if self._non_cache:
+                        cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I)
+                        await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
+                        self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
+                        return
+
                     opcode = CXL_MEM_M2SREQ_OPCODE.MEM_INV
                     meta_field = CXL_MEM_META_FIELD.META0_STATE
                     meta_value = CXL_MEM_META_VALUE.ANY
@@ -433,6 +457,11 @@ class HomeAgent(RunnableComponent):
                 if not self._cxl_channel["s2m_ndr"].empty():
                     packet = await self._cxl_channel["s2m_ndr"].get()
                     await self._process_cxl_s2m_rsp_packet(packet)
+
+                if self._non_cache:
+                    if not self._cxl_channel["s2m_drs"].empty():
+                        packet = await self._cxl_channel["s2m_drs"].get()
+                        await self._process_cxl_s2m_drs_packet(packet)
 
     async def _run(self):
         tasks = [
