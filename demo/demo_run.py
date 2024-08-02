@@ -50,7 +50,7 @@ def run_next_app(signum=None, frame=None):
         run_progress += 1
         jobs.append(chld)
         pthread_sigmask(SIG_UNBLOCK, [SIGCONT])
-        print(f"PID {chld}")
+        print(f"[RUNNER] PID {chld}")
 
 
 if __name__ == "__main__":
@@ -58,4 +58,4 @@ if __name__ == "__main__":
     signal(SIGINT, clean_shutdown)
     run_next_app()
     while True:
-        pass  # just spin
+        pause()
