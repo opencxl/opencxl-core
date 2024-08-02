@@ -326,7 +326,7 @@ class PciBusDriver(LabeledComponent):
         return 0xFFFFFFFF - data + 1
 
     async def _read_vid_did(self, bdf: int) -> Optional[int]:
-        logger.debug(self._create_message(f"Reading VID/DID from {bdf_to_string(bdf)}"))
+        logger.info(self._create_message(f"Reading VID/DID from {bdf_to_string(bdf)}"))
         vid = await self.read_config(bdf, REG_ADDR.VENDOR_ID.START, REG_ADDR.VENDOR_ID.LEN)
         did = await self.read_config(bdf, REG_ADDR.DEVICE_ID.START, REG_ADDR.DEVICE_ID.LEN)
         logger.debug(self._create_message(f"VID: 0x{vid:x}"))

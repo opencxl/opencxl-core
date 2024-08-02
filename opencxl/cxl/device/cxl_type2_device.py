@@ -222,15 +222,15 @@ class CxlType2Device(RunnableComponent):
     async def cxl_cache_writeline(self, hpa: int, data: int):
         raise NotImplementedError()
 
-    async def read_mem_dpa(self, dpa: int, size: int = 64) -> int:
+    async def read_mem_hpa(self, hpa: int, size: int = 64) -> int:
         if not self._cxl_memory_device_component:
             raise RuntimeError(self._create_message("Memory device not yet initialized"))
-        return await self._cxl_memory_device_component.read_mem_dpa(dpa, size)
+        return await self._cache_controller.cache_coherent_load(hpa, size)
 
-    async def write_mem_dpa(self, dpa: int, data: int, size: int = 64):
+    async def write_mem_hpa(self, hpa: int, data: int, size: int = 64):
         if not self._cxl_memory_device_component:
             raise RuntimeError(self._create_message("Memory device not yet initialized"))
-        await self._cxl_memory_device_component.write_mem_dpa(dpa, data, size)
+        await self._cache_controller.cache_coherent_store(hpa, size, data)
 
     async def _run(self):
         # pylint: disable=duplicate-code

@@ -251,8 +251,10 @@ class HomeAgent(RunnableComponent):
             cxl_packet = await self._cxl_channel["s2m_drs"].get()
             assert cast(CxlMemBasePacket, cxl_packet).is_s2mdrs()
             cache_packet = CacheResponse(status, cxl_packet.data)
+            print("not empty: s2m_drs")
         else:
             cache_packet = CacheResponse(status)
+            print("empty: s2m_drs")
         await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
         self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 
