@@ -59,6 +59,7 @@ class CxlMemDcoh(PacketProcessor):
         upstream_fifo: FifoPair,
         downstream_fifo: Optional[FifoPair] = None,
         label: Optional[str] = None,
+        device_id: int = 0,
     ):
         # pylint: disable=duplicate-code
         self._downstream_fifo: Optional[FifoPair]
@@ -79,7 +80,7 @@ class CxlMemDcoh(PacketProcessor):
             birsp_sched=False,
         )
         self._sf_host = set()
-        self._bi_id = 0
+        self._bi_id = device_id
         self._bi_tag = 0
 
         # emulated .mem m2s channels

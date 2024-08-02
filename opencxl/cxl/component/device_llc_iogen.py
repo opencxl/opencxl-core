@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from asyncio import create_task, gather
+from asyncio import create_task, gather, sleep
 from dataclasses import dataclass
 from random import randrange
 
@@ -24,6 +24,7 @@ from opencxl.cxl.transport.memory_fifo import (
 class DeviceLlcIoGenConfig:
     device_name: str
     processor_to_cache_fifo: MemoryFifoPair
+    memory_size: int
 
 
 class DeviceLlcIoGen(RunnableComponent):
@@ -31,6 +32,7 @@ class DeviceLlcIoGen(RunnableComponent):
         super().__init__(lambda class_name: f"{config.device_name}:{class_name}")
         self._device_name = config.device_name
         self._processor_to_cache_fifo = config.processor_to_cache_fifo
+        self._memory_line = config.memory_size // 0x40
 
         self._internal_iogen = False
 
@@ -48,17 +50,18 @@ class DeviceLlcIoGen(RunnableComponent):
         return packet
 
     async def _device_process_llc_iogen(self):
+        await sleep(5)
         stop_process = False
 
         while not stop_process:
             if self._internal_iogen is True:
                 valid_addr = set()
                 for _ in range(10000):
-                    addr = randrange(0, 0x1000) * 0x40
+                    addr = randrange(0, self._memory_line) * 0x40
                     written_data = addr
                     valid_addr.add(addr)
 
-                    packet = await self.store(addr, 64, written_data)
+                    packet = await self.store(addr, 0x40, written_data)
                     if packet is None:
                         logger.debug(self._create_message("Stop processing device llc iogen"))
                         stop_process = True
@@ -68,7 +71,7 @@ class DeviceLlcIoGen(RunnableComponent):
                 logger.info(f"[{self._device_name}] Written Counts {len(valid_addr)}")
 
                 for _, addr in enumerate(valid_addr):
-                    packet = await self.load(addr, 64)
+                    packet = await self.load(addr, 0x40)
                     if packet is None:
                         logger.debug(self._create_message("Stop processing device llc iogen"))
                         stop_process = True

@@ -26,6 +26,9 @@ class CacheRequest:
     size: int = 0
     data: int = 0
 
+    def get_address(self) -> int:
+        return self.address
+
 
 class CACHE_RESPONSE_STATUS(Enum):
     OK = auto()

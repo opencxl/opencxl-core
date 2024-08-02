@@ -54,6 +54,7 @@ class MyType1Accelerator(RunnableComponent):
         irq_listen_port: int = 9100,
         irq_send_port: int = 9000,
         device_id: int = 0,
+        host_mem_size: int = 0,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
@@ -65,6 +66,7 @@ class MyType1Accelerator(RunnableComponent):
                 transport_connection=self._sw_conn_client.get_cxl_connection(),
                 device_name=label,
                 device_id=device_id,
+                host_mem_size=host_mem_size,
             )
         )
 
@@ -346,6 +348,7 @@ class MyType2Accelerator(RunnableComponent):
         port: int = 8000,
         irq_listen_port: int = 9100,
         irq_send_port: int = 9000,
+        bi_id: int = 0,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
@@ -358,6 +361,7 @@ class MyType2Accelerator(RunnableComponent):
             transport_connection=self._sw_conn_client.get_cxl_connection(),
             memory_size=memory_size,
             memory_file=memory_file,
+            device_id=bi_id,
         )
         self._cxl_type2_device = CxlType2Device(device_config)
         self.accel_dirname = f"T2Accel@{self._label}"
