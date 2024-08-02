@@ -61,12 +61,8 @@ async def main():
 
     await asyncio.gather(*ready_tasks)
     print("[ACCEL] ready!")
-
-    while True:
-        await asyncio.sleep(0)  # just spin
-
-    # TODO: graceful shutdown
-
+    
+    await asyncio.Event().wait() # blocks
 
 if __name__ == "__main__":
     asyncio.run(main())
