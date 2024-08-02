@@ -45,6 +45,7 @@ class CxlMemManager(PacketProcessor):
     async def _process_cxl_mem_rd_packet(self, mem_rd_packet: CxlMemMemRdPacket):
         if self._downstream_fifo is not None:
             logger.debug(self._create_message("Forwarding CXL.mem MEM_RD packet"))
+            print(mem_rd_packet.get_pretty_string())
             await self._downstream_fifo.host_to_target.put(mem_rd_packet)
             return
 

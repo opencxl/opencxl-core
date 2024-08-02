@@ -149,7 +149,7 @@ async def test_cxl_host_type2_complex_host_ete():
         # await dev1._cxl_type2_device._cxl_cache_manager.send_d2h_req_test()
 
     test_tasks = [asyncio.create_task(test_configs()), asyncio.create_task(asyncio.sleep(4))]
-    await asyncio.gather(*test_tasks)
+    await asyncio.gather(*test_tasks) 
 
     stop_tasks = [
         asyncio.create_task(sw_conn_manager.stop()),

@@ -366,9 +366,19 @@ class MyType2Accelerator(RunnableComponent):
         self._cxl_type2_device = CxlType2Device(device_config)
         self.accel_dirname = f"T2Accel@{self._label}"
 
-        # Don't run the following code for now
-        # pylint: disable=unreachable
-        return
+        logger.info(f"CWD: {os.getcwd()}")
+
+        logger.info(
+            self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
+        )
+
+        if not os.path.isdir(self.accel_dirname):
+            os.mkdir(self.accel_dirname)
+        os.chdir(self.accel_dirname)
+
+        logger.info(self._create_message("Creating symlinks to training and validation datasets"))
+        os.symlink(src="../../imagenette2-160/train", dst="train", target_is_directory=True)
+        os.symlink(src="../../imagenette2-160/val", dst="val", target_is_directory=True)
 
         # Model setup
         self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
@@ -543,15 +553,7 @@ class MyType2Accelerator(RunnableComponent):
 
     async def _run_app(self):
         # pylint: disable=unused-variable
-        # pylint: disable=E1101
-        logger.info(
-            self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
-        )
-        os.chdir(self.accel_dirname)
-
-        logger.info(self._create_message("Creating symlinks to training and validation datasets"))
-        os.symlink(src="../imagenette2-160/train", dst="train", target_is_directory=True)
-        os.symlink(src="../imagenette2-160/val", dst="val", target_is_directory=True)
+        # pylint: disable=E1101 
 
         logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
