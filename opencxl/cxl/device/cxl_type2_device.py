@@ -114,6 +114,7 @@ class CxlType2Device(RunnableComponent):
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
             upstream_fifo=self._upstream_connection.cxl_mem_fifo,
             label=self._label,
+            device_id=config.device_id,
         )
 
         # Update CxlMemManager with a CxlMemoryDeviceComponent
@@ -130,7 +131,9 @@ class CxlType2Device(RunnableComponent):
         self._cache_controller = CacheController(cache_controller_config)
 
         device_processor_config = DeviceLlcIoGenConfig(
-            device_name=config.device_name, processor_to_cache_fifo=processor_to_cache_fifo
+            device_name=config.device_name,
+            processor_to_cache_fifo=processor_to_cache_fifo,
+            memory_size=config.memory_size,
         )
         self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
 
@@ -239,14 +242,12 @@ class CxlType2Device(RunnableComponent):
             create_task(self._cxl_mem_dcoh.run()),
             create_task(self._cache_controller.run()),
             create_task(self._device_simple_processor.run()),
-            create_task(self._cxl_cache_dcoh.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
             create_task(self._cxl_mem_dcoh.wait_for_ready()),
             create_task(self._cache_controller.wait_for_ready()),
             create_task(self._device_simple_processor.wait_for_ready()),
-            create_task(self._cxl_cache_dcoh.wait_for_ready()),
         ]
         await gather(*wait_tasks)
         await self._change_status_to_running()
@@ -259,6 +260,5 @@ class CxlType2Device(RunnableComponent):
             create_task(self._cxl_mem_dcoh.stop()),
             create_task(self._cache_controller.stop()),
             create_task(self._device_simple_processor.stop()),
-            create_task(self._cxl_cache_dcoh.stop()),
         ]
         await gather(*tasks)

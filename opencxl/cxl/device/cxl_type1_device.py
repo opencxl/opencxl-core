@@ -70,6 +70,7 @@ class CxlType1DeviceConfig:
     cache_line_count: int = 32
     cache_line_size: int = 64 * KB
     device_id: int = 0
+    host_mem_size: int = 0
 
 
 class CxlType1Device(RunnableComponent):
@@ -121,7 +122,9 @@ class CxlType1Device(RunnableComponent):
         self._cache_controller = CacheController(cache_controller_config)
 
         device_processor_config = DeviceLlcIoGenConfig(
-            device_name=config.device_name, processor_to_cache_fifo=processor_to_cache_fifo
+            device_name=config.device_name,
+            processor_to_cache_fifo=processor_to_cache_fifo,
+            memory_size=config.host_mem_size,
         )
         self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
         self._mmio_manager = None
