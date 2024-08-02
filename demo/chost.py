@@ -75,10 +75,7 @@ async def main():
     await asyncio.gather(*ready_tasks)
     print("[HOST] ready!")
 
-    while True:
-        await asyncio.sleep(0)
-
-    # TODO: graceful shutdown
+    await asyncio.Event().wait() # blocks
 
 
 if __name__ == "__main__":
