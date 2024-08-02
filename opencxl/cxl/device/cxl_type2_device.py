@@ -239,14 +239,12 @@ class CxlType2Device(RunnableComponent):
             create_task(self._cxl_mem_dcoh.run()),
             create_task(self._cache_controller.run()),
             create_task(self._device_simple_processor.run()),
-            create_task(self._cxl_cache_dcoh.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
             create_task(self._cxl_mem_dcoh.wait_for_ready()),
             create_task(self._cache_controller.wait_for_ready()),
             create_task(self._device_simple_processor.wait_for_ready()),
-            create_task(self._cxl_cache_dcoh.wait_for_ready()),
         ]
         await gather(*wait_tasks)
         await self._change_status_to_running()
@@ -259,6 +257,5 @@ class CxlType2Device(RunnableComponent):
             create_task(self._cxl_mem_dcoh.stop()),
             create_task(self._cache_controller.stop()),
             create_task(self._device_simple_processor.stop()),
-            create_task(self._cxl_cache_dcoh.stop()),
         ]
         await gather(*tasks)

@@ -362,6 +362,18 @@ class MyType2Accelerator(RunnableComponent):
         self._cxl_type2_device = CxlType2Device(device_config)
         self.accel_dirname = f"T2Accel@{self._label}"
 
+        return
+
+        self._irq_manager = IrqManager(
+            server_bind_port=irq_listen_port,
+            client_target_port=[irq_send_port],
+            device_name=label,
+        )
+
+        # self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
+        # self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
+    
+    def _setup_test_env(self):
         logger.info(f"CWD: {os.getcwd()}")
 
         logger.info(
@@ -401,15 +413,6 @@ class MyType2Accelerator(RunnableComponent):
         self._test_dataloader = DataLoader(
             self._train_dataset, batch_size=10, shuffle=True, num_workers=4
         )
-
-        self._irq_manager = IrqManager(
-            server_bind_port=irq_listen_port,
-            client_target_port=[irq_send_port],
-            device_name=label,
-        )
-
-        # self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
-        # self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
 
     def _train_one_epoch(self, train_dataloader, test_dataloader, device, optimizer, loss_fn):
         # pylint: disable=unused-variable
@@ -591,6 +594,7 @@ class MyType2Accelerator(RunnableComponent):
         os.rmdir(self.accel_dirname)
 
     async def _run(self):
+        # self._setup_test_env()
         tasks = [
             create_task(self._sw_conn_client.run()),
             create_task(self._cxl_type2_device.run()),
