@@ -246,15 +246,14 @@ class HomeAgent(RunnableComponent):
             return
 
         if s2mndr_packet.s2mndr_header.meta_value == CXL_MEM_META_VALUE.ANY:
-            if self._cxl_channel["s2m_drs"].empty():
-                return
+            print("going to spin")
+            while self._cxl_channel["s2m_drs"].empty():
+                await asyncio.sleep(0) # just spin
             cxl_packet = await self._cxl_channel["s2m_drs"].get()
             assert cast(CxlMemBasePacket, cxl_packet).is_s2mdrs()
             cache_packet = CacheResponse(status, cxl_packet.data)
-            print("not empty: s2m_drs")
         else:
             cache_packet = CacheResponse(status)
-            print("empty: s2m_drs")
         await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
         self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 
@@ -399,8 +398,10 @@ class HomeAgent(RunnableComponent):
             # packets are distributed to s2m channels
             cxl_packet = cast(CxlMemBasePacket, packet)
             if cxl_packet.is_s2mndr():
+                print("s2m ndr")
                 await self._cxl_channel["s2m_ndr"].put(cast(CxlMemS2MNDRPacket, packet))
             elif cxl_packet.is_s2mdrs():
+                print("s2m drs")
                 await self._cxl_channel["s2m_drs"].put(cast(CxlMemS2MDRSPacket, packet))
             elif cxl_packet.is_s2mbisnp():
                 await self._cxl_channel["s2m_bisnp"].put(cast(CxlMemS2MBISnpPacket, packet))
