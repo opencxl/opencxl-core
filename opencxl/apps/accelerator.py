@@ -129,6 +129,7 @@ class MyType1Accelerator(RunnableComponent):
 
         self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
         self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
+        self._torch_device = None
 
     def _train_one_epoch(
         self,
@@ -254,6 +255,7 @@ class MyType1Accelerator(RunnableComponent):
 
         # Model expects a 4-dimensional tensor
         tens = torch.unsqueeze(tens, 0)
+        tens = tens.to(self._torch_device)
 
         pred_logit = self.model(tens)
         predicted_probs = torch.softmax(pred_logit, dim=1)[0]
@@ -295,12 +297,12 @@ class MyType1Accelerator(RunnableComponent):
     async def _run_app(self, _):
         logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
-            device = torch.device("cuda:0")
+            self._torch_device = torch.device("cuda:0")
         # # Apple MPS does not work consistently
         # elif torch.backends.mps.is_available():
         #     device = torch.device("mps")
         else:
-            device = torch.device("cpu")
+            self._torch_device = torch.device("cpu")
         logger.debug(self._create_message(f"Using torch.device: {device}"))
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
@@ -324,7 +326,7 @@ class MyType1Accelerator(RunnableComponent):
                 test_dataloader=self._test_dataloader,
                 optimizer=optimizer,
                 loss_fn=loss_fn,
-                device=device,
+                device=self._torch_device,
             )
             scheduler.step()
             logger.debug(self._create_message(f"Epoch: {epoch} finished"))
@@ -415,6 +417,7 @@ class MyType2Accelerator(RunnableComponent):
 
         self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
         self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
+        self._torch_device = None
 
     def _setup_test_env(self):
         logger.info(f"CWD: {os.getcwd()}")
@@ -557,6 +560,7 @@ class MyType2Accelerator(RunnableComponent):
 
         # Model expects a 4-dimensional tensor
         tens = torch.unsqueeze(tens, 0)
+        tens = tens.to(self._torch_device)
 
         pred_logit = self.model(tens)
         predicted_probs = torch.softmax(pred_logit, dim=1)[0]
@@ -591,17 +595,17 @@ class MyType2Accelerator(RunnableComponent):
 
         logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
-            device = torch.device("cuda:0")
+            self._torch_device = torch.device("cuda:0")
         elif torch.backends.mps.is_available():
-            device = torch.device("mps")
+            self._torch_device = torch.device("mps")
         else:
-            device = torch.device("cpu")
-        print(f"torch.device: {device}")
+            self._torch_device = torch.device("cpu")
+        print(f"torch.device: {self._torch_device}")
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
         await self._get_metadata()
 
-        epochs = 2
+        epochs = 1
         epoch_loss = 0
         for epoch in range(epochs):
             loss_fn = torch.nn.CrossEntropyLoss()
@@ -614,7 +618,7 @@ class MyType2Accelerator(RunnableComponent):
                 test_dataloader=self._test_dataloader,
                 optimizer=optimizer,
                 loss_fn=loss_fn,
-                device=device,
+                device=self._torch_device,
             )
             scheduler.step()
 
