@@ -113,6 +113,9 @@ class DeviceHdmDecoder(HdmDecoderBase):
         dpa = dpa_offset + self.dpa_base
         return dpa
 
+    def get_hpa(self, dpa: int) -> int:
+        return dpa + self.base
+
 
 @dataclass
 class SwitchHdmDecoder(HdmDecoderBase):
@@ -178,6 +181,12 @@ class HdmDecoderManagerBase(LabeledComponent):
     def is_hpa_in_range(self, hpa: int) -> bool:
         return self.get_decoder_from_hpa(hpa) is not None
 
+    def get_decoder_for_dpa(self) -> Optional[HdmDecoderBase]:
+        for decoder in self._decoders:
+            if decoder is not None:
+                return decoder
+        return None
+
     @staticmethod
     def get_decoder_count(decode_register_value: int):
         if decode_register_value == 0:
@@ -232,6 +241,15 @@ class DeviceHdmDecoderManager(HdmDecoderManagerBase):
             return None
         device_decoder = cast(DeviceHdmDecoder, decoder)
         return device_decoder.get_dpa(hpa)
+
+    def get_hpa(self, dpa: int) -> Optional[int]:
+        decoder = self.get_decoder_for_dpa()
+        if not decoder:
+            return None
+        device_decoder = cast(DeviceHdmDecoder, decoder)
+        if device_decoder.iw != INTERLEAVE_WAYS.WAY_1:
+            return None
+        return device_decoder.get_hpa(dpa)
 
 
 class SwitchHdmDecoderManager(HdmDecoderManagerBase):
