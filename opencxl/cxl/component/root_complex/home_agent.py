@@ -245,7 +245,9 @@ class HomeAgent(RunnableComponent):
             self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
             return
 
-        if not self._cxl_channel["s2m_drs"].empty():
+        if s2mndr_packet.s2mndr_header.meta_value == CXL_MEM_META_VALUE.ANY:
+            while self._cxl_channel["s2m_drs"].empty():
+                await sleep(0)
             cxl_packet = await self._cxl_channel["s2m_drs"].get()
             assert cast(CxlMemBasePacket, cxl_packet).is_s2mdrs()
             cache_packet = CacheResponse(status, cxl_packet.data)

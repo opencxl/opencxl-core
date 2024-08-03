@@ -59,6 +59,7 @@ class CxlMemDcoh(PacketProcessor):
         upstream_fifo: FifoPair,
         downstream_fifo: Optional[FifoPair] = None,
         label: Optional[str] = None,
+        device_id: int = 0,
     ):
         # pylint: disable=duplicate-code
         self._downstream_fifo: Optional[FifoPair]
@@ -79,7 +80,7 @@ class CxlMemDcoh(PacketProcessor):
             birsp_sched=False,
         )
         self._sf_host = set()
-        self._bi_id = 0
+        self._bi_id = device_id
         self._bi_tag = 0
 
         # emulated .mem m2s channels
@@ -106,7 +107,7 @@ class CxlMemDcoh(PacketProcessor):
         data: Optional[int] = 0,
         drs_opcode: Optional[CXL_MEM_S2MDRS_OPCODE] = CXL_MEM_S2MDRS_OPCODE.MEM_DATA,
         meta_field: Optional[CXL_MEM_META_FIELD] = CXL_MEM_META_FIELD.NO_OP,
-        meta_value: Optional[CXL_MEM_META_VALUE] = CXL_MEM_META_VALUE.ANY,
+        meta_value: Optional[CXL_MEM_META_VALUE] = CXL_MEM_META_VALUE.INVALID,
     ) -> Tuple[CxlMemCmpPacket, CxlMemMemDataPacket]:
         return (
             CxlMemCmpPacket.create(ndr_opcode, meta_field, meta_value),
@@ -190,11 +191,15 @@ class CxlMemDcoh(PacketProcessor):
         if data_flush is True:
             await self._memory_device_component.write_mem(addr, data)
 
-        ndr_packet, drs_packet = self._create_mem_rsp_packet(rsp_code, data)
-        await self._upstream_fifo.target_to_host.put(ndr_packet)
-
         if data_read is True:
+            ndr_packet, drs_packet = self._create_mem_rsp_packet(
+                rsp_code, data, meta_value=CXL_MEM_META_VALUE.ANY
+            )
+            await self._upstream_fifo.target_to_host.put(ndr_packet)
             await self._upstream_fifo.target_to_host.put(drs_packet)
+        else:
+            ndr_packet, _ = self._create_mem_rsp_packet(rsp_code, data)
+            await self._upstream_fifo.target_to_host.put(ndr_packet)
 
     # .mem m2s rwd (MemWr) handler
     async def _process_cxl_m2s_rwd_packet(self, m2srwd_packet: CxlMemM2SRwDPacket):

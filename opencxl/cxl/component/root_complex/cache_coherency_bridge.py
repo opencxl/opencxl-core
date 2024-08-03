@@ -265,7 +265,7 @@ class CacheCoherencyBridge(RunnableComponent):
             self._cur_state.state = COH_STATE_MACHINE.COH_STATE_DONE
 
         if sf_update_list:
-            addr = self._cur_state.packet.address
+            addr = self._cur_state.packet.get_address()
             self._snoop_filter_update(addr, cache_id, sf_update_list)
 
     # .cache h2d packet process

@@ -106,6 +106,7 @@ class CxlComplexHost(RunnableComponent):
         host_processor_config = HostLlcIoGenConfig(
             host_name=config.host_name,
             processor_to_cache_fifo=processor_to_cache_fifo,
+            memory_size=config.memory_controller.memory_size,
         )
         self._host_simple_processor = HostLlcIoGen(host_processor_config)
 
