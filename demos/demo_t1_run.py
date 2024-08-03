@@ -3,6 +3,7 @@
 from signal import *
 import os
 import argparse
+import time
 
 sw_port = "22500"
 
@@ -32,6 +33,8 @@ def clean_shutdown(signum=None, frame=None):
 def run_next_app(signum=None, frame=None):
     if interrupted:
         return
+
+    time.sleep(3)
 
     pthread_sigmask(SIG_BLOCK, [SIGCONT])
 
