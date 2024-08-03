@@ -126,7 +126,8 @@ BASE_TEST_PORT = 9500
 #             )
 #             if successful:
 #                 host.append_dev_mmio_range(
-#                     device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
+#                     device.pci_device_info.bars[0].base_address,
+#                     device.pci_device_info.bars[0].size
 #                 )
 #                 host.append_dev_mem_range(next_available_hpa_base, size)
 #                 next_available_hpa_base += size
