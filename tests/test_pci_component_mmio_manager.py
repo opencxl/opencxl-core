@@ -113,6 +113,11 @@ async def test_mmio_manager_write():
     # bar_entry.register.write_bytes.assert_called_with(0, size - 1, value)
 
 
+class BytesLikeMock(MagicMock):
+    def to_bytes(self, *args, **kwargs):
+        return int(self).to_bytes(*args, **kwargs)
+
+
 @pytest.mark.asyncio
 async def test_mmio_manager_read():
     # pylint: disable=protected-access
@@ -143,7 +148,7 @@ async def test_mmio_manager_read():
 
     # Test when address is out of bound
     bar_entry.base_address = 0x1000
-    bar_entry.register = MagicMock()
+    bar_entry.register = BytesLikeMock()
     bar_entry.register.__len__.return_value = 0x10
     packet = CxlIoMemRdPacket.create(addr=0x1000 - 1, length=4)
     await upstream_fifo.host_to_target.put(packet)
@@ -155,7 +160,7 @@ async def test_mmio_manager_read():
 
     # Test when address is valid
     bar_entry.base_address = 0x1000
-    bar_entry.register = MagicMock()
+    bar_entry.register = BytesLikeMock()
     bar_entry.register.__len__.return_value = 0x10
     packet = CxlIoMemRdPacket.create(addr=0x1000, length=4)
     await upstream_fifo.host_to_target.put(packet)

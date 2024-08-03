@@ -216,17 +216,17 @@ class ShareableByteArray:
 
     def write_bytes(self, start_offset: int, end_offset: int, value: int):
         # NOTE: Assume little-endian byte order
-        for offset in range(start_offset, end_offset + 1):
-            self[offset] = value & 0xFF
-            value = value >> BITS_IN_BYTE
+        length = end_offset - start_offset + 1
+        start = start_offset + self.offset
+        end = end_offset + self.offset
+        val_bytes = value.to_bytes(length, "little")
+        self._data[start : end + 1] = val_bytes
 
     def read_bytes(self, start_offset: int, end_offset: int) -> int:
         # NOTE: Assume little-endian byte order
-        value = 0
-        for offset in range(end_offset, start_offset - 1, -1):
-            value = value << BITS_IN_BYTE
-            value = value | self[offset]
-        return value
+        start = start_offset + self.offset
+        end = end_offset + self.offset
+        return int.from_bytes(self._data[start : end + 1], "little")
 
     def write_bits(self, offset, width, value):
         """
