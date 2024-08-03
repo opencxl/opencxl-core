@@ -103,7 +103,8 @@ class HostTrainIoGen(RunnableComponent):
         for cacheline_offset in range(address, address + size, 64):
             cacheline = await self._cache_controller.cache_coherent_load(cacheline_offset, 64)
             chunk_size = min(64, (end - cacheline_offset))
-            result += cacheline.to_bytes(chunk_size, "little")
+            real_data = cacheline & ((1 << chunk_size) - 1)
+            result += real_data.to_bytes(chunk_size, "little")
         return result
 
     async def store(self, address: int, size: int, value: int):
