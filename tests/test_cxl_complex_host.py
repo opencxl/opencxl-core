@@ -34,7 +34,7 @@ from opencxl.util.logger import logger
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 
-BASE_TEST_PORT = 9300
+BASE_TEST_PORT = 9500
 
 
 @pytest.mark.asyncio
@@ -102,11 +102,10 @@ async def test_cxl_host_type2_complex_host_ete():
     cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
 
     start_tasks = [
-        asyncio.create_task(host.run()),
-        asyncio.create_task(host_manager.run()),
         asyncio.create_task(sw_conn_manager.run()),
         asyncio.create_task(physical_port_manager.run()),
         asyncio.create_task(virtual_switch_manager.run()),
+        asyncio.create_task(host.run()),
         asyncio.create_task(dev1.run()),
         asyncio.create_task(dev2.run()),
     ]
@@ -115,7 +114,6 @@ async def test_cxl_host_type2_complex_host_ete():
         asyncio.create_task(sw_conn_manager.wait_for_ready()),
         asyncio.create_task(physical_port_manager.wait_for_ready()),
         asyncio.create_task(virtual_switch_manager.wait_for_ready()),
-        asyncio.create_task(host_manager.wait_for_ready()),
         asyncio.create_task(host.wait_for_ready()),
         asyncio.create_task(dev1.wait_for_ready()),
         asyncio.create_task(dev2.wait_for_ready()),
