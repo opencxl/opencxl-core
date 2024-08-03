@@ -1,4 +1,4 @@
-#!/Users/ben/Library/Caches/pypoetry/virtualenvs/opencxl-5A3JHOT6-py3.11/bin/python3.11
+#!/usr/bin/env python
 
 from signal import *
 import asyncio
