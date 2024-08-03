@@ -4,10 +4,10 @@ import os
 sw_port = "22500"
 
 RUN_LIST = [
-    ("./switch.py", (sw_port,)),
-    ("./chost.py", (sw_port,)),
-    ("./accel.py", (sw_port, "1")),
-    ("./accel.py", (sw_port, "2")),
+    ("switch", "./switch.py", (sw_port,)),
+    ("host", "./chost.py", (sw_port,)),
+    ("accel1", "./accel.py", (sw_port, "1")),
+    ("accel2", "./accel.py", (sw_port, "2")),
 ]
 
 jobs = {}  # list of pids
@@ -21,7 +21,7 @@ def clean_shutdown(signum=None, frame=None):
         # propagate SIGINT
         os.kill(pid, SIGINT)
         os.waitpid(pid, 0)
-        print(f"[RUNNER] Killed {prog}")
+        print(f"[RUNNER] Killed {prog} (PID {pid})")
     print(f"[RUNNER] exiting...")
     quit()
 
@@ -35,11 +35,11 @@ def run_next_app(signum=None, frame=None):
 
     if run_progress >= len(RUN_LIST):
         # signal the host that IO is ready
-        host_pid = jobs["./chost.py"] 
+        host_pid = jobs["host"] 
         os.kill(host_pid, SIGIO)
         return
 
-    program, args = RUN_LIST[run_progress]
+    component_name, program, args = RUN_LIST[run_progress]
 
     if not (chld := os.fork()):
         # child process
@@ -52,7 +52,7 @@ def run_next_app(signum=None, frame=None):
             raise RuntimeError(f'Couldn\'t find "{program}"') from exc
     else:
         run_progress += 1
-        jobs[program] = chld
+        jobs[component_name] = chld
         pthread_sigmask(SIG_UNBLOCK, [SIGCONT])
         print(f"[RUNNER] PID {chld}")
 

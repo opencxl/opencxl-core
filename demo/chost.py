@@ -31,7 +31,6 @@ async def shutdown(signame=None):
         await asyncio.gather(*start_tasks)
     except Exception as exc:
         print("[HOST]", exc.__traceback__)
-        quit()
     finally:
         os._exit(0)
 
@@ -66,8 +65,9 @@ async def run_demo(signame=None):
             host.append_dev_mem_range(next_available_hpa_base, size)
             next_available_hpa_base += size
     
-    print("[HOST] demo done!")
-    
+    print(f"[HOST] demo done!")
+    os.kill(os.getppid(), SIGINT)
+
 async def main():
     # install signal handlers
     lp = asyncio.get_event_loop()
