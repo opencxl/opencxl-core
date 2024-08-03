@@ -188,7 +188,7 @@ class HostTrainIoGen(RunnableComponent):
                         await self.write_mmio(
                             self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
                         )
-                        
+
                         while True:
                             pic_data_mem_loc_rb = await self.read_mmio(
                                 self.to_device_mmio_addr(dev_id, 0x1810), 8

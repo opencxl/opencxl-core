@@ -12,15 +12,13 @@ from asyncio import (
     Task,
     create_task,
     gather,
-    sleep,
     start_server,
     open_connection,
     Lock,
 )
 from asyncio.exceptions import CancelledError
 from enum import Enum
-import traceback
-from typing import Callable, Optional
+from typing import Callable
 
 from opencxl.util.component import RunnableComponent
 from opencxl.util.logger import logger
@@ -72,6 +70,7 @@ class IrqManager(RunnableComponent):
         self._reader_id = {}
         self._writer_id = {}
         self._device_id = device_id
+        self._run_status = False
 
     def register_interrupt_handler(self, irq_msg: Irq, irq_recv_cb: Callable, dev_id: int = 0):
         """
@@ -88,12 +87,16 @@ class IrqManager(RunnableComponent):
             await irq_recv_cb(dev_id)
 
         cb_func = _callback
-        logger.info(self._create_message(f"Registering interrupt for IRQ {irq_msg.name} for remote {device_name}"))
+        logger.info(
+            self._create_message(
+                f"Registering interrupt for IRQ {irq_msg.name} for remote {device_name}"
+            )
+        )
         if dev_id not in self._msg_to_interrupt_event:
             self._msg_to_interrupt_event[dev_id] = {}
         self._msg_to_interrupt_event[dev_id][irq_msg] = cb_func
 
-    async def _irq_handler(self, reader: StreamReader, writer: StreamWriter):
+    async def _irq_handler(self, reader: StreamReader, _: StreamWriter):
         this_dev_name = f"Device {self._device_id}"
         if self._server:
             this_dev_name = "Host"
@@ -113,7 +116,7 @@ class IrqManager(RunnableComponent):
             if not self._server:
                 remote_dev_id = 0
                 remote_dev_name = "host"
-                
+
             irq_num = msg_int >> 8
             irq = Irq(irq_num)
             logger.debug(self._create_message(f"IRQ received for {irq.name}"))
@@ -124,7 +127,11 @@ class IrqManager(RunnableComponent):
                 raise RuntimeError(f"Invalid IRQ: {irq} for remote {remote_dev_name}")
 
             create_task(self._msg_to_interrupt_event[remote_dev_id][irq](remote_dev_id))
-            logger.debug(self._create_message(f"IRQ handled for {irq.name} from remote {remote_dev_name}"))
+            logger.debug(
+                self._create_message(
+                    f"IRQ handled for {irq.name} from remote {remote_dev_name}"
+                )
+            )
 
     async def _create_server(self):
         self._run_status = True

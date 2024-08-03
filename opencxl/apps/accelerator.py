@@ -11,12 +11,11 @@ import glob
 from io import BytesIO
 from typing import cast
 import shutil
-
+from pathlib import Path
 import json
 import os
-import torch
-from pathlib import Path
 
+import torch
 from PIL import Image
 from torch import nn
 from torch.utils.data import DataLoader
@@ -76,6 +75,7 @@ class MyType1Accelerator(RunnableComponent):
                 host_mem_size=host_mem_size,
             )
         )
+        self._wait_tasks = []
         self.original_base_folder = train_data_path
         self.accel_dirname = f"/tmp/T1Accel@{self._label}"
         if os.path.exists(self.accel_dirname) and os.path.isdir(self.accel_dirname):
@@ -168,7 +168,11 @@ class MyType1Accelerator(RunnableComponent):
 
         train_loss = running_train_loss / len(train_dataloader.sampler)
         train_accuracy = correct_count / len(train_dataloader.sampler)
-        logger.debug(self._create_message(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}"))
+        logger.debug(
+            self._create_message(
+                f"train_loss: {train_loss}, train_accuracy: {train_accuracy}"
+            )
+        )
 
         if device == "cuda:0":
             torch.cuda.empty_cache()
@@ -246,7 +250,7 @@ class MyType1Accelerator(RunnableComponent):
 
         return im
 
-    async def _validate_model(self, reader_id):
+    async def _validate_model(self, _):
         # pylint: disable=E1101
         im = await self._get_test_image()
         tens = cast(torch.Tensor, self.transform(im))
@@ -388,9 +392,7 @@ class MyType2Accelerator(RunnableComponent):
         server_port: int = 9050,
     ):
         label = f"Port{port_index}"
-
-
-#         super().__init__(label)
+        super().__init__(label)
 #         self._sw_conn_client = SwitchConnectionClient(
 #             port_index, CXL_COMPONENT_TYPE.T2, host=host, port=port
 #         )
@@ -583,13 +585,17 @@ class MyType2Accelerator(RunnableComponent):
 #         # pylint: disable=unused-variable
 #         # pylint: disable=E1101
 #         logger.info(
-#             self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
+#             self._create_message(
+#                 f"Changing into accelerator directory: {self.accel_dirname}"
+#             )
 #         )
 #         os.chdir(self.accel_dirname)
 
 #         logger.info(self._create_message("Creating symlinks to training and validation datasets"))
 #         os.symlink(
-#             src="/Users/zhxq/Downloads/imagenette2-160/train", dst="train", target_is_directory=True
+#             src="/Users/zhxq/Downloads/imagenette2-160/train",
+#             dst="train",
+#             target_is_directory=True,
 #         )
 #         os.symlink(
 #             src="/Users/zhxq/Downloads/imagenette2-160/val", dst="val", target_is_directory=True
@@ -634,7 +640,8 @@ class MyType2Accelerator(RunnableComponent):
 #         # logger.info("Removing accelerator directory")
 #         # os.rmdir(self.accel_dirname)
 
-#     async def _run(self):
+    async def _run(self):
+        pass
 #         tasks = [
 #             create_task(self._sw_conn_client.run()),
 #             create_task(self._cxl_type2_device.run()),
@@ -646,7 +653,8 @@ class MyType2Accelerator(RunnableComponent):
 #         await self._change_status_to_running()
 #         await gather(*tasks)
 
-#     async def _stop(self):
+    async def _stop(self):
+        pass
 #         tasks = [
 #             create_task(self._sw_conn_client.stop()),
 #             create_task(self._cxl_type2_device.stop()),
