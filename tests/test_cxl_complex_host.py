@@ -18,7 +18,6 @@ from opencxl.cxl.component.root_complex.root_port_switch import (
     COH_POLICY_TYPE,
     ROOT_PORT_SWITCH_TYPE,
 )
-from opencxl.apps.cxl_host import CxlHostManager
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
 from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
@@ -75,9 +74,7 @@ async def test_cxl_host_type2_complex_host_ete():
         port=switch_port,
     )
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     host_mem_size = 0x8000  # Needs to be big enough to test cache eviction
-
     host_name = "foo"
     root_port_switch_type = ROOT_PORT_SWITCH_TYPE.PASS_THROUGH
     memory_controller = RootComplexMemoryControllerConfig(host_mem_size, "foo.bin")
@@ -94,9 +91,7 @@ async def test_cxl_host_type2_complex_host_ete():
         coh_type=COH_POLICY_TYPE.DotCache,
     )
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     host = CxlComplexHost(config)
-
     pci_bus_driver = PciBusDriver(host.get_root_complex())
     cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
     cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
@@ -153,7 +148,6 @@ async def test_cxl_host_type2_complex_host_ete():
         asyncio.create_task(sw_conn_manager.stop()),
         asyncio.create_task(physical_port_manager.stop()),
         asyncio.create_task(virtual_switch_manager.stop()),
-        asyncio.create_task(host_manager.stop()),
         asyncio.create_task(host.stop()),
         asyncio.create_task(dev1.stop()),
         asyncio.create_task(dev2.stop()),
