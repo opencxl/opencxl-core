@@ -139,7 +139,6 @@ class MmioRouter(CxlRouter):
             packet = await self._upstream_connection_fifo.host_to_target.get()
             if packet is None:
                 break
-
             logger.debug(self._create_message("Received an incoming request"))
             base_packet = cast(BasePacket, packet)
             cxl_io_base_packet = cast(CxlIoBasePacket, packet)

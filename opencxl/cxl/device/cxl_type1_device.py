@@ -84,7 +84,7 @@ class CxlType1Device(RunnableComponent):
         processor_to_cache_fifo = MemoryFifoPair()
         cache_to_coh_agent_fifo = CacheFifoPair()
         coh_agent_to_cache_fifo = CacheFifoPair()
-
+        self._mmio_manager = None
         self._memory_size = 0
         self._cxl_cache_device_component = None
         self._upstream_connection = config.transport_connection
@@ -127,7 +127,6 @@ class CxlType1Device(RunnableComponent):
             memory_size=config.host_mem_size,
         )
         self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
-        self._mmio_manager = None
 
     async def read_mmio(self, addr: int, size: int, bar: int = 0):
         return await self._mmio_manager.read_mmio(addr, size, bar)
@@ -218,13 +217,6 @@ class CxlType1Device(RunnableComponent):
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
 
-    # pylint: disable=line-too-long
-    # async def cxl_cache_readlines(self, addr: int, length: int, parallel: bool = False) -> int:
-    #     return await self._cxl_cache_dcoh.cxl_cache_readlines(addr, length, parallel)
-
-    # async def cxl_cache_writelines(self, addr: int, data: int, length: int, parallel: bool = False):
-    #     await self._cxl_cache_dcoh.cxl_cache_writelines(addr, data, length, parallel)
-
     async def cxl_cache_readline(self, addr: int, cqid: Optional[int] = None) -> int:
         logger.debug(f"Beware: cqid {cqid} is not currently implemented.")
         return await self._cache_controller.cache_coherent_load(addr, 64)
@@ -232,6 +224,30 @@ class CxlType1Device(RunnableComponent):
     async def cxl_cache_writeline(self, addr: int, data: int, cqid: Optional[int] = None):
         logger.debug(f"Beware: cqid {cqid} is not currently implemented.")
         await self._cache_controller.cache_coherent_store(addr, 64, data)
+
+    async def cxl_cache_read(self, address, size) -> bytes:
+        end = address + size
+        result = b""
+        for cacheline_offset in range(address, address + size, 64):
+            cacheline = await self.cxl_cache_readline(cacheline_offset)
+            chunk_size = min(64, (end - cacheline_offset))
+            chunk_data = cacheline.to_bytes(64, "little")
+            result += chunk_data[:chunk_size]
+        return result
+
+    async def cxl_cache_write(self, address, size, value):
+        if address % 64 != 0 or size % 64 != 0:
+            raise Exception(f"Size {size} and address 0x{address:x} must be aligned to 64!")
+
+        chunk_count = 0
+        while size > 0:
+            message = self._create_message(f"Host Memory: Writing 0x{value:08x} to 0x{address:08x}")
+            logger.debug(message)
+            low_64_byte = value & ((1 << (64 * 8)) - 1)
+            await self.cxl_cache_writeline(address + (chunk_count * 64), low_64_byte)
+            size -= 64
+            chunk_count += 1
+            value >>= 64 * 8
 
     async def _run(self):
         # pylint: disable=duplicate-code
