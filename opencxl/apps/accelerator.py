@@ -163,7 +163,7 @@ class MyType1Accelerator(RunnableComponent):
 
         train_loss = running_train_loss / len(train_dataloader.sampler)
         train_accuracy = correct_count / len(train_dataloader.sampler)
-        print(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}")
+        logger.debug(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}")
 
         if device == "cuda:0":
             torch.cuda.empty_cache()
@@ -195,7 +195,7 @@ class MyType1Accelerator(RunnableComponent):
         test_loss = running_test_loss / len(test_dataloader.sampler)
         test_accuracy = correct_count / len(test_dataloader.sampler)
 
-        print(f"test_loss: {test_loss}, test_accuracy: {test_accuracy}")
+        logger.debug(f"test_loss: {test_loss}, test_accuracy: {test_accuracy}")
 
     async def _get_metadata(self):
         # When retrieving the metadata, the device does not know ahead of time where
@@ -214,18 +214,16 @@ class MyType1Accelerator(RunnableComponent):
 
         metadata_end = metadata_addr + metadata_size
 
-        print("Writing metadata")
+        logger.debug("Writing metadata")
         with open(f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv", "wb") as md_file:
-            print(f"addr: 0x{metadata_addr:x}")
-            print(f"end: 0x{metadata_end:x}")
+            logger.debug(f"addr: 0x{metadata_addr:x}")
+            logger.debug(f"end: 0x{metadata_end:x}")
             data = await self._cxl_type1_device.cxl_cache_read(metadata_addr, metadata_size)
             md_file.write(data)
 
-        print("Finished writing file")
+        logger.debug("Finished writing file")
 
     async def _get_test_image(self) -> Image.Image:
-
-        CACHELINE_LENGTH = 64
 
         image_addr_mmio_addr = 0x1810
         image_size_mmio_addr = 0x1818
@@ -290,8 +288,6 @@ class MyType1Accelerator(RunnableComponent):
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
 
     async def _run_app(self, _):
-        print("app running")
-
         logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
             device = torch.device("cuda:0")
@@ -299,7 +295,7 @@ class MyType1Accelerator(RunnableComponent):
         #     device = torch.device("mps")
         else:
             device = torch.device("cpu")
-        print(f"Using torch.device: {device}")
+        logger.debug(f"Using torch.device: {device}")
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
         # await self._get_metadata()
@@ -328,7 +324,6 @@ class MyType1Accelerator(RunnableComponent):
             logger.debug(f"Epoch: {epoch} finished")
 
         # Done training
-        print("Training Done!!!")
         await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
 
     async def _app_shutdown(self):
@@ -353,7 +348,6 @@ class MyType1Accelerator(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
-        print("!!!!!Device trying to stop")
         for task in self._wait_tasks:
             task.cancel()
         self._stop_signal.set()
@@ -364,7 +358,6 @@ class MyType1Accelerator(RunnableComponent):
         ]
         await gather(*tasks)
         await self._app_shutdown()
-        print("!!!!!Device stopped!!")
 
 
 class MyType2Accelerator(RunnableComponent):

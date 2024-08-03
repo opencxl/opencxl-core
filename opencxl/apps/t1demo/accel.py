@@ -67,7 +67,7 @@ async def main():
     await asyncio.gather(*ready_tasks)
     print("[ACCEL] ready!")
 
-    await asyncio.Event().wait()
+    await stop_signal.wait()
 
 
 if __name__ == "__main__":

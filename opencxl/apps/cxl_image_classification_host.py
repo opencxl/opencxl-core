@@ -145,58 +145,48 @@ class HostTrainIoGen(RunnableComponent):
         return self._dev_mem_ranges[device][0] + addr
 
     async def _host_check_start_validation_type1(self, dev_id: int):
-        print(f"I see dev {dev_id} finished")
         self._train_finished_count += 1
         if self._train_finished_count == self._device_count:
             await self._host_process_validation_type1(dev_id)
 
     async def _host_process_validation_type1(self, _: int):
-        print("_host_process_validation_type1 INVOKED!!!!!")
         categories = glob.glob(self._train_data_path + "/val/*")
-        print("Preparing 1")
         self._total_samples = len(categories) * self._sample_from_each_category
-        print("Preparing 2")
-        print(f"Creating for {self._total_samples} lists")
         self._validation_results = [[] for i in range(self._total_samples)]
-        print("Preparing 3")
         pic_id = 0
         pic_data_mem_loc = 0x00008000
-        print("Preparing")
         for c in categories:
-            print(f"Category: {c}")
+            logger.debug(f"Validating category: {c}")
             category_pics = glob.glob(f"{c}/*.JPEG")
             sample_pics = sample(category_pics, self._sample_from_each_category)
             category_name = c.split(os.path.sep)[-1]
             self._sampled_file_categories += [category_name] * self._sample_from_each_category
             for s in sample_pics:
-                print(f"Validating {s}")
                 with open(s, "rb") as f:
                     pic_data = f.read()
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
-                    print(f"loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}")
+                    logger.debug(
+                        f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
+                    )
                     for dev_id in range(self._device_count):
-                        print("What's happening?")
                         await self.store(
                             pic_data_mem_loc,
                             pic_data_len_rounded,
                             pic_data_int,
                         )
-                    print("Done writing mmio")
                     for dev_id in range(self._device_count):
                         # Remember to configure the device when starting the app
                         # Should make sure to_device_addr returns correct mmio for that dev_id
                         # In fact, we can use a fixed host memory addr
                         # and we only need to write the length to the device
-                        print(f"Host creating callback irq for {dev_id}")
                         event = asyncio.Event()
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
                             self._save_validation_result_type1(pic_id, event),
                             dev_id,
                         )
-                        print(f"Writing to {dev_id}")
                         await self.write_mmio(
                             self.to_device_mmio_addr(dev_id, 0x1810), 8, pic_data_mem_loc
                         )
@@ -499,7 +489,6 @@ class CxlImageClassificationHost(RunnableComponent):
         await asyncio.gather(*run_tasks)
 
     async def _stop(self):
-        print("!!!!!Host trying to stop")
         tasks = [
             asyncio.create_task(self._root_port_client_manager.stop()),
             asyncio.create_task(self._root_complex.stop()),
@@ -508,4 +497,3 @@ class CxlImageClassificationHost(RunnableComponent):
             asyncio.create_task(self._irq_handler.stop()),
         ]
         await asyncio.gather(*tasks)
-        print("!!!!!Host stopped!!")
