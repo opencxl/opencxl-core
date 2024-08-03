@@ -113,12 +113,12 @@ class MyType1Accelerator(RunnableComponent):
             root=self._train_folder, transform=self.transform
         )
         self._train_dataloader = DataLoader(
-            self._train_dataset, batch_size=32, shuffle=True, num_workers=8
+            self._train_dataset, batch_size=32, shuffle=True, num_workers=4
         )
 
         self._test_dataset = datasets.ImageFolder(root=self._val_folder, transform=self.transform)
         self._test_dataloader = DataLoader(
-            self._train_dataset, batch_size=10, shuffle=True, num_workers=8
+            self._train_dataset, batch_size=10, shuffle=True, num_workers=4
         )
 
         self._irq_manager = IrqManager(
