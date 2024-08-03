@@ -659,7 +659,9 @@ class CxlBusDriver(LabeledComponent):
 
     async def _scan_cxl_devices(self):
         self._devices = []
+        count = 0
         for device in self._pci_bus_driver.get_devices():
+            count += 1
             is_cxl_device = False
             for capability in device.capabilities:
                 if capability.id == 0x0023 and capability.version == 0x1:
@@ -667,7 +669,6 @@ class CxlBusDriver(LabeledComponent):
                     break
             if not is_cxl_device:
                 continue
-
             logger.info(self._create_message(f"Found CXL Device at {bdf_to_string(device.bdf)}"))
             device_info = CxlDeviceInfo(root_complex=self._root_complex, pci_device_info=device)
             self._devices.append(device_info)
