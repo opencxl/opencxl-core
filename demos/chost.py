@@ -121,7 +121,7 @@ async def main():
         host.append_dev_mmio_range(
             device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
         )
-    
+
     print("[HOST] ready!")
 
     await stop_signal.wait()

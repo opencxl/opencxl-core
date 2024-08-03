@@ -18,6 +18,7 @@ interrupted = False
 
 stop_signal = asyncio.Event()
 
+
 def clean_shutdown(signum=None, frame=None):
     global interrupted, stop_signal
     interrupted = True
@@ -36,6 +37,7 @@ def clean_shutdown(signum=None, frame=None):
 async def main(signum=None, frame=None):
     run_next_app(signum, frame)
     await stop_signal.wait()
+
 
 def run_next_app(signum=None, frame=None):
     if interrupted:
@@ -80,7 +82,7 @@ if __name__ == "__main__":
         action="store",
         required=True,
         help="The folder path to the image training data.",
-        metavar='IMG_FOLDER_PATH'
+        metavar="IMG_FOLDER_PATH",
     )
     parser.add_argument(
         "-n",
@@ -89,7 +91,7 @@ if __name__ == "__main__":
         default=2,
         action="store",
         help="The number of accelerators.",
-        metavar='NUM_ACCELS'
+        metavar="NUM_ACCELS",
     )
 
     args = vars(parser.parse_args())

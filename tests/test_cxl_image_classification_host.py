@@ -71,7 +71,12 @@ BASE_TEST_PORT = 19300
 #     for i in range(0, NUM_DEVS):
 #         port_configs.append(PortConfig(PORT_TYPE.DSP))
 #         dev_list.append(
-#             MyType1Accelerator(port_index=i + 1, port=switch_port, server_port=9050, device_id=i, train_data_path=tmp_path)
+#             MyType1Accelerator(port_index=i + 1,
+#                                port=switch_port,
+#                                server_port=9050,
+#                                device_id=i,
+#                                train_data_path=tmp_path
+#                                )
 #         )
 
 #     sw_conn_manager = SwitchConnectionManager(port_configs, port=switch_port)
@@ -206,7 +211,7 @@ async def test_cxl_host_type1_complex_host_ete():
     Path(tmp_path).mkdir(parents=True, exist_ok=True)
     Path(f"{tmp_path}{os.path.sep}train{os.path.sep}class1").mkdir(parents=True, exist_ok=True)
     Path(f"{tmp_path}{os.path.sep}val{os.path.sep}class1").mkdir(parents=True, exist_ok=True)
-    image = Image.new('RGB', (100, 100))
+    image = Image.new("RGB", (100, 100))
     image.save(f"{tmp_path}{os.path.sep}train{os.path.sep}class1{os.path.sep}image.png", "PNG")
     image.save(f"{tmp_path}{os.path.sep}val{os.path.sep}class1{os.path.sep}image.png", "PNG")
 
@@ -214,7 +219,11 @@ async def test_cxl_host_type1_complex_host_ete():
         port_configs.append(PortConfig(PORT_TYPE.DSP))
         dev_list.append(
             MyType1Accelerator(
-                port_index=i + 1, port=switch_port, server_port=9150, device_id=i, train_data_path=tmp_path
+                port_index=i + 1,
+                port=switch_port,
+                server_port=9150,
+                device_id=i,
+                train_data_path=tmp_path,
             )
         )
 

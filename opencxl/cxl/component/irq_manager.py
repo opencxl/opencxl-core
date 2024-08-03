@@ -128,9 +128,7 @@ class IrqManager(RunnableComponent):
 
             create_task(self._msg_to_interrupt_event[remote_dev_id][irq](remote_dev_id))
             logger.debug(
-                self._create_message(
-                    f"IRQ handled for {irq.name} from remote {remote_dev_name}"
-                )
+                self._create_message(f"IRQ handled for {irq.name} from remote {remote_dev_name}")
             )
 
     async def _create_server(self):
