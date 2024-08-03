@@ -64,7 +64,8 @@ async def main():
     lp.add_signal_handler(SIGINT, lambda signame="SIGINT": asyncio.create_task(shutdown(signame)))
 
     sw_portno = int(sys.argv[1])
-    print(f"[HOST] listening on port {sw_portno}")
+    train_data_path = sys.argv[2]
+    print(f"[HOST] listening on port {sw_portno}, train_data_path: {train_data_path}")
 
     global host
     global start_tasks
@@ -80,6 +81,7 @@ async def main():
         host_name,
         0,
         root_port_switch_type,
+        train_data_path,
         memory_controller,
         memory_ranges,
         root_ports,

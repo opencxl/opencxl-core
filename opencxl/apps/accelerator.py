@@ -302,12 +302,12 @@ class MyType1Accelerator(RunnableComponent):
         print(f"Using torch.device: {device}")
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
-        await self._get_metadata()
+        # await self._get_metadata()
         # If testing:
-        # shutil.copy(
-        #     f"{self.original_base_folder}{os.path.sep}noisy_imagenette.csv",
-        #     f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
-        # )
+        shutil.copy(
+            f"{self.original_base_folder}{os.path.sep}noisy_imagenette.csv",
+            f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
+        )
 
         epochs = 1
         for epoch in range(epochs):

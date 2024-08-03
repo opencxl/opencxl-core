@@ -25,7 +25,7 @@ async def shutdown(signame=None):
         stop_tasks = [
             asyncio.create_task(device.stop()),
         ]
-        await asyncio.gather(*stop_tasks, return_exceptions=True)
+        await asyncio.gather(*stop_tasks)
         await asyncio.gather(*start_tasks)
     except Exception as exc:
         print("[ACCEL]", exc.__traceback__)

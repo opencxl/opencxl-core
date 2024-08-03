@@ -239,8 +239,8 @@ class CxlType1Device(RunnableComponent):
         for cacheline_offset in range(address, address + size, 64):
             cacheline = await self.cxl_cache_readline(cacheline_offset)
             chunk_size = min(64, (end - cacheline_offset))
-            real_data = cacheline & ((1 << chunk_size) - 1)
-            result += real_data.to_bytes(chunk_size, "little")
+            chunk_data = cacheline.to_bytes(64, "little")
+            result += chunk_data[:chunk_size]
         return result
 
     async def cxl_cache_write(self, address, size, value):

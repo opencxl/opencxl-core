@@ -59,6 +59,7 @@ class HostTrainIoGenConfig:
     interleave_gran: int
     device_type: CXL_COMPONENT_TYPE.T1
     cache_controller: CacheController
+    train_data_path: str
 
 
 class HostTrainIoGen(RunnableComponent):
@@ -79,7 +80,7 @@ class HostTrainIoGen(RunnableComponent):
         self._interleave_gran = config.interleave_gran
         self._dev_type = config.device_type
         self._cache_controller = config.cache_controller
-        self._train_data_path = "/Users/zhxq/Downloads/imagenette2-160"
+        self._train_data_path = config.train_data_path
         self._dev_mmio_ranges: list[tuple[int, int]] = []
         self._dev_mem_ranges: list[tuple[int, int]] = []
         self._start_signal = asyncio.Event()
@@ -103,8 +104,8 @@ class HostTrainIoGen(RunnableComponent):
         for cacheline_offset in range(address, address + size, 64):
             cacheline = await self._cache_controller.cache_coherent_load(cacheline_offset, 64)
             chunk_size = min(64, (end - cacheline_offset))
-            real_data = cacheline & ((1 << chunk_size) - 1)
-            result += real_data.to_bytes(chunk_size, "little")
+            chunk_data = cacheline.to_bytes(64, "little")
+            result += chunk_data[:chunk_size]
         return result
 
     async def store(self, address: int, size: int, value: int):
@@ -326,9 +327,9 @@ class HostTrainIoGen(RunnableComponent):
         csv_data_int = int.from_bytes(csv_data, "little")
         csv_data_len = len(csv_data)
         csv_data_len_rounded = (((csv_data_len - 1) // 64) + 1) * 64
-        print("Storing metadata...")
-        await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
-        print("Metadata was stored!")
+        # print("Storing metadata...")
+        # await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
+        # print("Metadata was stored!")
 
         for dev_id in range(self._device_count):
             print(f"IRQ_SENT to {dev_id} @ 0x{self.to_device_mmio_addr(dev_id, 0x1800):x}")
@@ -384,6 +385,7 @@ class CxlImageClassificationHostConfig:
     host_name: str
     root_bus: int
     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
+    train_data_path: str
     memory_controller: RootComplexMemoryControllerConfig
     memory_ranges: List[MemoryRange] = field(default_factory=list)
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
@@ -395,7 +397,6 @@ class CxlImageClassificationHost(RunnableComponent):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
 
         processor_to_cache_fifo = MemoryFifoPair()
-        processor_to_mem_fifo = MemoryFifoPair()
         cache_to_home_agent_fifo = CacheFifoPair()
         home_agent_to_cache_fifo = CacheFifoPair()
         cache_to_coh_bridge_fifo = CacheFifoPair()
@@ -459,6 +460,7 @@ class CxlImageClassificationHost(RunnableComponent):
             interleave_gran=0x100,
             device_type=CXL_COMPONENT_TYPE.T1,
             cache_controller=self._cache_controller,
+            train_data_path=config.train_data_path,
         )
         self._host_simple_processor = HostTrainIoGen(host_processor_config)
 

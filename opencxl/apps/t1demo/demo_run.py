@@ -2,15 +2,11 @@
 
 from signal import *
 import os
+import argparse
 
 sw_port = "22500"
 
-RUN_LIST = [
-    ("switch", "./switch.py", (sw_port,)),
-    ("host", "./chost.py", (sw_port,)),
-    ("accel1", "./accel.py", (sw_port, "1")),
-    ("accel2", "./accel.py", (sw_port, "2")),
-]
+RUN_LIST = []
 
 jobs = {}  # list of pids
 
@@ -68,6 +64,34 @@ def run_next_app(signum=None, frame=None):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-t",
+        "--train-data-path",
+        dest="tdp",
+        action="store",
+        required=True,
+        help="The folder path to the training data.",
+    )
+    parser.add_argument(
+        "-n",
+        "--num-accels",
+        dest="na",
+        default=2,
+        action="store",
+        help="The number of accelerators.",
+    )
+
+    args = vars(parser.parse_args())
+    train_data_path = args["tdp"]
+    num_accels = args["na"]
+
+    RUN_LIST = [
+        ("switch", "./switch.py", (sw_port,)),
+        ("host", "./chost.py", (sw_port, train_data_path)),
+    ]
+    for i in range(num_accels):
+        RUN_LIST.append((f"accel{i + 1}", "./accel.py", (sw_port, f"{i + 1}")))
     signal(SIGCONT, run_next_app)
     signal(SIGINT, clean_shutdown)
     run_next_app()
