@@ -594,7 +594,7 @@ class MyType2Accelerator(RunnableComponent):
         os.rmdir(self.accel_dirname)
 
     async def _run(self):
-        self._setup_test_env()
+        # self._setup_test_env()
         tasks = [
             create_task(self._sw_conn_client.run()),
             create_task(self._cxl_type2_device.run()),

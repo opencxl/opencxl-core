@@ -12,6 +12,9 @@ from opencxl.cxl.component.root_complex.root_port_switch import (
     COH_POLICY_TYPE,
     ROOT_PORT_SWITCH_TYPE,
 )
+from opencxl.drivers.cxl_bus_driver import CxlBusDriver
+from opencxl.drivers.cxl_mem_driver import CxlMemDriver
+from opencxl.drivers.pci_bus_driver import PciBusDriver
 
 host = None
 
@@ -24,18 +27,52 @@ async def shutdown(signame=None):
         stop_tasks = [
             asyncio.create_task(host.stop()),
         ]
+        await asyncio.gather(*stop_tasks, return_exceptions=True)
+        await asyncio.gather(*start_tasks)
     except Exception as exc:
         print("[HOST]", exc.__traceback__)
         quit()
-    await asyncio.gather(*stop_tasks, return_exceptions=True)
-    await asyncio.gather(*start_tasks)
-    os._exit(0)
+    finally:
+        os._exit(0)
 
+async def run_demo(signame=None):
+    # the other devices are passively running, but the host 
+    # is responsible for executing the actual demo.
 
+    global host
+
+    print("[HOST] IO ready, running test")
+
+    pci_bus_driver = PciBusDriver(host.get_root_complex())
+    cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
+    cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
+
+    await pci_bus_driver.init()
+    await cxl_bus_driver.init()
+    await cxl_mem_driver.init()
+
+    hpa_base = 0x0
+    next_available_hpa_base = hpa_base
+
+    for device in cxl_mem_driver.get_devices():
+        size = device.get_memory_size()
+        successful = await cxl_mem_driver.attach_single_mem_device(
+            device, next_available_hpa_base, size
+        )
+        if successful:
+            host.append_dev_mmio_range(
+                device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
+            )
+            host.append_dev_mem_range(next_available_hpa_base, size)
+            next_available_hpa_base += size
+    
+    print("[HOST] demo done!")
+    
 async def main():
     # install signal handlers
     lp = asyncio.get_event_loop()
     lp.add_signal_handler(SIGINT, lambda signame="SIGINT": asyncio.create_task(shutdown(signame)))
+    lp.add_signal_handler(SIGIO, lambda signame="SIGIO": asyncio.create_task(run_demo(signame))) 
 
     sw_portno = int(sys.argv[1])
     print(f"[HOST] listening on port {sw_portno}")
