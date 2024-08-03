@@ -16,10 +16,15 @@ jobs = {}  # list of pids
 
 run_progress = 0
 
+interrupted = False
+
 
 def clean_shutdown(signum=None, frame=None):
+    global interrupted
+    interrupted = True
     pthread_sigmask(SIG_BLOCK, [SIGINT])
     for prog, pid in jobs.items():
+        print(f"[RUNNER] Killing {prog} (PID {pid})")
         # propagate SIGINT
         os.kill(pid, SIGINT)
         os.waitpid(pid, 0)
@@ -29,6 +34,9 @@ def clean_shutdown(signum=None, frame=None):
 
 
 def run_next_app(signum=None, frame=None):
+    if interrupted:
+        return
+
     pthread_sigmask(SIG_BLOCK, [SIGCONT])
 
     print("[RUNNER] SIGCONT received")

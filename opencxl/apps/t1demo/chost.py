@@ -25,16 +25,20 @@ host: CxlImageClassificationHost = None
 start_tasks = []
 stop_signal = asyncio.Event()
 
+host_starter: asyncio.Task = None
+
 
 async def shutdown(signame=None):
     global host
     global start_tasks
     global stop_signal
     try:
+        stop_signal.set()
+        host_starter.cancel()
+
         stop_tasks = [
             asyncio.create_task(host.stop()),
         ]
-        stop_signal.set()
     except Exception as exc:
         print("[HOST]", exc.__traceback__)
         quit()
@@ -120,7 +124,7 @@ async def main():
         host.append_dev_mmio_range(
             device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
         )
-    asyncio.create_task(start_host())
+    host_starter = asyncio.create_task(start_host())
     print("[HOST] ready!")
 
     await stop_signal.wait()

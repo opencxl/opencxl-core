@@ -302,30 +302,30 @@ class MyType1Accelerator(RunnableComponent):
         print(f"Using torch.device: {device}")
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
-        # await self._get_metadata()
+        await self._get_metadata()
         # If testing:
-        shutil.copy(
-            f"{self.original_base_folder}{os.path.sep}noisy_imagenette.csv",
-            f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
-        )
+        # shutil.copy(
+        #     f"{self.original_base_folder}{os.path.sep}noisy_imagenette.csv",
+        #     f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
+        # )
 
-        # epochs = 1
-        # for epoch in range(epochs):
-        #     logger.debug(f"Starting epoch: {epoch}")
-        #     loss_fn = torch.nn.CrossEntropyLoss()
-        #     optimizer = torch.optim.SGD(self.model.parameters())
-        #     scheduler = torch.optim.lr_scheduler.LinearLR(
-        #         optimizer, start_factor=1, end_factor=0.5, total_iters=30
-        #     )
-        #     self._train_one_epoch(
-        #         train_dataloader=self._train_dataloader,
-        #         test_dataloader=self._test_dataloader,
-        #         optimizer=optimizer,
-        #         loss_fn=loss_fn,
-        #         device=device,
-        #     )
-        #     scheduler.step()
-        #     logger.debug(f"Epoch: {epoch} finished")
+        epochs = 1
+        for epoch in range(epochs):
+            logger.debug(f"Starting epoch: {epoch}")
+            loss_fn = torch.nn.CrossEntropyLoss()
+            optimizer = torch.optim.SGD(self.model.parameters())
+            scheduler = torch.optim.lr_scheduler.LinearLR(
+                optimizer, start_factor=1, end_factor=0.5, total_iters=30
+            )
+            self._train_one_epoch(
+                train_dataloader=self._train_dataloader,
+                test_dataloader=self._test_dataloader,
+                optimizer=optimizer,
+                loss_fn=loss_fn,
+                device=device,
+            )
+            scheduler.step()
+            logger.debug(f"Epoch: {epoch} finished")
 
         # Done training
         print("Training Done!!!")
@@ -342,15 +342,20 @@ class MyType1Accelerator(RunnableComponent):
             create_task(self._irq_manager.run()),
             create_task(self._stop_signal.wait()),
         ]
-        await self._sw_conn_client.wait_for_ready()
-        await self._cxl_type1_device.wait_for_ready()
-        await self._irq_manager.wait_for_ready()
-        await self._irq_manager.start_connection()
+
+        self._wait_tasks = [
+            create_task(self._sw_conn_client.wait_for_ready()),
+            create_task(self._cxl_type1_device.wait_for_ready()),
+            create_task(self._irq_manager.wait_for_ready()),
+            create_task(self._irq_manager.start_connection()),
+        ]
         await self._change_status_to_running()
         await gather(*tasks)
 
     async def _stop(self):
         print("!!!!!Device trying to stop")
+        for task in self._wait_tasks:
+            task.cancel()
         self._stop_signal.set()
         tasks = [
             create_task(self._sw_conn_client.stop()),
@@ -385,6 +390,8 @@ class MyType2Accelerator(RunnableComponent):
         server_port: int = 9050,
     ):
         label = f"Port{port_index}"
+
+
 #         super().__init__(label)
 #         self._sw_conn_client = SwitchConnectionClient(
 #             port_index, CXL_COMPONENT_TYPE.T2, host=host, port=port

@@ -325,9 +325,9 @@ class HostTrainIoGen(RunnableComponent):
         csv_data_int = int.from_bytes(csv_data, "little")
         csv_data_len = len(csv_data)
         csv_data_len_rounded = (((csv_data_len - 1) // 64) + 1) * 64
-        # print("Storing data...")
-        # await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
-        # print("Data was stored!")
+        print("Storing data...")
+        await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
+        print("Data was stored!")
 
         for dev_id in range(self._device_count):
             print(f"IRQ_SENT to {dev_id} @ 0x{self.to_device_mmio_addr(dev_id, 0x1800):x}")
@@ -364,10 +364,6 @@ class HostTrainIoGen(RunnableComponent):
         self._start_signal.set()
         await self._stop_signal.wait()
 
-    async def empty_loop(self):
-        while True:
-            await asyncio.sleep(0.2)
-
     async def _run(self):
         tasks = [
             asyncio.create_task(self._host_process_llc_iogen()),
@@ -377,9 +373,13 @@ class HostTrainIoGen(RunnableComponent):
         await asyncio.gather(*tasks)
 
     async def _stop(self):
-        await self._irq_handler.shutdown()
+        print("HOST PROCESSOR SHUTDOWN 1")
         self._internal_stop_signal.set()
+        print("HOST PROCESSOR SHUTDOWN 2")
+        await self._irq_handler.shutdown()
+        print("HOST PROCESSOR SHUTDOWN 3")
         await self._processor_to_cache_fifo.response.put(None)
+        print("HOST PROCESSOR SHUTDOWN 4")
 
 
 @dataclass
