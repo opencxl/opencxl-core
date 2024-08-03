@@ -153,6 +153,7 @@ class CxlMemDcoh(PacketProcessor):
         if packet.status == CACHE_RESPONSE_STATUS.RSP_MISS:
             if m2sreq_packet.m2sreq_header.snp_type == CXL_MEM_M2S_SNP_TYPE.SNP_DATA:
                 rsp_code = CXL_MEM_S2MNDR_OPCODE.CMP_E
+                print("miss:", addr)
                 sf_update_list.append(SF_UPDATE_TYPE.SF_HOST_IN)
             elif m2sreq_packet.m2sreq_header.snp_type == CXL_MEM_M2S_SNP_TYPE.SNP_INV:
                 if m2sreq_packet.m2sreq_header.meta_value == CXL_MEM_META_VALUE.ANY:
@@ -171,6 +172,7 @@ class CxlMemDcoh(PacketProcessor):
         else:
             if packet.status == CACHE_RESPONSE_STATUS.RSP_S:
                 rsp_code = CXL_MEM_S2MNDR_OPCODE.CMP_S
+                print("hit:", addr)
                 sf_update_list.append(SF_UPDATE_TYPE.SF_HOST_IN)
             elif packet.status == CACHE_RESPONSE_STATUS.RSP_I:
                 if m2sreq_packet.m2sreq_header.meta_value == CXL_MEM_META_VALUE.ANY:
