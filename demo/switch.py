@@ -27,13 +27,12 @@ async def shutdown(signame=None):
             asyncio.create_task(physical_port_manager.stop(), name="phys_port_manager"),
             asyncio.create_task(virtual_switch_manager.stop(), name="virtual_switch_manager"),
         ]
+        await asyncio.gather(*stop_tasks, return_exceptions=True)
+        await asyncio.gather(*start_tasks)
     except Exception as exc:
         print("[SWITCH]", exc.__traceback__)
-        quit()
-    await asyncio.gather(*stop_tasks, return_exceptions=True)
-    await asyncio.gather(*start_tasks)
-    os._exit(0)
-
+    finally:
+        os._exit(0)
 
 async def main():
     # install signal handlers

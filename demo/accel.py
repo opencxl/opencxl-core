@@ -22,12 +22,12 @@ async def shutdown(signame=None):
         stop_tasks = [
             asyncio.create_task(device.stop()),
         ]
+        await asyncio.gather(*stop_tasks, return_exceptions=True)
+        await asyncio.gather(*start_tasks)
     except Exception as exc:
         print("[HOST]", exc.__traceback__)
-        quit()
-    await asyncio.gather(*stop_tasks, return_exceptions=True)
-    await asyncio.gather(*start_tasks)
-    os._exit(0)
+    finally:
+        os._exit(0)
 
 async def main():
     # install signal handlers

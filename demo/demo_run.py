@@ -10,18 +10,18 @@ RUN_LIST = [
     ("./accel.py", (sw_port, "2")),
 ]
 
-jobs = []  # list of pids
+jobs = {}  # list of pids
 
 run_progress = 0
 
 
 def clean_shutdown(signum=None, frame=None):
     pthread_sigmask(SIG_BLOCK, [SIGINT])
-    for pid in jobs:
+    for prog, pid in jobs.items():
         # propagate SIGINT
         os.kill(pid, SIGINT)
         os.waitpid(pid, 0)
-        print(f"[RUNNER] Killed {pid}")
+        print(f"[RUNNER] Killed {prog}")
     print(f"[RUNNER] exiting...")
     quit()
 
@@ -34,11 +34,15 @@ def run_next_app(signum=None, frame=None):
     global run_progress, jobs
 
     if run_progress >= len(RUN_LIST):
+        # signal the host that IO is ready
+        host_pid = jobs["./chost.py"] 
+        os.kill(host_pid, SIGIO)
         return
+
+    program, args = RUN_LIST[run_progress]
 
     if not (chld := os.fork()):
         # child process
-        program, args = RUN_LIST[run_progress]
         try:
             if os.execvp(program, (program, *args)) == -1:
                 print("EXECVE FAIL!!!")
@@ -48,7 +52,7 @@ def run_next_app(signum=None, frame=None):
             raise RuntimeError(f'Couldn\'t find "{program}"') from exc
     else:
         run_progress += 1
-        jobs.append(chld)
+        jobs[program] = chld
         pthread_sigmask(SIG_UNBLOCK, [SIGCONT])
         print(f"[RUNNER] PID {chld}")
 
