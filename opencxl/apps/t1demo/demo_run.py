@@ -66,12 +66,13 @@ def run_next_app(signum=None, frame=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-t",
-        "--train-data-path",
-        dest="tdp",
+        "-p",
+        "--img-folder-path",
+        dest="ifp",
         action="store",
         required=True,
-        help="The folder path to the training data.",
+        help="The folder path to the image training data.",
+        metavar='IMG_FOLDER_PATH'
     )
     parser.add_argument(
         "-n",
@@ -80,18 +81,23 @@ if __name__ == "__main__":
         default=2,
         action="store",
         help="The number of accelerators.",
+        metavar='NUM_ACCELS'
     )
 
     args = vars(parser.parse_args())
-    train_data_path = args["tdp"]
+    train_data_path = args["ifp"]
     num_accels = args["na"]
+
+    if not os.path.exists(train_data_path) or not os.path.isdir(train_data_path):
+        print(f"Path {train_data_path} does not exist, or is not a folder.")
+        quit(1)
 
     RUN_LIST = [
         ("switch", "./switch.py", (sw_port,)),
         ("host", "./chost.py", (sw_port, train_data_path)),
     ]
     for i in range(num_accels):
-        RUN_LIST.append((f"accel{i + 1}", "./accel.py", (sw_port, f"{i + 1}")))
+        RUN_LIST.append((f"accel{i + 1}", "./accel.py", (sw_port, f"{i + 1}", train_data_path)))
     signal(SIGCONT, run_next_app)
     signal(SIGINT, clean_shutdown)
     run_next_app()

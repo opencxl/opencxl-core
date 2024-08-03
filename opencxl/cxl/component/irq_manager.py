@@ -78,44 +78,53 @@ class IrqManager(RunnableComponent):
         Registers a callback on the arrival of a specific interrupt.
         dev_id will be locked to 0 for a client.
         """
+
+        device_name = f"device {dev_id}"
         if not self._server:
             dev_id = 0
+            device_name = "host"
 
         async def _callback(dev_id):
             await irq_recv_cb(dev_id)
 
         cb_func = _callback
-        print(f"Registering interrupt for IRQ {irq_msg.name} for dev {dev_id}")
+        logger.info(self._create_message(f"Registering interrupt for IRQ {irq_msg.name} for remote {device_name}"))
         if dev_id not in self._msg_to_interrupt_event:
             self._msg_to_interrupt_event[dev_id] = {}
         self._msg_to_interrupt_event[dev_id][irq_msg] = cb_func
 
     async def _irq_handler(self, reader: StreamReader, writer: StreamWriter):
-        print(f"Creating irq handler for dev {self._device_id}")
+        this_dev_name = f"Device {self._device_id}"
+        if self._server:
+            this_dev_name = "Host"
+        logger.debug(self._create_message(f"{this_dev_name}: Creating IRQ handler"))
         while True:
             if not self._run_status:
-                print("_irq_handler exiting")
+                logger.debug(self._create_message(f"{this_dev_name} _irq_handler exiting"))
                 return
 
             msg = await reader.readexactly(IRQ_WIDTH)
             if not msg:
-                logger.debug(self._create_message("Irq enable connection broken"))
+                logger.debug(self._create_message(f"{this_dev_name} IRQ connection broken"))
                 return
             msg_int = int.from_bytes(msg)
             remote_dev_id = msg_int & 0xFF
+            remote_dev_name = f"device: {remote_dev_id}"
             if not self._server:
                 remote_dev_id = 0
+                remote_dev_name = "host"
+                
             irq_num = msg_int >> 8
             irq = Irq(irq_num)
-            print(f"IRQ received for {irq.name}")
+            logger.debug(self._create_message(f"IRQ received for {irq.name}"))
             if remote_dev_id not in self._msg_to_interrupt_event:
-                raise RuntimeError(f"No IRQ registered for device: {remote_dev_id}")
+                raise RuntimeError(f"No IRQ registered for remote {remote_dev_name}")
 
             if irq not in self._msg_to_interrupt_event[remote_dev_id]:
-                raise RuntimeError(f"Invalid IRQ: {irq} for device: {remote_dev_id}")
+                raise RuntimeError(f"Invalid IRQ: {irq} for remote {remote_dev_name}")
 
             create_task(self._msg_to_interrupt_event[remote_dev_id][irq](remote_dev_id))
-            print(f"IRQ handled for {irq.name}")
+            logger.debug(self._create_message(f"IRQ handled for {irq.name} from remote {remote_dev_name}"))
 
     async def _create_server(self):
         self._run_status = True
@@ -125,7 +134,7 @@ class IrqManager(RunnableComponent):
             self._irq_handlers.append(create_task(self._irq_handler(reader, writer)))
 
         server = await start_server(_new_conn, self._addr, self._port, limit=2)
-        print(f"Starting irq server on {self._addr}:{self._port}")
+        logger.debug(self._create_message(f"Starting IRQ server on {self._addr}:{self._port}"))
         return server
 
     async def send_irq_request(self, request: Irq, device: int = 0):
@@ -135,17 +144,17 @@ class IrqManager(RunnableComponent):
         info = f"host sending to device {device}"
         if not self._server:
             info = f"device {self._device_id} sending to host"
-        print(info)
-        reader, writer = self._connections[device]
+        logger.debug(self._create_message(info))
+        _, writer = self._connections[device]
         val_w_dev_id = request.value << 8 | self._device_id
         writer.write(val_w_dev_id.to_bytes(length=IRQ_WIDTH))
         await writer.drain()
 
     async def start_connection(self):
-        print("Device to Host IRQ Connection started!")
+        logger.debug("Device to Host IRQ Connection started!")
         reader, writer = await open_connection(self._addr, self._port, limit=2)
         self._connections.append((reader, writer))
-        print("Device to Host IRQ Connection created!")
+        logger.debug("Device to Host IRQ Connection created!")
         self._run_status = True
 
         self._irq_handlers.append(create_task(self._irq_handler(reader, writer)))
@@ -174,11 +183,11 @@ class IrqManager(RunnableComponent):
             logger.info(self._create_message("Irq enable listener stopped"))
 
     async def _stop(self):
-        print("IRQ Manager Stopping")
+        logger.debug(self._create_message("IRQ Manager Stopping"))
         self._end_signal.set()
         for task in self._tasks:
             task.cancel()
-        print("IRQ tasks cancelled")
+        logger.debug(self._create_message("IRQ tasks cancelled"))
         for handler in self._irq_handlers:
             handler.cancel()
-        print("IRQ handlers cancelled")
+        logger.debug(self._create_message("IRQ handlers cancelled"))

@@ -139,7 +139,6 @@ class CxlType1Device(RunnableComponent):
         mmio_manager: MmioManager,
         config_space_manager: ConfigSpaceManager,
     ):
-        print("TYPE1INIT")
         self._mmio_manager = mmio_manager
         # Create PCiComponent
         pci_identity = PciComponentIdentity(
@@ -218,13 +217,6 @@ class CxlType1Device(RunnableComponent):
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
 
-    # pylint: disable=line-too-long
-    # async def cxl_cache_readlines(self, addr: int, length: int, parallel: bool = False) -> int:
-    #     return await self._cxl_cache_dcoh.cxl_cache_readlines(addr, length, parallel)
-
-    # async def cxl_cache_writelines(self, addr: int, data: int, length: int, parallel: bool = False):
-    #     await self._cxl_cache_dcoh.cxl_cache_writelines(addr, data, length, parallel)
-
     async def cxl_cache_readline(self, addr: int, cqid: Optional[int] = None) -> int:
         logger.debug(f"Beware: cqid {cqid} is not currently implemented.")
         return await self._cache_controller.cache_coherent_load(addr, 64)
@@ -276,7 +268,6 @@ class CxlType1Device(RunnableComponent):
         await gather(*run_tasks)
 
     async def _stop(self):
-        print("TYPE1STOPPPPPPPPPPPPPPPPPPPPPPPPP")
         # pylint: disable=duplicate-code
         tasks = [
             create_task(self._cxl_io_manager.stop()),

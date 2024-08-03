@@ -11,16 +11,13 @@ import glob
 import os
 import json
 from dataclasses import dataclass, field
-from typing import Dict, Optional, List, cast
+from typing import Dict, Optional, List
 from random import sample
 
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.logger import logger
 from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
-    MemoryRequest,
-    MemoryResponse,
-    MEMORY_REQUEST_TYPE,
 )
 
 from opencxl.util.component import RunnableComponent
@@ -114,8 +111,6 @@ class HostTrainIoGen(RunnableComponent):
 
         chunk_count = 0
         while size > 0:
-            message = self._create_message(f"Host Memory: Writing 0x{value:08x} to 0x{address:08x}")
-            logger.debug(message)
             low_64_byte = value & ((1 << (64 * 8)) - 1)
             await self._cache_controller.cache_coherent_store(
                 address + (chunk_count * 64), 64, low_64_byte
@@ -156,7 +151,7 @@ class HostTrainIoGen(RunnableComponent):
         pic_id = 0
         pic_data_mem_loc = 0x00008000
         for c in categories:
-            logger.debug(f"Validating category: {c}")
+            logger.debug(self._create_message(f"Validating category: {c}"))
             category_pics = glob.glob(f"{c}/*.JPEG")
             sample_pics = sample(category_pics, self._sample_from_each_category)
             category_name = c.split(os.path.sep)[-1]
@@ -167,9 +162,9 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
-                    logger.debug(
+                    logger.debug(self._create_message(
                         f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
-                    )
+                    ))
                     for dev_id in range(self._device_count):
                         await self.store(
                             pic_data_mem_loc,
@@ -193,7 +188,7 @@ class HostTrainIoGen(RunnableComponent):
                         await self.write_mmio(
                             self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
                         )
-                        print(f"Checking mmio done? {dev_id}")
+                        
                         while True:
                             pic_data_mem_loc_rb = await self.read_mmio(
                                 self.to_device_mmio_addr(dev_id, 0x1810), 8
@@ -209,9 +204,7 @@ class HostTrainIoGen(RunnableComponent):
                                 break
                             await asyncio.sleep(0.2)
 
-                        print(f"Host Sending irq to {dev_id}")
                         await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
-                        print("send_irq_request done")
                         await event.wait()
                         # Currently we don't send the picture information
                         # (e.g., pic_id) to the device
@@ -242,10 +235,7 @@ class HostTrainIoGen(RunnableComponent):
             max_k = 0
             assert len(self._validation_results[pic_id]) == self._device_count
             real_category = self._sampled_file_categories[pic_id]
-            print(f"Picture {pic_id}:")
             for dev_result in self._validation_results[pic_id]:
-                print("Result from a device: ")
-                print(dev_result)
                 for k, v in dev_result.items():
                     if k not in merged_result:
                         merged_result[k] = v
@@ -254,12 +244,10 @@ class HostTrainIoGen(RunnableComponent):
                     if merged_result[k] > max_v:
                         max_v = merged_result[k]
                         max_k = k
-            print(f"Merged result for pic {pic_id}:")
-            print(merged_result)
             if max_k == real_category:
                 self._correct_validation += 1
 
-            print(f"Picture category: Real: {real_category}, validated: {max_k}")
+            print(f"Picture {pic_id} category: Real: {real_category}, validated: {max_k}")
 
         print("Validation finished. Results:")
         print(
@@ -309,20 +297,19 @@ class HostTrainIoGen(RunnableComponent):
         # Pass init-info mem location to the remote using MMIO
         csv_data_mem_loc = 0x00004000
         csv_data = b""
-        print("llc_iogen_waiting to be run")
+        logger.debug(self._create_message("Host main process waiting..."))
         await self._start_signal.wait()
-        print("llc_iogen_running")
+        logger.debug(self._create_message("Host main process running!"))
         with open(f"{self._train_data_path}/noisy_imagenette.csv", "rb") as f:
             csv_data = f.read()
         csv_data_int = int.from_bytes(csv_data, "little")
         csv_data_len = len(csv_data)
         csv_data_len_rounded = (((csv_data_len - 1) // 64) + 1) * 64
-        # print("Storing metadata...")
-        # await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
-        # print("Metadata was stored!")
+        logger.debug(self._create_message("Storing metadata..."))
+        await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
+        logger.debug(self._create_message("Finished storing metadata!"))
 
         for dev_id in range(self._device_count):
-            print(f"IRQ_SENT to {dev_id} @ 0x{self.to_device_mmio_addr(dev_id, 0x1800):x}")
             await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, csv_data_mem_loc)
             await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
 
@@ -350,7 +337,6 @@ class HostTrainIoGen(RunnableComponent):
             await self._irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
 
         await self._internal_stop_signal.wait()
-        print("_host_process_llc_iogen finished!!!!!!!!!!!")
 
     async def start_job(self):
         self._start_signal.set()
@@ -391,6 +377,9 @@ class CxlImageClassificationHost(RunnableComponent):
         home_agent_to_cache_fifo = CacheFifoPair()
         cache_to_coh_bridge_fifo = CacheFifoPair()
         coh_bridge_to_cache_fifo = CacheFifoPair()
+
+        if not os.path.exists(config.train_data_path) or not os.path.isdir(config.train_data_path):
+            raise Exception(f"Path {config.train_data_path} does not exist, or is not a folder.")
 
         self._irq_handler = IrqManager(
             device_name=config.host_name, addr="127.0.0.1", port=9050, server=True, device_id=9

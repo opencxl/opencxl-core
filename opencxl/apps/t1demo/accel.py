@@ -40,6 +40,7 @@ async def main():
 
     sw_portno = int(sys.argv[1])
     portidx = int(sys.argv[2])
+    train_data_path = sys.argv[3]
 
     print(f"[ACCEL] listening on port {sw_portno} and physical port {portidx}")
 
@@ -53,6 +54,7 @@ async def main():
         server_port=9050,
         device_id=portidx - 1,
         host="localhost",
+        train_data_path=train_data_path,
     )
 
     start_tasks = [

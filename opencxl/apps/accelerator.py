@@ -57,9 +57,14 @@ class MyType1Accelerator(RunnableComponent):
         server_port: int = 9050,
         device_id: int = 0,
         host_mem_size: int = 0,
+        train_data_path: str = "",
     ):
         label = f"Port{port_index}"
         super().__init__(label)
+
+        if not os.path.exists(train_data_path) or not os.path.isdir(train_data_path):
+            raise Exception(f"Path {train_data_path} does not exist, or is not a folder.")
+
         self._sw_conn_client = SwitchConnectionClient(
             port_index, CXL_COMPONENT_TYPE.T1, host=host, port=port
         )
@@ -71,7 +76,7 @@ class MyType1Accelerator(RunnableComponent):
                 host_mem_size=host_mem_size,
             )
         )
-        self.original_base_folder = "/Users/zhxq/Downloads/imagenette2-160"
+        self.original_base_folder = train_data_path
         self.accel_dirname = f"/tmp/T1Accel@{self._label}"
         if os.path.exists(self.accel_dirname) and os.path.isdir(self.accel_dirname):
             shutil.rmtree(self.accel_dirname)
@@ -163,7 +168,7 @@ class MyType1Accelerator(RunnableComponent):
 
         train_loss = running_train_loss / len(train_dataloader.sampler)
         train_accuracy = correct_count / len(train_dataloader.sampler)
-        logger.debug(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}")
+        logger.debug(self._create_message(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}"))
 
         if device == "cuda:0":
             torch.cuda.empty_cache()
@@ -205,7 +210,6 @@ class MyType1Accelerator(RunnableComponent):
         # the host memory using CXL.cache, then use CXL.cache again to appropriately
         # request the data from the host, one cacheline at a time.
 
-        # CACHELINE_LENGTH = 64
 
         metadata_addr_mmio_addr = 0x1800
         metadata_size_mmio_addr = 0x1808
@@ -214,14 +218,14 @@ class MyType1Accelerator(RunnableComponent):
 
         metadata_end = metadata_addr + metadata_size
 
-        logger.debug("Writing metadata")
+        logger.debug(self._create_message("Writing metadata"))
         with open(f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv", "wb") as md_file:
-            logger.debug(f"addr: 0x{metadata_addr:x}")
-            logger.debug(f"end: 0x{metadata_end:x}")
+            logger.debug(self._create_message(f"addr: 0x{metadata_addr:x}"))
+            logger.debug(self._create_message(f"end: 0x{metadata_end:x}"))
             data = await self._cxl_type1_device.cxl_cache_read(metadata_addr, metadata_size)
             md_file.write(data)
 
-        logger.debug("Finished writing file")
+        logger.debug(self._create_message("Finished writing file"))
 
     async def _get_test_image(self) -> Image.Image:
 
@@ -291,23 +295,24 @@ class MyType1Accelerator(RunnableComponent):
         logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
             device = torch.device("cuda:0")
+        # # Apple MPS does not work consistently
         # elif torch.backends.mps.is_available():
         #     device = torch.device("mps")
         else:
             device = torch.device("cpu")
-        logger.debug(f"Using torch.device: {device}")
+        logger.debug(self._create_message(f"Using torch.device: {device}"))
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
-        # await self._get_metadata()
+        await self._get_metadata()
         # If testing:
-        shutil.copy(
-            f"{self.original_base_folder}{os.path.sep}noisy_imagenette.csv",
-            f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
-        )
+        # shutil.copy(
+        #     f"{self.original_base_folder}{os.path.sep}noisy_imagenette.csv",
+        #     f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
+        # )
 
         epochs = 1
         for epoch in range(epochs):
-            logger.debug(f"Starting epoch: {epoch}")
+            logger.debug(self._create_message(f"Starting epoch: {epoch}"))
             loss_fn = torch.nn.CrossEntropyLoss()
             optimizer = torch.optim.SGD(self.model.parameters())
             scheduler = torch.optim.lr_scheduler.LinearLR(
@@ -321,13 +326,13 @@ class MyType1Accelerator(RunnableComponent):
                 device=device,
             )
             scheduler.step()
-            logger.debug(f"Epoch: {epoch} finished")
+            logger.debug(self._create_message(f"Epoch: {epoch} finished"))
 
         # Done training
         await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
 
     async def _app_shutdown(self):
-        logger.info("Removing accelerator directory")
+        logger.info(self._create_message("Removing accelerator directory"))
         shutil.rmtree(self.accel_dirname)
 
     async def _run(self):

@@ -33,9 +33,6 @@ async def shutdown(signame=None):
     global start_tasks
     global stop_signal
     try:
-        stop_signal.set()
-        host_starter.cancel()
-
         stop_tasks = [
             asyncio.create_task(host.stop()),
         ]
@@ -51,11 +48,8 @@ async def shutdown(signame=None):
 async def start_host():
     global host
     global stop_signal
-    print("Starting job")
     await host.start_job()
-    print("Job ends")
     stop_signal.set()
-    print("Stop signal set")
 
 
 async def main():
