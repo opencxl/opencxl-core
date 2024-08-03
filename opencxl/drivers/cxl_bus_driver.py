@@ -669,14 +669,8 @@ class CxlBusDriver(LabeledComponent):
                     break
             if not is_cxl_device:
                 continue
-            print(f"print90 start: {count}")
-            # await self._root_complex.write_mmio(0x80810000, 8, count)
             logger.info(self._create_message(f"Found CXL Device at {bdf_to_string(device.bdf)}"))
             device_info = CxlDeviceInfo(root_complex=self._root_complex, pci_device_info=device)
             self._devices.append(device_info)
             await self._scan_dvsec(device_info)
             await self._scan_component_register(device_info)
-            print(f"print90 end: {count}")
-            # await self._root_complex.write_mmio(0x80890000, 8, count)
-            print(device_info)
-        print(f"Total90: {count}")

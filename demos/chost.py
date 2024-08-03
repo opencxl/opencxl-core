@@ -45,7 +45,7 @@ async def shutdown(signame=None):
     os._exit(0)
 
 
-async def start_host():
+async def start_host(signame=None):
     global host
     global stop_signal
     await host.start_job()
@@ -56,6 +56,7 @@ async def main():
     # install signal handlers
     lp = asyncio.get_event_loop()
     lp.add_signal_handler(SIGINT, lambda signame="SIGINT": asyncio.create_task(shutdown(signame)))
+    lp.add_signal_handler(SIGIO, lambda signame="SIGIO": asyncio.create_task(start_host(signame)))
 
     sw_portno = int(sys.argv[1])
     train_data_path = sys.argv[2]
@@ -120,7 +121,7 @@ async def main():
         host.append_dev_mmio_range(
             device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
         )
-    host_starter = asyncio.create_task(start_host())
+    
     print("[HOST] ready!")
 
     await stop_signal.wait()

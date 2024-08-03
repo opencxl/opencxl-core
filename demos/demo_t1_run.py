@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import asyncio
 from signal import *
 import os
 import argparse
@@ -15,10 +16,12 @@ run_progress = 0
 
 interrupted = False
 
+stop_signal = asyncio.Event()
 
 def clean_shutdown(signum=None, frame=None):
-    global interrupted
+    global interrupted, stop_signal
     interrupted = True
+    stop_signal.set()
     pthread_sigmask(SIG_BLOCK, [SIGINT])
     for prog, pid in jobs.items():
         print(f"[RUNNER] Killing {prog} (PID {pid})")
@@ -30,17 +33,19 @@ def clean_shutdown(signum=None, frame=None):
     quit()
 
 
+async def main(signum=None, frame=None):
+    run_next_app(signum, frame)
+    await stop_signal.wait()
+
 def run_next_app(signum=None, frame=None):
     if interrupted:
         return
-
-    time.sleep(3)
 
     pthread_sigmask(SIG_BLOCK, [SIGCONT])
 
     print("[RUNNER] SIGCONT received")
 
-    global run_progress, jobs
+    global run_progress, jobs, stop_signal
 
     if run_progress >= len(RUN_LIST):
         # signal the host that IO is ready
@@ -103,6 +108,6 @@ if __name__ == "__main__":
         RUN_LIST.append((f"accel{i + 1}", "./accel.py", (sw_port, f"{i + 1}", train_data_path)))
     signal(SIGCONT, run_next_app)
     signal(SIGINT, clean_shutdown)
-    run_next_app()
+    asyncio.run(main())
     while True:
         pause()
