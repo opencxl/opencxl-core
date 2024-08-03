@@ -196,8 +196,6 @@ BASE_TEST_PORT = 19300
 @pytest.mark.asyncio
 async def test_cxl_host_type1_complex_host_ete():
     # pylint: disable=protected-access
-    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 165
-    util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 166
     switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 167
 
     NUM_DEVS = 2
@@ -243,9 +241,7 @@ async def test_cxl_host_type1_complex_host_ete():
         switch_configs=switch_configs, physical_port_manager=physical_port_manager
     )
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     host_mem_size = 0x8000  # Needs to be big enough to test cache eviction
-
     host_name = "foo"
     root_port_switch_type = ROOT_PORT_SWITCH_TYPE.PASS_THROUGH
     memory_controller = RootComplexMemoryControllerConfig(host_mem_size, "foo.bin")
@@ -262,9 +258,7 @@ async def test_cxl_host_type1_complex_host_ete():
         coh_type=COH_POLICY_TYPE.DotCache,
     )
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     host = CxlComplexHost(config)
-
     pci_bus_driver = PciBusDriver(host.get_root_complex())
     cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
     cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
@@ -273,7 +267,6 @@ async def test_cxl_host_type1_complex_host_ete():
         asyncio.create_task(sw_conn_manager.run()),
         asyncio.create_task(physical_port_manager.run()),
         asyncio.create_task(virtual_switch_manager.run()),
-        asyncio.create_task(host_manager.run()),
         asyncio.create_task(host.run()),
     ]
     for dev in dev_list:
@@ -283,7 +276,6 @@ async def test_cxl_host_type1_complex_host_ete():
         asyncio.create_task(sw_conn_manager.wait_for_ready()),
         asyncio.create_task(physical_port_manager.wait_for_ready()),
         asyncio.create_task(virtual_switch_manager.wait_for_ready()),
-        asyncio.create_task(host_manager.wait_for_ready()),
         asyncio.create_task(host.wait_for_ready()),
     ]
     for dev in dev_list:
@@ -346,7 +338,6 @@ async def test_cxl_host_type1_complex_host_ete():
         asyncio.create_task(physical_port_manager.stop()),
         asyncio.create_task(virtual_switch_manager.stop()),
         asyncio.create_task(host.stop()),
-        asyncio.create_task(host_manager.stop()),
     ]
     for dev in dev_list:
         stop_tasks.append(asyncio.create_task(dev.stop()))

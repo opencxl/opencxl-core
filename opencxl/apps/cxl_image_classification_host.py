@@ -162,9 +162,11 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
-                    logger.debug(self._create_message(
-                        f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
-                    ))
+                    logger.debug(
+                        self._create_message(
+                            f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
+                        )
+                    )
                     for dev_id in range(self._device_count):
                         await self.store(
                             pic_data_mem_loc,
