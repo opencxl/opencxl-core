@@ -344,17 +344,31 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
     def get_identity(self) -> MemoryDeviceIdentity:
         return self._identity
 
+    def get_dpa(self, hpa: int) -> int:
+        dpa = self._hdm_decoder_manager.get_dpa(hpa)
+        if dpa is None:
+            logger.warning(self._create_message(f"[get_dpa] HPA 0x{hex(hpa)} is not decodable"))
+            return None
+        return dpa
+
+    def get_hpa(self, dpa: int) -> int:
+        hpa = self._hdm_decoder_manager.get_hpa(dpa)
+        if hpa is None:
+            logger.warning(self._create_message(f"[get_hpa] DPA 0x{hex(dpa)} is not decodable"))
+            return None
+        return hpa
+
     async def write_mem(self, hpa: int, data: int, size: int = 64):
         dpa = self._hdm_decoder_manager.get_dpa(hpa)
         if dpa is None:
-            logger.warning(self._create_message(f"HPA 0x{hpa} is not decodable"))
+            logger.warning(self._create_message(f"[write_mem] HPA 0x{hex(hpa)} is not decodable"))
             return
         await self._memory_accessor.write(dpa, data, size)
 
     async def read_mem(self, hpa: int, size: int = 64) -> int:
         dpa = self._hdm_decoder_manager.get_dpa(hpa)
         if dpa is None:
-            logger.warning(self._create_message(f"HPA 0x{hpa} is not decodable"))
+            logger.warning(self._create_message(f"[read_mem] HPA 0x{hex(hpa)} is not decodable"))
             return 0
         return await self._memory_accessor.read(dpa, size)
 

@@ -120,6 +120,7 @@ class CxlMemDcoh(PacketProcessor):
             raise Exception("CxlMemoryDeviceComponent isn't set yet")
 
         addr = m2sreq_packet.get_address()
+        dpa = self._memory_device_component.get_dpa(addr)
 
         if m2sreq_packet.m2sreq_header.meta_field == CXL_MEM_META_FIELD.NO_OP:
             data = await self._memory_device_component.read_mem(addr)
@@ -145,7 +146,7 @@ class CxlMemDcoh(PacketProcessor):
         elif m2sreq_packet.m2sreq_header.snp_type == CXL_MEM_M2S_SNP_TYPE.SNP_CUR:
             type = CACHE_REQUEST_TYPE.SNP_CUR
 
-        packet = CacheRequest(type, addr)
+        packet = CacheRequest(type, dpa)
         await self._coh_agent_to_cache_fifo.request.put(packet)
         packet = await self._coh_agent_to_cache_fifo.response.get()
 
@@ -186,7 +187,7 @@ class CxlMemDcoh(PacketProcessor):
             data = packet.data
 
         if sf_update_list:
-            self._snoop_filter_update(addr, sf_update_list)
+            self._snoop_filter_update(dpa, sf_update_list)
 
         if data_flush is True:
             await self._memory_device_component.write_mem(addr, data)
@@ -207,6 +208,7 @@ class CxlMemDcoh(PacketProcessor):
             raise Exception("CxlMemoryDeviceComponent isn't set yet")
 
         addr = m2srwd_packet.get_address()
+        dpa = self._memory_device_component.get_dpa(addr)
 
         if m2srwd_packet.m2srwd_header.meta_field == CXL_MEM_META_FIELD.NO_OP:
             await self._memory_device_component.write_mem(addr, m2srwd_packet.data)
@@ -221,17 +223,17 @@ class CxlMemDcoh(PacketProcessor):
         data_flush = True
 
         if m2srwd_packet.m2srwd_header.meta_value == CXL_MEM_META_VALUE.ANY:
-            packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, addr)
+            packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, dpa)
         elif m2srwd_packet.m2srwd_header.meta_value == CXL_MEM_META_VALUE.SHARED:
-            packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, addr)
+            packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, dpa)
         elif m2srwd_packet.m2srwd_header.meta_value == CXL_MEM_META_VALUE.INVALID:
-            packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, addr)
+            packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, dpa)
             sf_update_list.append(SF_UPDATE_TYPE.SF_HOST_OUT)
         await self._coh_agent_to_cache_fifo.request.put(packet)
         packet = await self._coh_agent_to_cache_fifo.response.get()
 
         if sf_update_list:
-            self._snoop_filter_update(addr, sf_update_list)
+            self._snoop_filter_update(dpa, sf_update_list)
 
         if data_flush is True:
             await self._memory_device_component.write_mem(addr, m2srwd_packet.data)
@@ -242,7 +244,7 @@ class CxlMemDcoh(PacketProcessor):
     # .mem m2s birsp handler
     async def _process_cxl_m2s_birsp_packet(self, m2sbirsp_packet: CxlMemM2SBIRspPacket):
         addr = self._cur_state.packet.address
-        data = await self._memory_device_component.read_mem(addr)
+        data = await self._memory_device_component.read_mem_dpa(addr)
 
         if m2sbirsp_packet.m2sbirsp_header.opcode == CXL_MEM_M2SBIRSP_OPCODE.BIRSP_S:
             packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S, data)
@@ -267,12 +269,12 @@ class CxlMemDcoh(PacketProcessor):
             addr = cache_packet.address
 
             if cache_packet.type == CACHE_REQUEST_TYPE.READ:
-                data = await self._memory_device_component.read_mem(addr)
+                data = await self._memory_device_component.read_mem_dpa(addr)
                 packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, data)
                 await self._cache_to_coh_agent_fifo.response.put(packet)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
             elif cache_packet.type in (CACHE_REQUEST_TYPE.WRITE, CACHE_REQUEST_TYPE.WRITE_BACK):
-                await self._memory_device_component.write_mem(addr, cache_packet.data)
+                await self._memory_device_component.write_mem_dpa(addr, cache_packet.data)
                 packet = CacheResponse(CACHE_RESPONSE_STATUS.OK)
                 await self._cache_to_coh_agent_fifo.response.put(packet)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
@@ -280,7 +282,7 @@ class CxlMemDcoh(PacketProcessor):
                 # host cache snoop filter miss
                 if not self._sf_host_is_hit(addr):
                     if cache_packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
-                        data = await self._memory_device_component.read_mem(addr)
+                        data = await self._memory_device_component.read_mem_dpa(addr)
                         packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data)
                     elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_INV:
                         packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I)
@@ -298,9 +300,8 @@ class CxlMemDcoh(PacketProcessor):
                         bi_opcode = CXL_MEM_S2MBISNP_OPCODE.BISNP_INV
                     elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_CUR:
                         bi_opcode = CXL_MEM_S2MBISNP_OPCODE.BISNP_CUR
-                    cxl_packet = CxlMemBISnpPacket.create(
-                        addr, bi_opcode, self._bi_id, self._bi_tag
-                    )
+                    hpa = self._memory_device_component.get_hpa(addr)
+                    cxl_packet = CxlMemBISnpPacket.create(hpa, bi_opcode, self._bi_id, self._bi_tag)
                     await self._upstream_fifo.target_to_host.put(cxl_packet)
 
                     if sf_update_list:
