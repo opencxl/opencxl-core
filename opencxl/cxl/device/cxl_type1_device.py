@@ -127,7 +127,6 @@ class CxlType1Device(RunnableComponent):
             memory_size=config.host_mem_size,
         )
         self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
-        self._mmio_manager = None
 
     async def read_mmio(self, addr: int, size: int, bar: int = 0):
         return await self._mmio_manager.read_mmio(addr, size, bar)
@@ -140,6 +139,7 @@ class CxlType1Device(RunnableComponent):
         mmio_manager: MmioManager,
         config_space_manager: ConfigSpaceManager,
     ):
+        print("TYPE1INIT")
         self._mmio_manager = mmio_manager
         # Create PCiComponent
         pci_identity = PciComponentIdentity(
@@ -233,6 +233,29 @@ class CxlType1Device(RunnableComponent):
         logger.debug(f"Beware: cqid {cqid} is not currently implemented.")
         await self._cache_controller.cache_coherent_store(addr, 64, data)
 
+    async def cxl_cache_read(self, address, size) -> bytes:
+        end = address + size
+        result = b""
+        for cacheline_offset in range(address, address + size, 64):
+            cacheline = await self.cxl_cache_readline(cacheline_offset)
+            chunk_size = min(64, (end - cacheline_offset))
+            result += cacheline.to_bytes(chunk_size, "little")
+        return result
+
+    async def cxl_cache_write(self, address, size, value):
+        if address % 64 != 0 or size % 64 != 0:
+            raise Exception(f"Size {size} and address 0x{address:x} must be aligned to 64!")
+
+        chunk_count = 0
+        while size > 0:
+            message = self._create_message(f"Host Memory: Writing 0x{value:08x} to 0x{address:08x}")
+            logger.debug(message)
+            low_64_byte = value & ((1 << (64 * 8)) - 1)
+            await self.cxl_cache_writeline(address + (chunk_count * 64), low_64_byte)
+            size -= 64
+            chunk_count += 1
+            value >>= 64 * 8
+
     async def _run(self):
         # pylint: disable=duplicate-code
         run_tasks = [
@@ -252,6 +275,7 @@ class CxlType1Device(RunnableComponent):
         await gather(*run_tasks)
 
     async def _stop(self):
+        print("TYPE1STOPPPPPPPPPPPPPPPPPPPPPPPPP")
         # pylint: disable=duplicate-code
         tasks = [
             create_task(self._cxl_io_manager.stop()),
