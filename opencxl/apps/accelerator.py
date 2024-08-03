@@ -169,9 +169,7 @@ class MyType1Accelerator(RunnableComponent):
         train_loss = running_train_loss / len(train_dataloader.sampler)
         train_accuracy = correct_count / len(train_dataloader.sampler)
         logger.debug(
-            self._create_message(
-                f"train_loss: {train_loss}, train_accuracy: {train_accuracy}"
-            )
+            self._create_message(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}")
         )
 
         if device == "cuda:0":
@@ -213,7 +211,6 @@ class MyType1Accelerator(RunnableComponent):
         # HOST_READY interrupt, it will read the address and size of the metadata from
         # the host memory using CXL.cache, then use CXL.cache again to appropriately
         # request the data from the host, one cacheline at a time.
-
 
         metadata_addr_mmio_addr = 0x1800
         metadata_size_mmio_addr = 0x1808
@@ -418,7 +415,7 @@ class MyType2Accelerator(RunnableComponent):
 
         self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
         self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
-    
+
     def _setup_test_env(self):
         logger.info(f"CWD: {os.getcwd()}")
 
@@ -574,7 +571,7 @@ class MyType2Accelerator(RunnableComponent):
         json_asint = int.from_bytes(json_asenc, "little")
 
         RESULTS_HPA = 0x900  # Arbitrarily chosen
-        rounded_bytes_size = (((bytes_size - 1) // 64) + 1) * 64 
+        rounded_bytes_size = (((bytes_size - 1) // 64) + 1) * 64
         await self._cxl_type2_device.write_mem_hpa(RESULTS_HPA, json_asint, bytes_size)
 
         HOST_VECTOR_ADDR = 0x1820
@@ -590,7 +587,7 @@ class MyType2Accelerator(RunnableComponent):
 
     async def _run_app(self):
         # pylint: disable=unused-variable
-        # pylint: disable=E1101 
+        # pylint: disable=E1101
 
         logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():

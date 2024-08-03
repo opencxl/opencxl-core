@@ -153,7 +153,7 @@ class CxlMemDcoh(PacketProcessor):
         if packet.status == CACHE_RESPONSE_STATUS.RSP_MISS:
             if m2sreq_packet.m2sreq_header.snp_type == CXL_MEM_M2S_SNP_TYPE.SNP_DATA:
                 rsp_code = CXL_MEM_S2MNDR_OPCODE.CMP_E
-                print("miss:",addr)
+                print("miss:", addr)
                 sf_update_list.append(SF_UPDATE_TYPE.SF_HOST_IN)
             elif m2sreq_packet.m2sreq_header.snp_type == CXL_MEM_M2S_SNP_TYPE.SNP_INV:
                 if m2sreq_packet.m2sreq_header.meta_value == CXL_MEM_META_VALUE.ANY:
@@ -172,7 +172,7 @@ class CxlMemDcoh(PacketProcessor):
         else:
             if packet.status == CACHE_RESPONSE_STATUS.RSP_S:
                 rsp_code = CXL_MEM_S2MNDR_OPCODE.CMP_S
-                print("hit:",addr)
+                print("hit:", addr)
                 sf_update_list.append(SF_UPDATE_TYPE.SF_HOST_IN)
             elif packet.status == CACHE_RESPONSE_STATUS.RSP_I:
                 if m2sreq_packet.m2sreq_header.meta_value == CXL_MEM_META_VALUE.ANY:
@@ -192,7 +192,7 @@ class CxlMemDcoh(PacketProcessor):
             self._snoop_filter_update(dpa, sf_update_list)
 
         if data_flush is True:
-            await self._memory_device_component.write_mem(addr, data) 
+            await self._memory_device_component.write_mem(addr, data)
 
         if data_read is True:
             ndr_packet, drs_packet = self._create_mem_rsp_packet(

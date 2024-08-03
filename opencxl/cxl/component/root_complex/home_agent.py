@@ -247,7 +247,7 @@ class HomeAgent(RunnableComponent):
 
         if s2mndr_packet.s2mndr_header.meta_value == CXL_MEM_META_VALUE.ANY:
             while self._cxl_channel["s2m_drs"].empty():
-                await asyncio.sleep(0) # just spin
+                await asyncio.sleep(0)  # just spin
             cxl_packet = await self._cxl_channel["s2m_drs"].get()
             assert cast(CxlMemBasePacket, cxl_packet).is_s2mdrs()
             cache_packet = CacheResponse(status, cxl_packet.data)
