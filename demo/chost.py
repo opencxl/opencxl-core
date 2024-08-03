@@ -20,6 +20,8 @@ host = None
 
 start_tasks = []
 
+train_data_path = None
+
 async def shutdown(signame=None):
     global host
     global start_tasks
@@ -41,7 +43,7 @@ async def run_demo(signame=None):
     global host
 
     print("[HOST] IO ready, running test")
-
+    """
     pci_bus_driver = PciBusDriver(host.get_root_complex())
     cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
     cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
@@ -64,7 +66,10 @@ async def run_demo(signame=None):
             )
             host.append_dev_mem_range(next_available_hpa_base, size)
             next_available_hpa_base += size
-    
+    """
+    global host
+    await host.start_job()
+
     print(f"[HOST] demo done!")
     os.kill(os.getppid(), SIGINT)
 

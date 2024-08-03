@@ -405,7 +405,7 @@ class MyType2Accelerator(RunnableComponent):
             memory_file=memory_file,
         )
         self._cxl_type2_device = CxlType2Device(device_config)
-        self.accel_dirname = f"T2Accel@{self.port_index}"
+        self.accel_dirname = f"T2Accel@{port_index}"
 
         self._irq_manager = IrqManager(
             addr="localhost",
