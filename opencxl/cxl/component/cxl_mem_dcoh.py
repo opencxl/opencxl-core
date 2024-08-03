@@ -192,13 +192,7 @@ class CxlMemDcoh(PacketProcessor):
             self._snoop_filter_update(dpa, sf_update_list)
 
         if data_flush is True:
-            await self._memory_device_component.write_mem(addr, data)
-
-        ndr_packet, drs_packet = self._create_mem_rsp_packet(rsp_code, data)
-        print("data read" if data_read else "")
-        print(ndr_packet.get_pretty_string())
-        print(drs_packet.get_pretty_string())
-        await self._upstream_fifo.target_to_host.put(ndr_packet)
+            await self._memory_device_component.write_mem(addr, data) 
 
         if data_read is True:
             ndr_packet, drs_packet = self._create_mem_rsp_packet(
