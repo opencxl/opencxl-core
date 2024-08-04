@@ -574,6 +574,11 @@ class MyType2Accelerator(RunnableComponent):
         im = None
 
         with BytesIO() as imgbuf:
+            curr_written = 0
+            while curr_written < image_size:
+                data = await self._cxl_type2_device.read_mem_hpa(image_addr + curr_written, 64)
+                curr_written += 64
+                imgbuf.write(data.to_bytes(64, byteorder="little"))
             imgbuf = await self._cxl_type2_device.read_mem_hpa(image_addr, image_size)
             im = Image.open(imgbuf).convert("RGB")
 
@@ -602,13 +607,15 @@ class MyType2Accelerator(RunnableComponent):
 
         RESULTS_HPA = 0x900  # Arbitrarily chosen
         rounded_bytes_size = (((bytes_size - 1) // 64) + 1) * 64
-        await self._cxl_type2_device.write_mem_hpa(RESULTS_HPA, json_asint, bytes_size)
+        while curr_written < bytes_size:
+            await self._cxl_type2_device.write_mem_hpa(RESULTS_HPA, json_asint, rounded_bytes_size)
+            curr_written += 64
 
         HOST_VECTOR_ADDR = 0x1820
         HOST_VECTOR_SIZE = 0x1828
 
-        await self._cxl_type1_device.write_mmio(HOST_VECTOR_ADDR, 8, RESULTS_HPA)
-        await self._cxl_type1_device.write_mmio(HOST_VECTOR_SIZE, 8, bytes_size)
+        await self._cxl_type2_device.write_mmio(HOST_VECTOR_ADDR, 8, RESULTS_HPA)
+        await self._cxl_type2_device.write_mmio(HOST_VECTOR_SIZE, 8, bytes_size)
 
         await sleep(2)
 
