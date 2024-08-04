@@ -303,7 +303,7 @@ class MyType1Accelerator(RunnableComponent):
         #     device = torch.device("mps")
         else:
             self._torch_device = torch.device("cpu")
-        logger.debug(self._create_message(f"Using torch.device: {device}"))
+        logger.debug(self._create_message(f"Using torch.device: {self._torch_device}"))
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
         await self._get_metadata()
