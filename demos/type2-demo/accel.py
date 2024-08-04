@@ -12,23 +12,23 @@ from opencxl.cxl.component.virtual_switch_manager import VirtualSwitchConfig, Vi
 from opencxl.util.number_const import MB
 
 device = None
-
 start_tasks = []
-
-train_data_path = None
+stop_signal = asyncio.Event()
 
 
 async def shutdown(signame=None):
     global device
     global start_tasks
+    global stop_signal
     try:
+        stop_signal.set()
         stop_tasks = [
             asyncio.create_task(device.stop()),
         ]
-        await asyncio.gather(*stop_tasks, return_exceptions=True)
+        await asyncio.gather(*stop_tasks)
         await asyncio.gather(*start_tasks)
     except Exception as exc:
-        print("[HOST]", exc.__traceback__)
+        print("[ACCEL]", exc.__traceback__)
     finally:
         os._exit(0)
 
@@ -40,14 +40,13 @@ async def main():
 
     sw_portno = int(sys.argv[1])
     portidx = int(sys.argv[2])
-
-    global train_data_path
     train_data_path = sys.argv[3]
 
     print(f"[ACCEL] listening on port {sw_portno} and physical port {portidx}")
 
     global device
     global start_tasks
+    global stop_signal
 
     print("ACCEL CWD", os.getcwd())
     device = MyType2Accelerator(
@@ -71,7 +70,7 @@ async def main():
     await asyncio.gather(*ready_tasks)
     print("[ACCEL] ready!")
 
-    await asyncio.Event().wait()  # blocks
+    await stop_signal.wait()
 
 
 if __name__ == "__main__":

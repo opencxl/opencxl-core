@@ -241,11 +241,15 @@ class CacheController(RunnableComponent):
         cache_blk = self._cache_find_valid_block(tag, set)
 
         # cache hit
+        print(f"cache_blk:{cache_blk}")
         if cache_blk is not None:
             data = self._cache_data_read(set, cache_blk)
+            print(f"HIT")
         # cache miss
         else:
+            print(f"MISS")
             cache_blk = self._cache_find_invalid_block(set)
+            print(f"miss cache_blk:{cache_blk}")
 
             # cache block full
             if cache_blk is None:
@@ -261,6 +265,7 @@ class CacheController(RunnableComponent):
             # snoop_data to get mesi response
             packet = await self._memory_load(addr, size)
             data = packet.data
+            print(f"data:{data}")
 
             cache_state = self._cache_rsp_state_lookup(packet)
             if cache_state == CacheState.CACHE_INVALID:

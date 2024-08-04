@@ -14,6 +14,7 @@ physical_port_manager = None
 virtual_switch_manager = None
 
 start_tasks = []
+stop_signal = asyncio.Event()
 
 
 async def shutdown(signame=None):
@@ -21,18 +22,23 @@ async def shutdown(signame=None):
     global physical_port_manager
     global virtual_switch_manager
     global start_tasks
+    global stop_signal
+    stop_signal.set()
     try:
         stop_tasks = [
             asyncio.create_task(sw_conn_manager.stop(), name="sw_conn_manager"),
             asyncio.create_task(physical_port_manager.stop(), name="phys_port_manager"),
             asyncio.create_task(virtual_switch_manager.stop(), name="virtual_switch_manager"),
         ]
-        await asyncio.gather(*stop_tasks, return_exceptions=True)
-        await asyncio.gather(*start_tasks)
+
     except Exception as exc:
         print("[SWITCH]", exc.__traceback__)
-    finally:
-        os._exit(0)
+        quit()
+    await asyncio.gather(*stop_tasks, return_exceptions=True)
+    await asyncio.gather(*start_tasks)
+    print("Switch quitted")
+    os._exit(0)
+
 
 async def main():
     # install signal handlers
@@ -46,6 +52,7 @@ async def main():
     global physical_port_manager
     global virtual_switch_manager
     global start_tasks
+    global stop_signal
 
     port_configs = [
         PortConfig(PORT_TYPE.USP),
@@ -79,8 +86,7 @@ async def main():
 
     await asyncio.gather(*ready_tasks)
     print("[SWITCH] ready!")
-
-    await asyncio.Event().wait() # blocks
+    await asyncio.Event().wait()  # blocks
 
 
 if __name__ == "__main__":

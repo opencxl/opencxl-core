@@ -488,6 +488,7 @@ class MyType2Accelerator(RunnableComponent):
         loss_fn,
     ):
         # pylint: disable=unused-variable
+        return
         self.model.train()
         correct_count = 0
         running_train_loss = 0
@@ -588,6 +589,7 @@ class MyType2Accelerator(RunnableComponent):
             curr_written = 0
             while curr_written < image_size:
                 data = await self._cxl_type2_device.read_mem_hpa(image_addr + curr_written, 64)
+                print(f"{image_addr:x}, {curr_written:x}, {data}")
                 curr_written += 64
                 imgbuf.write(data.to_bytes(64, byteorder="little"))
             im = Image.open(imgbuf).convert("RGB")
