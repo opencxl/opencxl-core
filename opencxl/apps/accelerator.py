@@ -544,8 +544,11 @@ class MyType2Accelerator(RunnableComponent):
         with open(f"noisy_imagenette.csv", "wb") as md_file:
             logger.debug(self._create_message(f"addr: 0x{metadata_addr:x}"))
             logger.debug(self._create_message(f"end: 0x{metadata_end:x}"))
-            data = await self._cxl_type2_device.read_mem_hpa(metadata_addr, metadata_size)
-            md_file.write(data)
+            curr_written = 0
+            while curr_written < metadata_size:
+                data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + curr_written, 64)
+                curr_written += 64
+                md_file.write(data.to_bytes(64, byteorder="little"))
 
         logger.debug(self._create_message("Finished writing file"))
 
@@ -628,7 +631,7 @@ class MyType2Accelerator(RunnableComponent):
                 test_dataloader=self._test_dataloader,
                 optimizer=optimizer,
                 loss_fn=loss_fn,
-                device=self._torch_device,
+                device=device,
             )
             scheduler.step()
 
