@@ -295,7 +295,18 @@ class HostTrainIoGen(RunnableComponent):
         self._merge_validation_results()
 
     def _save_validation_result_type2(self, dev_id: int, pic_id: int, event: asyncio.Event):
-        pass
+        async def _func(dev_id: int):
+            print(f"saving validation results pic: {pic_id}, dev: {dev_id}")
+            # We can use a fixed host_result_addr, say 0x0A000000
+            # Only length is needed
+            host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1820), 8)
+            host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
+            data_bytes = await self.load(host_result_addr, host_result_len)
+            validate_result = json.loads(data_bytes.decode())
+            self._validation_results[pic_id].append(validate_result)
+            event.set()
+
+        return _func
 
     async def _host_process_llc_iogen(self):
         # Pass init-info mem location to the remote using MMIO
