@@ -437,7 +437,7 @@ class MyType2Accelerator(RunnableComponent):
         self.model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
         for p in self.model.features.parameters():
             p.requires_grad = False
-            summary(self.model, input_size=(1, 3, 160, 160))
+            #summary(self.model, input_size=(1, 3, 160, 160))
 
         self.transform = transforms.Compose(
             [
@@ -592,8 +592,8 @@ class MyType2Accelerator(RunnableComponent):
         logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
             device = torch.device("cuda:0")
-        elif torch.backends.mps.is_available():
-            device = torch.device("mps")
+        #elif torch.backends.mps.is_available():
+        #    device = torch.device("mps")
         else:
             device = torch.device("cpu")
         print(f"torch.device: {device}")

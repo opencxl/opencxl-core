@@ -111,10 +111,12 @@ class HostTrainIoGen(RunnableComponent):
 
         chunk_count = 0
         while size > 0:
+            logger.debug("storing here...")
             low_64_byte = value & ((1 << (64 * 8)) - 1)
             await self._cache_controller.cache_coherent_store(
                 address + (chunk_count * 64), 64, low_64_byte
             )
+            logger.debug("done with one...")
             size -= 64
             chunk_count += 1
             value >>= 64 * 8
@@ -368,6 +370,7 @@ class CxlImageClassificationHostConfig:
     memory_ranges: List[MemoryRange] = field(default_factory=list)
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
     coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.DotMemBI
+    device_type: Optional[CXL_COMPONENT_TYPE] = None
 
 
 class CxlImageClassificationHost(RunnableComponent):
@@ -431,6 +434,11 @@ class CxlImageClassificationHost(RunnableComponent):
         )
         self._cache_controller = CacheController(cache_controller_config)
 
+        if CxlImageClassificationHostConfig.device_type is None:
+            dev_type = CXL_COMPONENT_TYPE.T1
+        else:
+            dev_type = CxlImageClassificationHostConfig.device_type
+    
         host_processor_config = HostTrainIoGenConfig(
             host_name=config.host_name,
             processor_to_cache_fifo=processor_to_cache_fifo,
@@ -439,7 +447,7 @@ class CxlImageClassificationHost(RunnableComponent):
             base_addr=0x290000000,
             device_count=1,
             interleave_gran=0x100,
-            device_type=CXL_COMPONENT_TYPE.T1,
+            device_type=dev_type,
             cache_controller=self._cache_controller,
             train_data_path=config.train_data_path,
         )

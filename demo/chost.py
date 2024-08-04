@@ -5,6 +5,8 @@ import asyncio
 import sys, os
 from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
 
+from opencxl.apps.cxl_image_classification_host import CxlImageClassificationHost, CxlImageClassificationHostConfig
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
 from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
@@ -20,7 +22,7 @@ host = None
 
 start_tasks = []
 
-train_data_path = None
+train_data_path = "../imagenette2-160"
 
 async def shutdown(signame=None):
     global host
@@ -93,17 +95,19 @@ async def main():
     root_ports = [RootPortClientConfig(0, "localhost", sw_portno)]
     memory_ranges = [MemoryRange(MEMORY_RANGE_TYPE.DRAM, 0x0, host_mem_size)]
 
-    config = CxlComplexHostConfig(
+    config = CxlImageClassificationHostConfig(
         host_name,
         0,
         root_port_switch_type,
+        train_data_path,
         memory_controller,
         memory_ranges,
         root_ports,
-        coh_type=COH_POLICY_TYPE.DotMemBI,
+        coh_type=COH_POLICY_TYPE.DotCache,
+        device_type=CXL_COMPONENT_TYPE.T2,
     )
 
-    host = CxlComplexHost(config)
+    host = CxlImageClassificationHost(config)
 
     start_tasks = [
         asyncio.create_task(host.run()),
