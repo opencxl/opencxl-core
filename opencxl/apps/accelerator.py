@@ -173,38 +173,6 @@ class MyType1Accelerator(RunnableComponent):
             self._create_message(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}")
         )
 
-        if device == "cuda:0":
-            torch.cuda.empty_cache()
-
-        self.model.eval()
-        with torch.no_grad():
-            running_test_loss = 0
-            correct_count = 0
-            for _, (inputs, labels) in tqdm(
-                enumerate(test_dataloader),
-                total=len(test_dataloader),
-                desc="Progress",
-            ):
-                inputs = inputs.to(device)
-                labels = labels.to(device)
-
-                pred_logit = self.model(inputs)
-                loss = loss_fn(pred_logit, labels)
-                running_test_loss += loss.item() * inputs.size(0)
-
-                pred_classes = torch.argmax(pred_logit, dim=1)
-                is_correct = pred_classes == labels
-
-                correct_count += is_correct.sum()
-
-                # logits to probs, placeholder
-                pred_probs = torch.softmax(pred_logit, dim=1)
-
-        test_loss = running_test_loss / len(test_dataloader.sampler)
-        test_accuracy = correct_count / len(test_dataloader.sampler)
-
-        logger.debug(f"test_loss: {test_loss}, test_accuracy: {test_accuracy}")
-
     async def _get_metadata(self):
         # When retrieving the metadata, the device does not know ahead of time where
         # the metadata is located, nor the size of the metadata. The host relays this
@@ -489,38 +457,6 @@ class MyType2Accelerator(RunnableComponent):
         train_loss = running_train_loss / len(train_dataloader.sampler)
         train_accuracy = correct_count / len(train_dataloader.sampler)
         print(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}")
-
-        if device == "cuda:0":
-            torch.cuda.empty_cache()
-
-        self.model.eval()
-        with torch.no_grad():
-            running_test_loss = 0
-            correct_count = 0
-            for _, (inputs, labels) in tqdm(
-                enumerate(test_dataloader),
-                total=len(test_dataloader),
-                desc="Progress",
-            ):
-                inputs = inputs.to(device)
-                labels = labels.to(device)
-
-                pred_logit = self.model(inputs)
-                loss = loss_fn(pred_logit, labels)
-                running_test_loss += loss.item() * inputs.size(0)
-
-                pred_classes = torch.argmax(pred_logit, dim=1)
-                is_correct = pred_classes == labels
-
-                correct_count += is_correct.sum()
-
-                # logits to probs, placeholder
-                pred_probs = torch.softmax(pred_logit, dim=1)
-
-        test_loss = running_test_loss / len(test_dataloader.sampler)
-        test_accuracy = correct_count / len(test_dataloader.sampler)
-
-        print(f"test_loss: {test_loss}, test_accuracy: {test_accuracy}")
 
     async def _get_metadata(self):
         metadata_addr_mmio_addr = 0x1800
