@@ -17,6 +17,7 @@ start_tasks = []
 
 train_data_path = None
 
+
 async def shutdown(signame=None):
     global device
     global start_tasks
@@ -31,6 +32,7 @@ async def shutdown(signame=None):
     finally:
         os._exit(0)
 
+
 async def main():
     # install signal handlers
     lp = asyncio.get_event_loop()
@@ -38,7 +40,7 @@ async def main():
 
     sw_portno = int(sys.argv[1])
     portidx = int(sys.argv[2])
-    
+
     global train_data_path
     train_data_path = sys.argv[3]
 
@@ -47,10 +49,11 @@ async def main():
     global device
     global start_tasks
 
+    print("ACCEL CWD", os.getcwd())
     device = MyType2Accelerator(
         port_index=portidx,
         memory_size=256 * MB,  # min 256MB, or will cause error for DVSEC
-        memory_file=f"mem{sw_portno}.bin",
+        memory_file=f"../../mem{sw_portno}.bin",
         host="localhost",
         port=sw_portno,
         train_data_path=train_data_path,
@@ -67,8 +70,9 @@ async def main():
 
     await asyncio.gather(*ready_tasks)
     print("[ACCEL] ready!")
-    
-    await asyncio.Event().wait() # blocks
+
+    await asyncio.Event().wait()  # blocks
+
 
 if __name__ == "__main__":
     asyncio.run(main())

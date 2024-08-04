@@ -309,7 +309,6 @@ class MyType1Accelerator(RunnableComponent):
     async def _run_app(self, _):
         if torch.cuda.is_available():
             self._torch_device = torch.device("cuda:0")
-        # # Apple MPS does not work consistently
         # elif torch.backends.mps.is_available():
         #     device = torch.device("mps")
         else:
@@ -420,6 +419,7 @@ class MyType2Accelerator(RunnableComponent):
         self._cxl_type2_device = CxlType2Device(device_config)
         self.accel_dirname = f"T2Accel@{port_index}"
         self.train_data_path = train_data_path
+        self._torch_device = None
 
         self._irq_manager = IrqManager(
             addr="localhost",
@@ -479,11 +479,20 @@ class MyType2Accelerator(RunnableComponent):
             self._train_dataset, batch_size=10, shuffle=True, num_workers=4
         )
 
-    def _train_one_epoch(self, train_dataloader, test_dataloader, device, optimizer, loss_fn):
+    def _train_one_epoch(
+        self,
+        train_dataloader: DataLoader,
+        test_dataloader: DataLoader,
+        device: torch.device,
+        optimizer,
+        loss_fn,
+    ):
         # pylint: disable=unused-variable
         self.model.train()
         correct_count = 0
         running_train_loss = 0
+        inputs: torch.Tensor
+        labels: torch.Tensor
         for _, (inputs, labels) in tqdm(
             enumerate(train_dataloader),
             total=len(train_dataloader),
@@ -508,7 +517,9 @@ class MyType2Accelerator(RunnableComponent):
 
         train_loss = running_train_loss / len(train_dataloader.sampler)
         train_accuracy = correct_count / len(train_dataloader.sampler)
-        print(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}")
+        logger.debug(
+            self._create_message(f"train_loss: {train_loss}, train_accuracy: {train_accuracy}")
+        )
 
         if device == "cuda:0":
             torch.cuda.empty_cache()
@@ -540,7 +551,7 @@ class MyType2Accelerator(RunnableComponent):
         test_loss = running_test_loss / len(test_dataloader.sampler)
         test_accuracy = correct_count / len(test_dataloader.sampler)
 
-        print(f"test_loss: {test_loss}, test_accuracy: {test_accuracy}")
+        logger.debug(f"test_loss: {test_loss}, test_accuracy: {test_accuracy}")
 
     async def _get_metadata(self):
         metadata_addr_mmio_addr = 0x1800
@@ -557,8 +568,11 @@ class MyType2Accelerator(RunnableComponent):
         with open(f"noisy_imagenette.csv", "wb") as md_file:
             logger.debug(self._create_message(f"addr: 0x{metadata_addr:x}"))
             logger.debug(self._create_message(f"end: 0x{metadata_end:x}"))
-            data = await self._cxl_type2_device.read_mem_hpa(metadata_addr, metadata_size)
-            md_file.write(data)
+            curr_written = 0
+            while curr_written < metadata_size:
+                data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + curr_written, 64)
+                curr_written += 64
+                md_file.write(data.to_bytes(64, byteorder="little"))
 
         logger.debug(self._create_message("Finished writing file"))
 
@@ -571,12 +585,16 @@ class MyType2Accelerator(RunnableComponent):
         im = None
 
         with BytesIO() as imgbuf:
-            imgbuf = await self._cxl_type2_device.read_mem_hpa(image_addr, image_size)
+            curr_written = 0
+            while curr_written < image_size:
+                data = await self._cxl_type2_device.read_mem_hpa(image_addr + curr_written, 64)
+                curr_written += 64
+                imgbuf.write(data.to_bytes(64, byteorder="little"))
             im = Image.open(imgbuf).convert("RGB")
 
         return im
 
-    async def _validate_model(self):
+    async def _validate_model(self, _):
         # pylint: disable=no-member
         im = await self._get_test_image()
         tens = cast(torch.Tensor, self.transform(im))
@@ -599,13 +617,15 @@ class MyType2Accelerator(RunnableComponent):
 
         RESULTS_HPA = 0x900  # Arbitrarily chosen
         rounded_bytes_size = (((bytes_size - 1) // 64) + 1) * 64
-        await self._cxl_type2_device.write_mem_hpa(RESULTS_HPA, json_asint, bytes_size)
+        while curr_written < bytes_size:
+            await self._cxl_type2_device.write_mem_hpa(RESULTS_HPA, json_asint, rounded_bytes_size)
+            curr_written += 64
 
         HOST_VECTOR_ADDR = 0x1820
         HOST_VECTOR_SIZE = 0x1828
 
-        await self._cxl_type1_device.write_mmio(HOST_VECTOR_ADDR, 8, RESULTS_HPA)
-        await self._cxl_type1_device.write_mmio(HOST_VECTOR_SIZE, 8, bytes_size)
+        await self._cxl_type2_device.write_mmio(HOST_VECTOR_ADDR, 8, RESULTS_HPA)
+        await self._cxl_type2_device.write_mmio(HOST_VECTOR_SIZE, 8, bytes_size)
 
         await sleep(2)
 
@@ -615,22 +635,22 @@ class MyType2Accelerator(RunnableComponent):
     async def _run_app(self, _):
         # pylint: disable=unused-variable
         # pylint: disable=E1101
-
-        logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
-            device = torch.device("cuda:0")
+            self._torch_device = torch.device("cuda:0")
         # elif torch.backends.mps.is_available():
-        #    device = torch.device("mps")
+        #    self._torch_device = torch.device("mps")
         else:
-            device = torch.device("cpu")
-        print(f"torch.device: {device}")
+            self._torch_device = torch.device("cpu")
+        logger.debug(self._create_message(f"Using torch.device: {self._torch_device}"))
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
+        logger.info(self._create_message("Getting metadata for the image dataset"))
         await self._get_metadata()
 
+        logger.info(self._create_message("Begin Model Training"))
         epochs = 1
-        epoch_loss = 0
         for epoch in range(epochs):
+            logger.debug(self._create_message(f"Starting epoch: {epoch}"))
             loss_fn = torch.nn.CrossEntropyLoss()
             optimizer = torch.optim.SGD(self.model.parameters())
             scheduler = torch.optim.lr_scheduler.LinearLR(
@@ -644,6 +664,7 @@ class MyType2Accelerator(RunnableComponent):
                 device=self._torch_device,
             )
             scheduler.step()
+            logger.debug(self._create_message(f"Epoch: {epoch} finished"))
 
         # Done training
         await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
