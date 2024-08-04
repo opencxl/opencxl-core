@@ -111,12 +111,10 @@ class HostTrainIoGen(RunnableComponent):
 
         chunk_count = 0
         while size > 0:
-            logger.debug("storing here...")
             low_64_byte = value & ((1 << (64 * 8)) - 1)
             await self._cache_controller.cache_coherent_store(
                 address + (chunk_count * 64), 64, low_64_byte
             )
-            logger.debug("done with one...")
             size -= 64
             chunk_count += 1
             value >>= 64 * 8
@@ -134,6 +132,7 @@ class HostTrainIoGen(RunnableComponent):
         return await self._root_complex.read_mmio(address, size)
 
     def to_device_mmio_addr(self, device: int, addr: int) -> int:
+        print(self._dev_mmio_ranges)
         assert addr < self._dev_mmio_ranges[device][1]
         return self._dev_mmio_ranges[device][0] + addr
 
@@ -394,6 +393,9 @@ class CxlImageClassificationHost(RunnableComponent):
         cache_to_coh_bridge_fifo = CacheFifoPair()
         coh_bridge_to_cache_fifo = CacheFifoPair()
 
+        print(os.getcwd())
+        print(config.train_data_path)
+        print(os.path.exists(config.train_data_path))
         if not os.path.exists(config.train_data_path) or not os.path.isdir(config.train_data_path):
             raise Exception(f"Path {config.train_data_path} does not exist, or is not a folder.")
 

@@ -390,6 +390,7 @@ class MyType2Accelerator(RunnableComponent):
         port: int = 8000,
         server_port: int = 9050,
         device_id: int = 0,
+        train_data_path: str = None,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
@@ -405,6 +406,7 @@ class MyType2Accelerator(RunnableComponent):
         )
         self._cxl_type2_device = CxlType2Device(device_config)
         self.accel_dirname = f"T2Accel@{port_index}"
+        self.train_data_path = train_data_path
 
         self._irq_manager = IrqManager(
             addr="localhost",
@@ -421,17 +423,23 @@ class MyType2Accelerator(RunnableComponent):
     def _setup_test_env(self):
         logger.info(f"CWD: {os.getcwd()}")
 
+        if not os.path.isdir(self.accel_dirname):
+            os.mkdir(self.accel_dirname)
+
+        train_dir = os.path.join(self.train_data_path, "train")
+        val_dir = os.path.join(self.train_data_path, "val")
+        print(train_dir, val_dir)
+        assert os.path.exists(train_dir)
+        assert os.path.exists(val_dir)
+
+        train_dir = os.path.abspath(train_dir)
+        val_dir = os.path.abspath(val_dir)
+
         logger.info(
             self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
         )
 
-        if not os.path.isdir(self.accel_dirname):
-            os.mkdir(self.accel_dirname)
         os.chdir(self.accel_dirname)
-
-        logger.info(self._create_message("Creating symlinks to training and validation datasets"))
-        os.symlink(src="../../imagenette2-160/train", dst="train", target_is_directory=True)
-        os.symlink(src="../../imagenette2-160/val", dst="val", target_is_directory=True)
 
         # Model setup
         self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
@@ -448,12 +456,12 @@ class MyType2Accelerator(RunnableComponent):
             ]
         )
 
-        self._train_dataset = datasets.ImageFolder(root="train", transform=self.transform)
+        self._train_dataset = datasets.ImageFolder(root=train_dir, transform=self.transform)
         self._train_dataloader = DataLoader(
             self._train_dataset, batch_size=32, shuffle=True, num_workers=4
         )
 
-        self._test_dataset = datasets.ImageFolder(root="val", transform=self.transform)
+        self._test_dataset = datasets.ImageFolder(root=val_dir, transform=self.transform)
         self._test_dataloader = DataLoader(
             self._train_dataset, batch_size=10, shuffle=True, num_workers=4
         )
@@ -527,6 +535,9 @@ class MyType2Accelerator(RunnableComponent):
         metadata_addr = await self._cxl_type2_device.read_mmio(metadata_addr_mmio_addr, 8)
         metadata_size = await self._cxl_type2_device.read_mmio(metadata_size_mmio_addr, 8)
 
+        # round to 64
+        metadata_size = ((metadata_size - 1) // 64 + 1) * 64
+
         metadata_end = metadata_addr + metadata_size
 
         logger.debug(self._create_message("Writing metadata"))
@@ -588,7 +599,7 @@ class MyType2Accelerator(RunnableComponent):
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
 
-    async def _run_app(self):
+    async def _run_app(self, _):
         # pylint: disable=unused-variable
         # pylint: disable=E1101
 

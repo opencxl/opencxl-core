@@ -1,14 +1,12 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 from signal import *
 import asyncio
 import sys, os
 from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
 
-from opencxl.apps.cxl_image_classification_host import (
-    CxlImageClassificationHost,
-    CxlImageClassificationHostConfig,
-)
+from opencxl.apps.cxl_image_classification_host import CxlImageClassificationHost, CxlImageClassificationHostConfig
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
 from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
@@ -20,50 +18,77 @@ from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 
-host: CxlImageClassificationHost = None
+host = None
 
 start_tasks = []
-stop_signal = asyncio.Event()
 
-host_starter: asyncio.Task = None
-
+train_data_path = None
 
 async def shutdown(signame=None):
     global host
     global start_tasks
-    global stop_signal
     try:
         stop_tasks = [
             asyncio.create_task(host.stop()),
         ]
+        await asyncio.gather(*stop_tasks, return_exceptions=True)
+        await asyncio.gather(*start_tasks)
     except Exception as exc:
         print("[HOST]", exc.__traceback__)
-        quit()
-    await asyncio.gather(*stop_tasks, return_exceptions=True)
-    await asyncio.gather(*start_tasks)
-    print("Host quitted")
-    os._exit(0)
+    finally:
+        os._exit(0)
 
+async def run_demo(signame=None):
+    # the other devices are passively running, but the host 
+    # is responsible for executing the actual demo.
 
-async def start_host(signame=None):
     global host
-    global stop_signal
-    await host.start_job()
-    stop_signal.set()
 
+    print("[HOST] IO ready, running test")
+
+    pci_bus_driver = PciBusDriver(host.get_root_complex())
+    cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
+    cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
+
+    await pci_bus_driver.init()
+    await cxl_bus_driver.init()
+    await cxl_mem_driver.init()
+
+    hpa_base = 0x0
+    next_available_hpa_base = hpa_base
+
+    for device in cxl_mem_driver.get_devices():
+        size = device.get_memory_size()
+        successful = await cxl_mem_driver.attach_single_mem_device(
+            device, next_available_hpa_base, size
+        )
+        if successful:
+            host.append_dev_mmio_range(
+                device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
+            )
+            host.append_dev_mem_range(next_available_hpa_base, size)
+            next_available_hpa_base += size
+
+    await host.start_job()
+
+    print(f"[HOST] demo done!")
+    os.kill(os.getppid(), SIGINT)
 
 async def main():
     # install signal handlers
     lp = asyncio.get_event_loop()
     lp.add_signal_handler(SIGINT, lambda signame="SIGINT": asyncio.create_task(shutdown(signame)))
-    lp.add_signal_handler(SIGIO, lambda signame="SIGIO": asyncio.create_task(start_host(signame)))
+    lp.add_signal_handler(SIGIO, lambda signame="SIGIO": asyncio.create_task(run_demo(signame))) 
 
     sw_portno = int(sys.argv[1])
-    train_data_path = sys.argv[2]
-    print(f"[HOST] listening on port {sw_portno}, train_data_path: {train_data_path}")
+    global train_data_path
+    train_data_path = sys.argv[2] if len(sys.argv) > 2 else None
+
+    print(f"[HOST] listening on port {sw_portno}")
 
     global host
     global start_tasks
+
     host_mem_size = 0x8000  # Needs to be big enough to test cache eviction
 
     host_name = "foo"
@@ -81,13 +106,10 @@ async def main():
         memory_ranges,
         root_ports,
         coh_type=COH_POLICY_TYPE.DotCache,
+        device_type=CXL_COMPONENT_TYPE.T2,
     )
 
     host = CxlImageClassificationHost(config)
-
-    pci_bus_driver = PciBusDriver(host.get_root_complex())
-    cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
-    cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
 
     start_tasks = [
         asyncio.create_task(host.run()),
@@ -99,34 +121,9 @@ async def main():
     os.kill(os.getppid(), SIGCONT)
 
     await asyncio.gather(*ready_tasks)
-
-    await pci_bus_driver.init()
-    await cxl_bus_driver.init()
-    await cxl_mem_driver.init()
-
-    cache_dev_count = 0
-    for device in cxl_bus_driver.get_devices():
-        if device.device_dvsec:
-            if device.device_dvsec.cache_capable:
-                cache_dev_count += 1
-    print(f"cache_dev_count: {cache_dev_count}")
-
-    host.set_device_count(cache_dev_count)
-    host.get_root_complex().set_cache_coh_dev_count(cache_dev_count)
-
-    for device in cxl_mem_driver.get_devices():
-        # NOTE: The list should match the dev order
-        # Not tested, though
-        # otherwise the dev base may not match the IRQ ports
-        host.append_dev_mmio_range(
-            device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
-        )
-
     print("[HOST] ready!")
 
-    await stop_signal.wait()
-
-    os.kill(os.getppid(), SIGINT)
+    await asyncio.Event().wait() # blocks
 
 
 if __name__ == "__main__":

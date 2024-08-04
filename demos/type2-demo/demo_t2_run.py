@@ -1,31 +1,25 @@
-#!/usr/bin/env python3
-
-import asyncio
+import argparse
 from signal import *
 import os
-import argparse
-import time
 
 sw_port = "22500"
 
-RUN_LIST = []
+train_data_path = ""
+
+RUN_LIST = [
+    ("switch", "./switch.py", (sw_port,)),
+    ("host", "./chost.py", (sw_port, train_data_path)),
+    ("accel1", "./accel.py", (sw_port, "1", train_data_path)),
+    ("accel2", "./accel.py", (sw_port, "2", train_data_path)),
+]
 
 jobs = {}  # list of pids
 
 run_progress = 0
 
-interrupted = False
-
-stop_signal = asyncio.Event()
-
-
 def clean_shutdown(signum=None, frame=None):
-    global interrupted, stop_signal
-    interrupted = True
-    stop_signal.set()
     pthread_sigmask(SIG_BLOCK, [SIGINT])
     for prog, pid in jobs.items():
-        print(f"[RUNNER] Killing {prog} (PID {pid})")
         # propagate SIGINT
         os.kill(pid, SIGINT)
         os.waitpid(pid, 0)
@@ -34,24 +28,16 @@ def clean_shutdown(signum=None, frame=None):
     quit()
 
 
-async def main(signum=None, frame=None):
-    run_next_app(signum, frame)
-    await stop_signal.wait()
-
-
 def run_next_app(signum=None, frame=None):
-    if interrupted:
-        return
-
     pthread_sigmask(SIG_BLOCK, [SIGCONT])
 
     print("[RUNNER] SIGCONT received")
 
-    global run_progress, jobs, stop_signal
+    global run_progress, jobs
 
     if run_progress >= len(RUN_LIST):
         # signal the host that IO is ready
-        host_pid = jobs["host"]
+        host_pid = jobs["host"] 
         os.kill(host_pid, SIGIO)
         return
 
@@ -71,7 +57,6 @@ def run_next_app(signum=None, frame=None):
         jobs[component_name] = chld
         pthread_sigmask(SIG_UNBLOCK, [SIGCONT])
         print(f"[RUNNER] PID {chld}")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -110,6 +95,8 @@ if __name__ == "__main__":
         RUN_LIST.append((f"accel{i + 1}", "./accel.py", (sw_port, f"{i + 1}", train_data_path)))
     signal(SIGCONT, run_next_app)
     signal(SIGINT, clean_shutdown)
-    asyncio.run(main())
+
+    run_next_app()
+
     while True:
         pause()
