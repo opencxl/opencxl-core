@@ -224,7 +224,19 @@ class MyType1Accelerator(RunnableComponent):
         with open(f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv", "wb") as md_file:
             logger.debug(self._create_message(f"addr: 0x{metadata_addr:x}"))
             logger.debug(self._create_message(f"end: 0x{metadata_end:x}"))
-            data = await self._cxl_type1_device.cxl_cache_read(metadata_addr, metadata_size)
+
+            start = metadata_addr
+            end = metadata_addr + metadata_size
+            data = b""
+            for cacheline_offset in tqdm(
+                range(start, end, 64),
+                total=end // 64,
+                desc="Reading Metadata",
+            ):
+                cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
+                chunk_size = min(64, (end - cacheline_offset))
+                chunk_data = cacheline.to_bytes(64, "little")
+                data += chunk_data[:chunk_size]
             md_file.write(data)
 
         logger.debug(self._create_message("Finished writing file"))
@@ -295,7 +307,6 @@ class MyType1Accelerator(RunnableComponent):
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
 
     async def _run_app(self, _):
-        logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
             self._torch_device = torch.device("cuda:0")
         # # Apple MPS does not work consistently
@@ -306,6 +317,7 @@ class MyType1Accelerator(RunnableComponent):
         logger.debug(self._create_message(f"Using torch.device: {self._torch_device}"))
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
+        logger.info(self._create_message("Getting metadata for the image dataset"))
         await self._get_metadata()
         # If testing:
         # shutil.copy(
@@ -313,6 +325,7 @@ class MyType1Accelerator(RunnableComponent):
         #     f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
         # )
 
+        logger.info(self._create_message("Begin Model Training"))
         epochs = 1
         for epoch in range(epochs):
             logger.debug(self._create_message(f"Starting epoch: {epoch}"))
@@ -447,7 +460,7 @@ class MyType2Accelerator(RunnableComponent):
         self.model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
         for p in self.model.features.parameters():
             p.requires_grad = False
-            #summary(self.model, input_size=(1, 3, 160, 160))
+        summary(self.model, input_size=(1, 3, 160, 160))
 
         self.transform = transforms.Compose(
             [
@@ -606,7 +619,7 @@ class MyType2Accelerator(RunnableComponent):
         logger.info(self._create_message("Beginning training"))
         if torch.cuda.is_available():
             device = torch.device("cuda:0")
-        #elif torch.backends.mps.is_available():
+        # elif torch.backends.mps.is_available():
         #    device = torch.device("mps")
         else:
             device = torch.device("cpu")
