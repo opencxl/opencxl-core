@@ -136,12 +136,20 @@ class CxlType2Device(RunnableComponent):
             memory_size=config.memory_size,
         )
         self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
+    
+    async def read_mmio(self, addr: int, size: int, bar: int = 0):
+        return await self._mmio_manager.read_mmio(addr, size, bar)
+
+    async def write_mmio(self, addr: int, size: int, data: int, bar: int = 0):
+        await self._mmio_manager.write_mmio(addr, size, data, bar)
 
     def _init_device(
         self,
         mmio_manager: MmioManager,
         config_space_manager: ConfigSpaceManager,
     ):
+        self._mmio_manager = mmio_manager
+
         # Create PCiComponent
         pci_identity = PciComponentIdentity(
             vendor_id=EEUM_VID,

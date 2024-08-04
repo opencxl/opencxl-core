@@ -132,6 +132,7 @@ class HostTrainIoGen(RunnableComponent):
         return await self._root_complex.read_mmio(address, size)
 
     def to_device_mmio_addr(self, device: int, addr: int) -> int:
+        print(self._dev_mmio_ranges)
         assert addr < self._dev_mmio_ranges[device][1]
         return self._dev_mmio_ranges[device][0] + addr
 
@@ -293,7 +294,18 @@ class HostTrainIoGen(RunnableComponent):
         self._merge_validation_results()
 
     def _save_validation_result_type2(self, dev_id: int, pic_id: int, event: asyncio.Event):
-        pass
+        async def _func(dev_id: int):
+            print(f"saving validation results pic: {pic_id}, dev: {dev_id}")
+            # We can use a fixed host_result_addr, say 0x0A000000
+            # Only length is needed
+            host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1820), 8)
+            host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
+            data_bytes = await self.load(host_result_addr, host_result_len)
+            validate_result = json.loads(data_bytes.decode())
+            self._validation_results[pic_id].append(validate_result)
+            event.set()
+
+        return _func
 
     async def _host_process_llc_iogen(self):
         # Pass init-info mem location to the remote using MMIO
@@ -368,6 +380,7 @@ class CxlImageClassificationHostConfig:
     memory_ranges: List[MemoryRange] = field(default_factory=list)
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
     coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.DotMemBI
+    device_type: Optional[CXL_COMPONENT_TYPE] = None
 
 
 class CxlImageClassificationHost(RunnableComponent):
@@ -380,6 +393,9 @@ class CxlImageClassificationHost(RunnableComponent):
         cache_to_coh_bridge_fifo = CacheFifoPair()
         coh_bridge_to_cache_fifo = CacheFifoPair()
 
+        print(os.getcwd())
+        print(config.train_data_path)
+        print(os.path.exists(config.train_data_path))
         if not os.path.exists(config.train_data_path) or not os.path.isdir(config.train_data_path):
             raise Exception(f"Path {config.train_data_path} does not exist, or is not a folder.")
 
@@ -431,6 +447,11 @@ class CxlImageClassificationHost(RunnableComponent):
         )
         self._cache_controller = CacheController(cache_controller_config)
 
+        if CxlImageClassificationHostConfig.device_type is None:
+            dev_type = CXL_COMPONENT_TYPE.T1
+        else:
+            dev_type = CxlImageClassificationHostConfig.device_type
+    
         host_processor_config = HostTrainIoGenConfig(
             host_name=config.host_name,
             processor_to_cache_fifo=processor_to_cache_fifo,
@@ -439,7 +460,7 @@ class CxlImageClassificationHost(RunnableComponent):
             base_addr=0x290000000,
             device_count=1,
             interleave_gran=0x100,
-            device_type=CXL_COMPONENT_TYPE.T1,
+            device_type=dev_type,
             cache_controller=self._cache_controller,
             train_data_path=config.train_data_path,
         )

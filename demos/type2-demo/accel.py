@@ -15,6 +15,8 @@ device = None
 
 start_tasks = []
 
+train_data_path = None
+
 async def shutdown(signame=None):
     global device
     global start_tasks
@@ -36,6 +38,9 @@ async def main():
 
     sw_portno = int(sys.argv[1])
     portidx = int(sys.argv[2])
+    
+    global train_data_path
+    train_data_path = sys.argv[3]
 
     print(f"[ACCEL] listening on port {sw_portno} and physical port {portidx}")
 
@@ -48,6 +53,7 @@ async def main():
         memory_file=f"mem{sw_portno}.bin",
         host="localhost",
         port=sw_portno,
+        train_data_path=train_data_path,
     )
 
     start_tasks = [
