@@ -114,6 +114,7 @@ class HostTrainIoGen(RunnableComponent):
         if address % 64 != 0 or size % 64 != 0:
             raise Exception("Size and address must be aligned to 64!")
 
+        # show progress for large stores
         chunk_count = 0
         rangeobj = trange(size, 0, -64) if show_progress else range(size, 0, -64)
 
