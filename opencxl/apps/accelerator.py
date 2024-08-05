@@ -627,6 +627,8 @@ class MyType2Accelerator(RunnableComponent):
 
         imgbuf = BytesIO()
         imgbuf.write(results)
+        with open("thing.bin", "wb") as t:
+            t.write(imgbuf.getbuffer())
         im = Image.open(imgbuf).convert("RGB")
         return im
 
@@ -735,7 +737,7 @@ class MyType2Accelerator(RunnableComponent):
         self._stop_signal.set()
         tasks = [
             create_task(self._sw_conn_client.stop()),
-            create_task(self._cxl_type1_device.stop()),
+            create_task(self._cxl_type2_device.stop()),
             create_task(self._irq_manager.stop()),
         ]
         await gather(*tasks)
