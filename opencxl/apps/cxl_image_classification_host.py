@@ -13,9 +13,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List
 from random import sample
-from tqdm import tqdm
-
-from tqdm import tqdm, trange
+from tqdm.auto import tqdm, trange
 
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.logger import logger
@@ -171,7 +169,11 @@ class HostTrainIoGen(RunnableComponent):
         self._validation_results = [[] for _ in range(self._total_samples)]
         pic_id = 0
         pic_data_mem_loc = 0x00008000
-        with tqdm(total=self._total_samples, desc="Category", position=1) as pbar_cat:
+        logger.info(
+            f"Validation process started. Total pictures: {self._total_samples}, "
+            f"Num. of Accelerators: {self._device_count}"
+        )
+        with tqdm(total=self._total_samples, desc="Picture", position=0) as pbar_cat:
             for c in categories:
                 logger.debug(self._create_message(f"Validating category: {c}"))
                 category_pics = glob.glob(f"{c}/*.JPEG")
@@ -195,7 +197,12 @@ class HostTrainIoGen(RunnableComponent):
                             pic_data_len_rounded,
                             pic_data_int,
                         )
-                        for dev_id in tqdm(range(self._device_count), desc="Device", position=2):
+                        for dev_id in tqdm(
+                            range(self._device_count),
+                            desc="Device Progress",
+                            position=1,
+                            leave=False,
+                        ):
                             event = asyncio.Event()
                             self._irq_handler.register_interrupt_handler(
                                 Irq.ACCEL_VALIDATION_FINISHED,
