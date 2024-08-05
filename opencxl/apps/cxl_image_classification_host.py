@@ -192,7 +192,6 @@ class HostTrainIoGen(RunnableComponent):
                                 f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
                             )
                         )
-
                         await self.store(
                             pic_data_mem_loc,
                             pic_data_len_rounded,
@@ -218,7 +217,6 @@ class HostTrainIoGen(RunnableComponent):
                             await self.write_mmio(
                                 self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
                             )
-
                             while True:
                                 pic_data_mem_loc_rb = await self.read_mmio(
                                     self.to_device_mmio_addr(dev_id, 0x1810), 8
@@ -232,14 +230,9 @@ class HostTrainIoGen(RunnableComponent):
                                     and pic_data_len_rb == pic_data_len
                                 ):
                                     break
-                                await asyncio.sleep(0.2)
-
+                                await asyncio.sleep(0)
                             await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
-                            # Currently we don't send the picture information
-                            # (e.g., pic_id) to the device
-                            # and to prevent race condition, we need to send pics synchronously
-                        for e in pic_events:
-                            await e.wait()
+                            await event.wait()
                         pic_data_mem_loc += pic_data_len
                         pic_data_mem_loc = (((pic_data_mem_loc - 1) // 64) + 1) * 64
                         pic_id += 1
@@ -253,8 +246,7 @@ class HostTrainIoGen(RunnableComponent):
             host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
             data_bytes = await self.load(host_result_addr, host_result_len)
             validate_result = json.loads(data_bytes.decode())
-            async with self._validation_results_lock:
-                self._validation_results[pic_id].append(validate_result)
+            self._validation_results[pic_id].append(validate_result)
             event.set()
 
         return _func
