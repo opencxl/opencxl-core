@@ -237,8 +237,8 @@ class DeviceHdmDecoderManager(HdmDecoderManagerBase):
 
     def get_dpa(self, hpa: int) -> Optional[int]:
         decoder = self.get_decoder_from_hpa(hpa)
-        print(decoder)
-        print("")
+        # print(decoder)
+        # print("")
         if not decoder:
             return None
         device_decoder = cast(DeviceHdmDecoder, decoder)

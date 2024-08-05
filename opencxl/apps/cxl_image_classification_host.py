@@ -259,10 +259,15 @@ class HostTrainIoGen(RunnableComponent):
         )
         self._stop_signal.set()
 
-    async def _host_process_validation_type2(self):
+    async def _host_check_start_validation_type2(self, dev_id: int):
+        self._train_finished_count += 1
+        if self._train_finished_count == self._device_count:
+            await self._host_process_validation_type2(dev_id)
+
+    async def _host_process_validation_type2(self, _):
         categories = glob.glob(self._train_data_path + "/val/*")
         self._total_samples = len(categories) * self._sample_from_each_category
-        self._validation_results: List[List[Dict[str, float]]] = [[] for _ in self._total_samples]
+        self._validation_results = [[] for i in range(self._total_samples)]
         pic_id = 0
         for c in categories:
             category_pics = glob.glob(f"{c}/*.JPEG")
@@ -275,19 +280,42 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
+                    # print(f"pic_data_len:{pic_data_len}, {pic_data_int}")
                     for dev_id in range(self._device_count):
                         event = asyncio.Event()
+                        print(f"@@{dev_id}:{self.to_device_mem_addr(dev_id, 0x00008000):x}")
                         await self.store(
                             self.to_device_mem_addr(dev_id, 0x00008000),
                             pic_data_len_rounded,
                             pic_data_int,
                         )
+                        await self.write_mmio(
+                            self.to_device_mmio_addr(dev_id, 0x1810), 8, 0x00008000
+                        )
+                        await self.write_mmio(
+                            self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
+                        )
+                        while True:
+                            pic_data_mem_loc_rb = await self.read_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1810), 8
+                            )
+                            pic_data_len_rb = await self.read_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1818), 8
+                            )
+
+                            if (
+                                pic_data_mem_loc_rb == 0x00008000
+                                and pic_data_len_rb == pic_data_len
+                            ):
+                                break
+                            await asyncio.sleep(0.2)
+
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
                             self._save_validation_result_type2(dev_id, pic_id, event),
                         )
                         await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
-                        event.wait()
+                        await event.wait()
                         # Currently we don't send the picture information to the device
                         # and to prevent race condition, we need to send pics synchronously
                     pic_id += 1
@@ -326,7 +354,7 @@ class HostTrainIoGen(RunnableComponent):
         for dev_id in range(self._device_count):
             await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, csv_data_mem_loc)
             await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
-
+        logger.info(f"1111111!!!!!!!!!!!!!!!!!_host_process_llc_iogen !!!!!!!!!!!!!!!!!!!!!")
         while True:
             csv_data_mem_loc_rb = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8)
             csv_data_len_rb = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8)
@@ -334,6 +362,7 @@ class HostTrainIoGen(RunnableComponent):
             if csv_data_mem_loc_rb == csv_data_mem_loc and csv_data_len_rb == csv_data_len:
                 break
             await asyncio.sleep(0.2)
+        logger.info(f"{self._device_count}!!!!!!!!!_process_llc_iogen !!!!!!!!!!!!!!!!!!!!!")
 
         if self._dev_type == CXL_COMPONENT_TYPE.T1:
             for i in range(self._device_count):
@@ -341,9 +370,11 @@ class HostTrainIoGen(RunnableComponent):
                     Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type1, i
                 )
         elif self._dev_type == CXL_COMPONENT_TYPE.T2:
-            self._irq_handler.register_interrupt_handler(
-                Irq.ACCEL_TRAINING_FINISHED, self._host_process_validation_type2
-            )
+            for i in range(self._device_count):
+                logger.info(f"REG: {i} !!!!!!!!!!!!!!!!!!!!!")
+                self._irq_handler.register_interrupt_handler(
+                    Irq.ACCEL_TRAINING_FINISHED, self._host_process_validation_type2, i
+                )
         else:
             raise Exception("Only T1 and T2 devices are allowed!")
 
@@ -447,11 +478,11 @@ class CxlImageClassificationHost(RunnableComponent):
         )
         self._cache_controller = CacheController(cache_controller_config)
 
-        if CxlImageClassificationHostConfig.device_type is None:
+        if config.device_type is None:
             dev_type = CXL_COMPONENT_TYPE.T1
         else:
-            dev_type = CxlImageClassificationHostConfig.device_type
-    
+            dev_type = config.device_type
+
         host_processor_config = HostTrainIoGenConfig(
             host_name=config.host_name,
             processor_to_cache_fifo=processor_to_cache_fifo,

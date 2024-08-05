@@ -5,7 +5,10 @@ import asyncio
 import sys, os
 from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
 
-from opencxl.apps.cxl_image_classification_host import CxlImageClassificationHost, CxlImageClassificationHostConfig
+from opencxl.apps.cxl_image_classification_host import (
+    CxlImageClassificationHost,
+    CxlImageClassificationHostConfig,
+)
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
 from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
@@ -24,6 +27,7 @@ start_tasks = []
 
 train_data_path = None
 
+
 async def shutdown(signame=None):
     global host
     global start_tasks
@@ -38,8 +42,9 @@ async def shutdown(signame=None):
     finally:
         os._exit(0)
 
+
 async def run_demo(signame=None):
-    # the other devices are passively running, but the host 
+    # the other devices are passively running, but the host
     # is responsible for executing the actual demo.
 
     global host
@@ -74,11 +79,12 @@ async def run_demo(signame=None):
     print(f"[HOST] demo done!")
     os.kill(os.getppid(), SIGINT)
 
+
 async def main():
     # install signal handlers
     lp = asyncio.get_event_loop()
     lp.add_signal_handler(SIGINT, lambda signame="SIGINT": asyncio.create_task(shutdown(signame)))
-    lp.add_signal_handler(SIGIO, lambda signame="SIGIO": asyncio.create_task(run_demo(signame))) 
+    lp.add_signal_handler(SIGIO, lambda signame="SIGIO": asyncio.create_task(run_demo(signame)))
 
     sw_portno = int(sys.argv[1])
     global train_data_path
@@ -105,10 +111,9 @@ async def main():
         memory_controller,
         memory_ranges,
         root_ports,
-        coh_type=COH_POLICY_TYPE.DotCache,
+        coh_type=COH_POLICY_TYPE.DotMemBI,
         device_type=CXL_COMPONENT_TYPE.T2,
     )
-
     host = CxlImageClassificationHost(config)
 
     start_tasks = [
@@ -123,7 +128,7 @@ async def main():
     await asyncio.gather(*ready_tasks)
     print("[HOST] ready!")
 
-    await asyncio.Event().wait() # blocks
+    await asyncio.Event().wait()  # blocks
 
 
 if __name__ == "__main__":

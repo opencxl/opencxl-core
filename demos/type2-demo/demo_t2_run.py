@@ -17,6 +17,7 @@ jobs = {}  # list of pids
 
 run_progress = 0
 
+
 def clean_shutdown(signum=None, frame=None):
     pthread_sigmask(SIG_BLOCK, [SIGINT])
     for prog, pid in jobs.items():
@@ -37,7 +38,7 @@ def run_next_app(signum=None, frame=None):
 
     if run_progress >= len(RUN_LIST):
         # signal the host that IO is ready
-        host_pid = jobs["host"] 
+        host_pid = jobs["host"]
         os.kill(host_pid, SIGIO)
         return
 
@@ -57,6 +58,7 @@ def run_next_app(signum=None, frame=None):
         jobs[component_name] = chld
         pthread_sigmask(SIG_UNBLOCK, [SIGCONT])
         print(f"[RUNNER] PID {chld}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -397,10 +397,10 @@ class HomeAgent(RunnableComponent):
             # packets are distributed to s2m channels
             cxl_packet = cast(CxlMemBasePacket, packet)
             if cxl_packet.is_s2mndr():
-                print("s2m ndr")
+                # print("s2m ndr")
                 await self._cxl_channel["s2m_ndr"].put(cast(CxlMemS2MNDRPacket, packet))
             elif cxl_packet.is_s2mdrs():
-                print("s2m drs")
+                # print("s2m drs")
                 await self._cxl_channel["s2m_drs"].put(cast(CxlMemS2MDRSPacket, packet))
             elif cxl_packet.is_s2mbisnp():
                 await self._cxl_channel["s2m_bisnp"].put(cast(CxlMemS2MBISnpPacket, packet))

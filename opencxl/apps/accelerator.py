@@ -487,6 +487,7 @@ class MyType2Accelerator(RunnableComponent):
         optimizer,
         loss_fn,
     ):
+        return
         # pylint: disable=unused-variable
         self.model.train()
         correct_count = 0
@@ -569,8 +570,12 @@ class MyType2Accelerator(RunnableComponent):
             logger.debug(self._create_message(f"addr: 0x{metadata_addr:x}"))
             logger.debug(self._create_message(f"end: 0x{metadata_end:x}"))
             curr_written = 0
-            while curr_written < metadata_size:
-                data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + curr_written, 64)
+            for offset in tqdm(
+                range(0, metadata_size, 64),
+                total=(metadata_size // 64),
+                desc="Progress",
+            ):
+                data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + offset, 64)
                 curr_written += 64
                 md_file.write(data.to_bytes(64, byteorder="little"))
 
@@ -583,15 +588,28 @@ class MyType2Accelerator(RunnableComponent):
         image_size = await self._cxl_type2_device.read_mmio(image_size_mmio_addr, 8)
 
         im = None
+        # for cacheline_offset in range(address, address + size, 64):
+        #     cacheline = await self.cxl_cache_readline(cacheline_offset)
+        #     chunk_size = min(64, (end - cacheline_offset))
+        #     chunk_data = cacheline.to_bytes(64, "little")
+        #     result += chunk_data[:chunk_size]
+        end = image_addr + image_size
+        results = b""
+        logger.info(f"!!!!!!!!!!!!HERE!!!!!!!!!!!!!!")
+        logger.info(f"img: {image_addr:x}, {image_size}")
+        for offset in range(image_addr, image_addr + image_size, 64):
+            data = await self._cxl_type2_device.read_mem_hpa(offset, 64)
+            chunk_size = min(64, (end - offset))
+            chunk_data = data.to_bytes(64, "little")
+            chunk_data = chunk_data[:chunk_size]
+            results += chunk_data
+            self._create_message(
+                logger.info(f"{offset:x}: {chunk_size:x}, {len(chunk_data):x} {chunk_data}")
+            )
 
-        with BytesIO() as imgbuf:
-            curr_written = 0
-            while curr_written < image_size:
-                data = await self._cxl_type2_device.read_mem_hpa(image_addr + curr_written, 64)
-                curr_written += 64
-                imgbuf.write(data.to_bytes(64, byteorder="little"))
-            im = Image.open(imgbuf).convert("RGB")
-
+        imgbuf = BytesIO()
+        imgbuf.write(results)
+        im = Image.open(imgbuf).convert("RGB")
         return im
 
     async def _validate_model(self, _):
@@ -663,7 +681,7 @@ class MyType2Accelerator(RunnableComponent):
                 loss_fn=loss_fn,
                 device=self._torch_device,
             )
-            scheduler.step()
+            # scheduler.step()
             logger.debug(self._create_message(f"Epoch: {epoch} finished"))
 
         # Done training
