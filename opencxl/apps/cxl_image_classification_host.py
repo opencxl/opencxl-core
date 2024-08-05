@@ -96,33 +96,47 @@ class HostTrainIoGen(RunnableComponent):
         self._device_count = dev_count
 
     # pylint: disable=duplicate-code
-    async def load(self, address: int, size: int) -> bytes:
+    async def load(self, address: int, size: int, prog_bar: bool = False) -> bytes:
         end = address + size
         result = b""
-        pbar = tqdm(total=size, desc="Reading Data")
-        for cacheline_offset in range(address, address + size, 64):
-            cacheline = await self._cache_controller.cache_coherent_load(cacheline_offset, 64)
-            chunk_size = min(64, (end - cacheline_offset))
-            chunk_data = cacheline.to_bytes(64, "little")
-            result += chunk_data[:chunk_size]
-            pbar.update(chunk_size)
+        with tqdm(
+            total=size,
+            desc="Reading Data",
+            unit="iB",
+            unit_scale=True,
+            unit_divisor=1024,
+            disable=not prog_bar,
+        ) as pbar:
+            for cacheline_offset in range(address, address + size, 64):
+                cacheline = await self._cache_controller.cache_coherent_load(cacheline_offset, 64)
+                chunk_size = min(64, (end - cacheline_offset))
+                chunk_data = cacheline.to_bytes(64, "little")
+                result += chunk_data[:chunk_size]
+                pbar.update(chunk_size)
         return result
 
-    async def store(self, address: int, size: int, value: int):
+    async def store(self, address: int, size: int, value: int, prog_bar: bool = False):
         if address % 64 != 0 or size % 64 != 0:
             raise Exception("Size and address must be aligned to 64!")
 
-        pbar = tqdm(total=size, desc="Writing Data")
-        chunk_count = 0
-        while size > 0:
-            low_64_byte = value & ((1 << (64 * 8)) - 1)
-            await self._cache_controller.cache_coherent_store(
-                address + (chunk_count * 64), 64, low_64_byte
-            )
-            size -= 64
-            chunk_count += 1
-            value >>= 64 * 8
-            pbar.update(64)
+        with tqdm(
+            total=size,
+            desc="Writing Data",
+            unit="iB",
+            unit_scale=True,
+            unit_divisor=1024,
+            disable=not prog_bar,
+        ) as pbar:
+            chunk_count = 0
+            while size > 0:
+                low_64_byte = value & ((1 << (64 * 8)) - 1)
+                await self._cache_controller.cache_coherent_store(
+                    address + (chunk_count * 64), 64, low_64_byte
+                )
+                size -= 64
+                chunk_count += 1
+                value >>= 64 * 8
+                pbar.update(64)
 
     async def write_config(self, bdf: int, offset: int, size: int, value: int):
         await self._root_complex.write_config(bdf, offset, size, value)
@@ -137,7 +151,6 @@ class HostTrainIoGen(RunnableComponent):
         return await self._root_complex.read_mmio(address, size)
 
     def to_device_mmio_addr(self, device: int, addr: int) -> int:
-        print(self._dev_mmio_ranges)
         assert addr < self._dev_mmio_ranges[device][1]
         return self._dev_mmio_ranges[device][0] + addr
 
@@ -156,68 +169,68 @@ class HostTrainIoGen(RunnableComponent):
         self._validation_results = [[] for _ in range(self._total_samples)]
         pic_id = 0
         pic_data_mem_loc = 0x00008000
-        pbar_cat = tqdm(total=self._total_samples, desc="Category")
-        for c in categories:
-            logger.debug(self._create_message(f"Validating category: {c}"))
-            category_pics = glob.glob(f"{c}/*.JPEG")
-            sample_pics = sample(category_pics, self._sample_from_each_category)
-            category_name = c.split(os.path.sep)[-1]
-            self._sampled_file_categories += [category_name] * self._sample_from_each_category
-            for s in sample_pics:
-                with open(s, "rb") as f:
-                    pic_data = f.read()
-                    pic_data_int = int.from_bytes(pic_data, "little")
-                    pic_data_len = len(pic_data)
-                    pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
-                    logger.debug(
-                        self._create_message(
-                            f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
-                        )
-                    )
-
-                    await self.store(
-                        pic_data_mem_loc,
-                        pic_data_len_rounded,
-                        pic_data_int,
-                    )
-                    for dev_id in tqdm(range(self._device_count), desc="Device"):
-                        event = asyncio.Event()
-                        self._irq_handler.register_interrupt_handler(
-                            Irq.ACCEL_VALIDATION_FINISHED,
-                            self._save_validation_result_type1(pic_id, event),
-                            dev_id,
-                        )
-                        await self.write_mmio(
-                            self.to_device_mmio_addr(dev_id, 0x1810), 8, pic_data_mem_loc
-                        )
-                        await self.write_mmio(
-                            self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
-                        )
-
-                        while True:
-                            pic_data_mem_loc_rb = await self.read_mmio(
-                                self.to_device_mmio_addr(dev_id, 0x1810), 8
+        with tqdm(total=self._total_samples, desc="Category", position=1) as pbar_cat:
+            for c in categories:
+                logger.debug(self._create_message(f"Validating category: {c}"))
+                category_pics = glob.glob(f"{c}/*.JPEG")
+                sample_pics = sample(category_pics, self._sample_from_each_category)
+                category_name = c.split(os.path.sep)[-1]
+                self._sampled_file_categories += [category_name] * self._sample_from_each_category
+                for s in sample_pics:
+                    with open(s, "rb") as f:
+                        pic_data = f.read()
+                        pic_data_int = int.from_bytes(pic_data, "little")
+                        pic_data_len = len(pic_data)
+                        pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
+                        logger.debug(
+                            self._create_message(
+                                f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
                             )
-                            pic_data_len_rb = await self.read_mmio(
-                                self.to_device_mmio_addr(dev_id, 0x1818), 8
+                        )
+
+                        await self.store(
+                            pic_data_mem_loc,
+                            pic_data_len_rounded,
+                            pic_data_int,
+                        )
+                        for dev_id in tqdm(range(self._device_count), desc="Device", position=2):
+                            event = asyncio.Event()
+                            self._irq_handler.register_interrupt_handler(
+                                Irq.ACCEL_VALIDATION_FINISHED,
+                                self._save_validation_result_type1(pic_id, event),
+                                dev_id,
+                            )
+                            await self.write_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1810), 8, pic_data_mem_loc
+                            )
+                            await self.write_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
                             )
 
-                            if (
-                                pic_data_mem_loc_rb == pic_data_mem_loc
-                                and pic_data_len_rb == pic_data_len
-                            ):
-                                break
-                            await asyncio.sleep(0.2)
+                            while True:
+                                pic_data_mem_loc_rb = await self.read_mmio(
+                                    self.to_device_mmio_addr(dev_id, 0x1810), 8
+                                )
+                                pic_data_len_rb = await self.read_mmio(
+                                    self.to_device_mmio_addr(dev_id, 0x1818), 8
+                                )
 
-                        await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
-                        await event.wait()
-                        # Currently we don't send the picture information
-                        # (e.g., pic_id) to the device
-                        # and to prevent race condition, we need to send pics synchronously
-                    pic_data_mem_loc += pic_data_len
-                    pic_data_mem_loc = (((pic_data_mem_loc - 1) // 64) + 1) * 64
-                    pic_id += 1
-                    pbar_cat.update(1)
+                                if (
+                                    pic_data_mem_loc_rb == pic_data_mem_loc
+                                    and pic_data_len_rb == pic_data_len
+                                ):
+                                    break
+                                await asyncio.sleep(0.2)
+
+                            await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
+                            await event.wait()
+                            # Currently we don't send the picture information
+                            # (e.g., pic_id) to the device
+                            # and to prevent race condition, we need to send pics synchronously
+                        pic_data_mem_loc += pic_data_len
+                        pic_data_mem_loc = (((pic_data_mem_loc - 1) // 64) + 1) * 64
+                        pic_id += 1
+                        pbar_cat.update(1)
         self._merge_validation_results()
 
     def _save_validation_result_type1(self, pic_id: int, event: asyncio.Event):
@@ -352,7 +365,7 @@ class HostTrainIoGen(RunnableComponent):
         for dev_id in range(self._device_count):
             await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, csv_data_mem_loc)
             await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
-        logger.info(f"1111111!!!!!!!!!!!!!!!!!_host_process_llc_iogen !!!!!!!!!!!!!!!!!!!!!")
+        logger.debug(f"1111111!!!!!!!!!!!!!!!!!_host_process_llc_iogen !!!!!!!!!!!!!!!!!!!!!")
         while True:
             csv_data_mem_loc_rb = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8)
             csv_data_len_rb = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8)
@@ -360,7 +373,7 @@ class HostTrainIoGen(RunnableComponent):
             if csv_data_mem_loc_rb == csv_data_mem_loc and csv_data_len_rb == csv_data_len:
                 break
             await asyncio.sleep(0.2)
-        logger.info(f"{self._device_count}!!!!!!!!!_process_llc_iogen !!!!!!!!!!!!!!!!!!!!!")
+        logger.debug(f"{self._device_count}!!!!!!!!!_process_llc_iogen !!!!!!!!!!!!!!!!!!!!!")
 
         if self._dev_type == CXL_COMPONENT_TYPE.T1:
             for i in range(self._device_count):
@@ -369,7 +382,7 @@ class HostTrainIoGen(RunnableComponent):
                 )
         elif self._dev_type == CXL_COMPONENT_TYPE.T2:
             for i in range(self._device_count):
-                logger.info(f"REG: {i} !!!!!!!!!!!!!!!!!!!!!")
+                logger.debug(f"REG: {i} !!!!!!!!!!!!!!!!!!!!!")
                 self._irq_handler.register_interrupt_handler(
                     Irq.ACCEL_TRAINING_FINISHED, self._host_process_validation_type2, i
                 )
@@ -422,9 +435,6 @@ class CxlImageClassificationHost(RunnableComponent):
         cache_to_coh_bridge_fifo = CacheFifoPair()
         coh_bridge_to_cache_fifo = CacheFifoPair()
 
-        print(os.getcwd())
-        print(config.train_data_path)
-        print(os.path.exists(config.train_data_path))
         if not os.path.exists(config.train_data_path) or not os.path.isdir(config.train_data_path):
             raise Exception(f"Path {config.train_data_path} does not exist, or is not a folder.")
 

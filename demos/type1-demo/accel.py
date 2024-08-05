@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
+import logging
 from signal import *
 import asyncio
 import sys, os
 from opencxl.apps.accelerator import MyType1Accelerator
 from opencxl.util.logger import logger
 
-logger.setLevel("WARNING")
-device = None
+logger.setLevel(logging.INFO)
+device: MyType1Accelerator = None
 start_tasks = []
 stop_signal = asyncio.Event()
 
@@ -17,6 +18,7 @@ async def shutdown(signame=None):
     global start_tasks
     global stop_signal
     try:
+        device.set_stop_flag()
         stop_signal.set()
         stop_tasks = [
             asyncio.create_task(device.stop()),

@@ -6,7 +6,7 @@
 """
 
 # pylint: disable=unused-import
-from asyncio import gather, create_task, Event, sleep
+from asyncio import CancelledError, gather, create_task, Event, sleep
 import glob
 from io import BytesIO
 from typing import cast
@@ -76,6 +76,7 @@ class MyType1Accelerator(RunnableComponent):
             )
         )
         self._wait_tasks = []
+        self._device_id = device_id
         self.original_base_folder = train_data_path
         self.accel_dirname = f"/tmp/T1Accel@{self._label}"
         if os.path.exists(self.accel_dirname) and os.path.isdir(self.accel_dirname):
@@ -126,10 +127,14 @@ class MyType1Accelerator(RunnableComponent):
         )
 
         self._stop_signal = Event()
+        self._stop_flag = False
 
         self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
         self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
         self._torch_device = None
+
+    def set_stop_flag(self):
+        self._stop_flag = True
 
     def _train_one_epoch(
         self,
@@ -150,6 +155,8 @@ class MyType1Accelerator(RunnableComponent):
             total=len(train_dataloader),
             desc="Progress",
         ):
+            if self._stop_flag:
+                return
             inputs = inputs.to(device)
             labels = labels.to(device)
 
@@ -185,6 +192,8 @@ class MyType1Accelerator(RunnableComponent):
                 total=len(test_dataloader),
                 desc="Progress",
             ):
+                if self._stop_flag:
+                    return
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
@@ -228,15 +237,20 @@ class MyType1Accelerator(RunnableComponent):
             start = metadata_addr
             end = metadata_addr + metadata_size
             data = b""
-            for cacheline_offset in tqdm(
-                range(start, end, 64),
-                total=end // 64,
-                desc="Reading Metadata",
-            ):
-                cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
-                chunk_size = min(64, (end - cacheline_offset))
-                chunk_data = cacheline.to_bytes(64, "little")
-                data += chunk_data[:chunk_size]
+            with tqdm(
+                total=metadata_size,
+                desc=f"Dev {self._device_id} Reading Metadata",
+                unit="iB",
+                unit_scale=True,
+                unit_divisor=1024,
+                position=self._device_id,
+            ) as pbar:
+                for cacheline_offset in range(start, end, 64):
+                    cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
+                    chunk_size = min(64, (end - cacheline_offset))
+                    chunk_data = cacheline.to_bytes(64, "little")
+                    data += chunk_data[:chunk_size]
+                    pbar.update(chunk_size)
             md_file.write(data)
 
         logger.debug(self._create_message("Finished writing file"))
@@ -307,44 +321,48 @@ class MyType1Accelerator(RunnableComponent):
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
 
     async def _run_app(self, _):
-        if torch.cuda.is_available():
-            self._torch_device = torch.device("cuda:0")
-        # elif torch.backends.mps.is_available():
-        #     device = torch.device("mps")
-        else:
-            self._torch_device = torch.device("cpu")
-        logger.debug(self._create_message(f"Using torch.device: {self._torch_device}"))
+        try:
+            if torch.cuda.is_available():
+                self._torch_device = torch.device("cuda:0")
+            # elif torch.backends.mps.is_available():
+            #     device = torch.device("mps")
+            else:
+                self._torch_device = torch.device("cpu")
+            logger.debug(self._create_message(f"Using torch.device: {self._torch_device}"))
 
-        # Uses CXL.cache to copy metadata from host cached memory into device local memory
-        logger.info(self._create_message("Getting metadata for the image dataset"))
-        await self._get_metadata()
-        # If testing:
-        # shutil.copy(
-        #     f"{self.original_base_folder}{os.path.sep}noisy_imagenette.csv",
-        #     f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
-        # )
+            # Uses CXL.cache to copy metadata from host cached memory into device local memory
+            logger.info(self._create_message("Getting metadata for the image dataset"))
+            await self._get_metadata()
+            # If testing:
+            # shutil.copy(
+            #     f"{self.original_base_folder}{os.path.sep}noisy_imagenette.csv",
+            #     f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
+            # )
 
-        logger.info(self._create_message("Begin Model Training"))
-        epochs = 1
-        for epoch in range(epochs):
-            logger.debug(self._create_message(f"Starting epoch: {epoch}"))
-            loss_fn = torch.nn.CrossEntropyLoss()
-            optimizer = torch.optim.SGD(self.model.parameters())
-            scheduler = torch.optim.lr_scheduler.LinearLR(
-                optimizer, start_factor=1, end_factor=0.5, total_iters=30
-            )
-            self._train_one_epoch(
-                train_dataloader=self._train_dataloader,
-                test_dataloader=self._test_dataloader,
-                optimizer=optimizer,
-                loss_fn=loss_fn,
-                device=self._torch_device,
-            )
-            scheduler.step()
-            logger.debug(self._create_message(f"Epoch: {epoch} finished"))
+            # logger.info(self._create_message("Begin Model Training"))
+            # epochs = 1
+            # for epoch in range(epochs):
+            #     logger.debug(self._create_message(f"Starting epoch: {epoch}"))
+            #     loss_fn = torch.nn.CrossEntropyLoss()
+            #     optimizer = torch.optim.SGD(self.model.parameters())
+            #     scheduler = torch.optim.lr_scheduler.LinearLR(
+            #         optimizer, start_factor=1, end_factor=0.5, total_iters=30
+            #     )
+            #     self._train_one_epoch(
+            #         train_dataloader=self._train_dataloader,
+            #         test_dataloader=self._test_dataloader,
+            #         optimizer=optimizer,
+            #         loss_fn=loss_fn,
+            #         device=self._torch_device,
+            #     )
+            #     scheduler.step()
+            #     logger.debug(self._create_message(f"Epoch: {epoch} finished"))
 
-        # Done training
-        await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
+            # Done training
+            await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
+        except CancelledError:
+            print(self._create_message("Runapp Cancelled"))
+            return
 
     async def _app_shutdown(self):
         logger.info(self._create_message("Removing accelerator directory"))
@@ -368,6 +386,7 @@ class MyType1Accelerator(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
+        self._stop_flag = True
         for task in self._wait_tasks:
             task.cancel()
         self._stop_signal.set()
@@ -441,7 +460,6 @@ class MyType2Accelerator(RunnableComponent):
 
         train_dir = os.path.join(self.train_data_path, "train")
         val_dir = os.path.join(self.train_data_path, "val")
-        print(train_dir, val_dir)
         assert os.path.exists(train_dir)
         assert os.path.exists(val_dir)
 

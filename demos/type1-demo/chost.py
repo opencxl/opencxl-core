@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 from signal import *
 import asyncio
 import sys, os
@@ -20,7 +21,7 @@ from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 from opencxl.util.logger import logger
 
-logger.setLevel("WARNING")
+logger.setLevel(logging.INFO)
 
 host: CxlImageClassificationHost = None
 
@@ -118,7 +119,6 @@ async def main():
 
     for device in cxl_mem_driver.get_devices():
         # NOTE: The list should match the dev order
-        # Not tested, though
         # otherwise the dev base may not match the IRQ ports
         host.append_dev_mmio_range(
             device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size

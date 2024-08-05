@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 from signal import *
 import asyncio
 import sys, os
@@ -9,7 +10,7 @@ from opencxl.cxl.component.switch_connection_manager import SwitchConnectionMana
 from opencxl.cxl.component.virtual_switch_manager import VirtualSwitchConfig, VirtualSwitchManager
 from opencxl.util.logger import logger
 
-logger.setLevel("WARNING")
+logger.setLevel(logging.INFO)
 sw_conn_manager = None
 physical_port_manager = None
 virtual_switch_manager = None

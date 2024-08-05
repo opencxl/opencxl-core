@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
 import asyncio
+import logging
 from signal import *
 import os
 import argparse
 from opencxl.util.logger import logger
 
-logger.setLevel("WARNING")
+logger.setLevel(logging.INFO)
 
 sw_port = "22500"
 
@@ -21,17 +22,21 @@ interrupted = False
 stop_signal = asyncio.Event()
 
 
+async def kill(prog, pid):
+    print(f"[RUNNER] Killing {prog} (PID {pid})")
+    os.kill(pid, SIGINT)
+    os.waitpid(pid, 0)
+    print(f"[RUNNER] Killed {prog} (PID {pid})")
+
+
 def clean_shutdown(signum=None, frame=None):
     global interrupted, stop_signal
     interrupted = True
     stop_signal.set()
     pthread_sigmask(SIG_BLOCK, [SIGINT])
     for prog, pid in jobs.items():
-        logger.debug(f"[RUNNER] Killing {prog} (PID {pid})")
-        # propagate SIGINT
-        os.kill(pid, SIGINT)
-        os.waitpid(pid, 0)
-        logger.debug(f"[RUNNER] Killed {prog} (PID {pid})")
+        asyncio.create_task(kill(prog, pid))
+
     logger.debug(f"[RUNNER] exiting...")
     quit()
 

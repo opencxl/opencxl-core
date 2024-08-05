@@ -107,11 +107,11 @@ class CxlDeviceDvsecInfo:
     ranges: List[CxlDeviceDvsecRangeInfo] = field(default_factory=list)
 
     def print(self, prefix: str = ""):
-        logger.info(f"{prefix}Cache Capable  : {'Yes' if self.cache_capable else 'No'}")
-        logger.info(f"{prefix}IO Capable     : {'Yes' if self.io_capable else 'No'}")
-        logger.info(f"{prefix}Mem Capable    : {'Yes' if self.mem_capable else 'No'}")
+        logger.debug(f"{prefix}Cache Capable  : {'Yes' if self.cache_capable else 'No'}")
+        logger.debug(f"{prefix}IO Capable     : {'Yes' if self.io_capable else 'No'}")
+        logger.debug(f"{prefix}Mem Capable    : {'Yes' if self.mem_capable else 'No'}")
         for range_index, range in enumerate(self.ranges):
-            logger.info(f"{prefix}Range{range_index+1} Size    : 0x{range.memory_size:X}")
+            logger.debug(f"{prefix}Range{range_index+1} Size    : 0x{range.memory_size:X}")
 
 
 @dataclass
@@ -169,7 +169,7 @@ class CxlDeviceInfo:
             )
             return 0
 
-        logger.info(f"{self._get_prefix()}Total of {decoder_count} decoders are supported")
+        logger.debug(f"{self._get_prefix()}Total of {decoder_count} decoders are supported")
         return decoder_count
 
     async def _get_next_available_decoder_index(self, register_base_address: int) -> Optional[int]:
@@ -215,8 +215,8 @@ class CxlDeviceInfo:
             interleaving_granularity & 0xF | (interleaving_way & 0xF) << 4 | commit << 9
         )
 
-        logger.info(f"{self._get_prefix()}HDM Decoder {decoder_index}, HPA Base: 0x{hpa_base:x}")
-        logger.info(f"{self._get_prefix()}HDM Decoder {decoder_index}, HPA Size: 0x{hpa_size:x}")
+        logger.debug(f"{self._get_prefix()}HDM Decoder {decoder_index}, HPA Base: 0x{hpa_base:x}")
+        logger.debug(f"{self._get_prefix()}HDM Decoder {decoder_index}, HPA Size: 0x{hpa_size:x}")
 
         await self.root_complex.write_mmio(decoder_base_low_offset, 4, decoder_base_low)
         await self.root_complex.write_mmio(decoder_base_high_offset, 4, decoder_base_high)
@@ -224,7 +224,7 @@ class CxlDeviceInfo:
         await self.root_complex.write_mmio(decoder_size_high_offset, 4, decoder_size_high)
         await self.root_complex.write_mmio(decoder_control_register_offset, 4, decoder_control)
 
-        logger.info(f"{self._get_prefix()}Waiting until the decoder is committed")
+        logger.debug(f"{self._get_prefix()}Waiting until the decoder is committed")
         committed = False
         while not committed:
             control = await self.root_complex.read_mmio(decoder_control_register_offset, 4)
@@ -255,7 +255,7 @@ class CxlDeviceInfo:
         logger.debug(
             f"{self._get_prefix()}HDM Decoder Capability Offset: 0x{register_base_address:x}"
         )
-        logger.info(f"{self._get_prefix()}Setting HDM Decoder {decoder_index} from CXL Device")
+        logger.debug(f"{self._get_prefix()}Setting HDM Decoder {decoder_index} from CXL Device")
 
         dpa_skip_low_offset = 0x20 * decoder_index + 0x24 + register_base_address
         dpa_skip_high_offset = 0x20 * decoder_index + 0x28 + register_base_address
@@ -273,7 +273,7 @@ class CxlDeviceInfo:
             interleaving_way,
         )
 
-        logger.info(f"{self._get_prefix()}Successfully configured HDM decoder {decoder_index}")
+        logger.debug(f"{self._get_prefix()}Successfully configured HDM decoder {decoder_index}")
         return True
 
     async def configure_hdm_decoder_switch(
@@ -301,14 +301,14 @@ class CxlDeviceInfo:
         logger.debug(
             f"{self._get_prefix()}HDM Decoder Capability Offset: 0x{register_base_address:x}"
         )
-        logger.info(f"{self._get_prefix()}Setting HDM Decoder {decoder_index} from Upstream Port")
+        logger.debug(f"{self._get_prefix()}Setting HDM Decoder {decoder_index} from Upstream Port")
         target_list_low_offset = 0x20 * decoder_index + 0x24 + register_base_address
         target_list_high_offset = 0x20 * decoder_index + 0x28 + register_base_address
         target_list_low = 0
         target_list_high = 0
 
         target_list_str = ", ".join([str(target) for target in target_list])
-        logger.info(
+        logger.debug(
             f"{self._get_prefix()}HDM Decoder {decoder_index}, Target Ports: {target_list_str}"
         )
         for i, _ in enumerate(target_list):
@@ -329,7 +329,7 @@ class CxlDeviceInfo:
             interleaving_way,
         )
 
-        logger.info(f"{self._get_prefix()}Successfully configured HDM decoder {decoder_index}")
+        logger.debug(f"{self._get_prefix()}Successfully configured HDM decoder {decoder_index}")
         return True
 
     # pylint: enable=duplicate-code
@@ -373,16 +373,16 @@ class CxlBusDriver(LabeledComponent):
         return self._devices
 
     def display_devices(self):
-        logger.info(self._create_message("Enumerated CXL Devices"))
-        logger.info(self._create_message("=============================="))
+        logger.debug(self._create_message("Enumerated CXL Devices"))
+        logger.debug(self._create_message("=============================="))
         for device in self._devices:
             pci_info = device.pci_device_info
-            logger.info(self._create_message(f"BDF              : {bdf_to_string(pci_info.bdf)}"))
+            logger.debug(self._create_message(f"BDF              : {bdf_to_string(pci_info.bdf)}"))
             device_port_type = pci_info.get_device_port_type()
             if device_port_type is not None:
-                logger.info(self._create_message(f"Type             : {device_port_type.name}"))
+                logger.debug(self._create_message(f"Type             : {device_port_type.name}"))
             if device.parent:
-                logger.info(
+                logger.debug(
                     self._create_message(
                         f"Parent BDF       : {bdf_to_string(device.parent.pci_device_info.bdf)}"
                     )
@@ -391,13 +391,13 @@ class CxlBusDriver(LabeledComponent):
                 children_bdf_list = [
                     bdf_to_string(child.pci_device_info.bdf) for child in device.children
                 ]
-                logger.info(
+                logger.debug(
                     self._create_message(f"Children BDFs    : {', '.join(children_bdf_list)}")
                 )
             if len(device.dvsecs) > 0:
-                logger.info(self._create_message("DVSEC            :"))
+                logger.debug(self._create_message("DVSEC            :"))
                 for dvsec_info in device.dvsecs:
-                    logger.info(self._create_message(f" - {CXL_DVSEC_ID(dvsec_info.id).name}"))
+                    logger.debug(self._create_message(f" - {CXL_DVSEC_ID(dvsec_info.id).name}"))
                     if (
                         dvsec_info.id == CXL_DVSEC_ID.PCIE_DVSEC_FOR_CXL_DEVICES
                         and device.device_dvsec
@@ -406,19 +406,19 @@ class CxlBusDriver(LabeledComponent):
 
             component_register = device.get_register_by_type(CXL_REGISTER_TYPE.COMPONENT)
             if component_register:
-                logger.info(
+                logger.debug(
                     self._create_message(f"Component Register: 0x{component_register.address:X}")
                 )
                 if len(device.cachemem_registers.items()) > 0:
                     for register in device.cachemem_registers.values():
-                        logger.info(
+                        logger.debug(
                             self._create_message(
                                 f" - {CXL_CACHEMEM_REGISTER_CAPABILITY_ID(register.id).name}: "
                                 f"0x{register.address:X}"
                             )
                         )
 
-            logger.info(self._create_message("------------------------------"))
+            logger.debug(self._create_message("------------------------------"))
 
     async def _connect_cxl_devices(self):
         bdf_map = {}
@@ -479,18 +479,18 @@ class CxlBusDriver(LabeledComponent):
                 offset=bar_offset,
                 address=address,
             )
-            logger.info(
+            logger.debug(
                 self._create_message(
                     f"(Block {block_index + 1}) " f"{register_type.name}, BAR: {register_info.bar}"
                 )
             )
-            logger.info(
+            logger.debug(
                 self._create_message(
                     f"(Block {block_index + 1}) "
                     f"{register_type.name}, OFFSET: 0x{register_info.offset:X}"
                 )
             )
-            logger.info(
+            logger.debug(
                 self._create_message(
                     f"(Block {block_index + 1}) "
                     f"{register_type.name}, ADDRESS: 0x{register_info.address:X}"
@@ -609,7 +609,7 @@ class CxlBusDriver(LabeledComponent):
 
         cxl_cachemem_offset = component_register_info.address + 0x1000
 
-        logger.info(
+        logger.debug(
             self._create_message(
                 f"Scanning CXL.cache and CXL.mem Registers at 0x{cxl_cachemem_offset:x}"
             )
@@ -624,10 +624,10 @@ class CxlBusDriver(LabeledComponent):
         cxl_cachemem_version = (cxl_capability_header >> 20) & 0xF
         array_size = (cxl_capability_header >> 24) & 0xFF
 
-        logger.info(self._create_message(f"cxl_capability_id: {cxl_capability_id:x}"))
-        logger.info(self._create_message(f"cxl_capability_version: {cxl_capability_version:x}"))
-        logger.info(self._create_message(f"cxl_cachemem_version: {cxl_cachemem_version:x}"))
-        logger.info(self._create_message(f"array_size: {array_size:x}"))
+        logger.debug(self._create_message(f"cxl_capability_id: {cxl_capability_id:x}"))
+        logger.debug(self._create_message(f"cxl_capability_version: {cxl_capability_version:x}"))
+        logger.debug(self._create_message(f"cxl_cachemem_version: {cxl_cachemem_version:x}"))
+        logger.debug(self._create_message(f"array_size: {array_size:x}"))
 
         if cxl_capability_id != CXL_CACHEMEM_REGISTER_CAPABILITY_ID.CXL:
             return
@@ -646,7 +646,7 @@ class CxlBusDriver(LabeledComponent):
             offset = (header_info >> 20) & 0xFFF
             cxl_capability_address = cxl_cachemem_offset + offset
             capability_name = CXL_CACHEMEM_REGISTER_CAPABILITY_ID(cxl_capability_id).name
-            logger.info(self._create_message(f"Found {capability_name} Capability Header"))
+            logger.debug(self._create_message(f"Found {capability_name} Capability Header"))
             device_info.cachemem_registers[cxl_capability_id] = CxlCacheMemRegisterInfo(
                 id=cxl_capability_id,
                 version=cxl_capability_version,
@@ -669,7 +669,7 @@ class CxlBusDriver(LabeledComponent):
                     break
             if not is_cxl_device:
                 continue
-            logger.info(self._create_message(f"Found CXL Device at {bdf_to_string(device.bdf)}"))
+            logger.debug(self._create_message(f"Found CXL Device at {bdf_to_string(device.bdf)}"))
             device_info = CxlDeviceInfo(root_complex=self._root_complex, pci_device_info=device)
             self._devices.append(device_info)
             await self._scan_dvsec(device_info)

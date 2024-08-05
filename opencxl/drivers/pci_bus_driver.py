@@ -113,35 +113,35 @@ class PciDeviceInfo:
         return pci_express_capability.port_number
 
     def print(self, prefix: str = ""):
-        logger.info(f"{prefix}BDF              : {bdf_to_string(self.bdf)}")
-        logger.info(f"{prefix}Vendor ID        : 0x{self.vendor_id:04X}")
-        logger.info(f"{prefix}Device ID        : 0x{self.device_id:04X}")
-        logger.info(f"{prefix}Class Code       : 0x{self.class_code:06X}")
-        logger.info(f"{prefix}Is Bridge        : {'Yes' if self.is_bridge else 'No'}")
+        logger.debug(f"{prefix}BDF              : {bdf_to_string(self.bdf)}")
+        logger.debug(f"{prefix}Vendor ID        : 0x{self.vendor_id:04X}")
+        logger.debug(f"{prefix}Device ID        : 0x{self.device_id:04X}")
+        logger.debug(f"{prefix}Class Code       : 0x{self.class_code:06X}")
+        logger.debug(f"{prefix}Is Bridge        : {'Yes' if self.is_bridge else 'No'}")
 
         if self.parent:
-            logger.info(f"{prefix}Parent BDF       : {bdf_to_string(self.parent.bdf)}")
+            logger.debug(f"{prefix}Parent BDF       : {bdf_to_string(self.parent.bdf)}")
 
         if len(self.children) > 0:
             children_bdf_list = [bdf_to_string(child.bdf) for child in self.children]
-            logger.info(f"{prefix}Children BDFs    : {', '.join(children_bdf_list)}")
+            logger.debug(f"{prefix}Children BDFs    : {', '.join(children_bdf_list)}")
 
         for bar_index, bar_info in enumerate(self.bars):
-            logger.info(f"{prefix}BAR{bar_index} Base Address: 0x{bar_info.base_address:X}")
-            logger.info(f"{prefix}BAR{bar_index} Size        : {bar_info.size}")
+            logger.debug(f"{prefix}BAR{bar_index} Base Address: 0x{bar_info.base_address:X}")
+            logger.debug(f"{prefix}BAR{bar_index} Size        : {bar_info.size}")
 
         if len(self.capabilities) > 0:
-            logger.info(f"{prefix}Capabilities        :")
+            logger.debug(f"{prefix}Capabilities        :")
             for capability in self.capabilities:
                 if capability.is_extended:
                     supported_cap_id_list = [member.value for member in PCI_EXTENDED_CAPABILITY_ID]
                     if capability.id in supported_cap_id_list:
                         cap_name = PCI_EXTENDED_CAPABILITY_ID(capability.id).name
-                        logger.info(
+                        logger.debug(
                             f"{prefix} - {cap_name} Extended Capability: 0x{capability.offset:X}"
                         )
                     else:
-                        logger.info(
+                        logger.debug(
                             f"{prefix} - Extended Capability ID 0x{capability.id:03X}: "
                             f"0x{capability.offset:X}"
                         )
@@ -149,16 +149,16 @@ class PciDeviceInfo:
                     supported_cap_id_list = [member.value for member in PCI_CAPABILITY_ID]
                     if capability.id in supported_cap_id_list:
                         cap_name = PCI_CAPABILITY_ID(capability.id).name
-                        logger.info(f"{prefix} - {cap_name} Capability: 0x{capability.offset:X}")
+                        logger.debug(f"{prefix} - {cap_name} Capability: 0x{capability.offset:X}")
                     else:
-                        logger.info(
+                        logger.debug(
                             f"{prefix} - Capability ID 0x{capability.id:02X}: "
                             f"0x{capability.offset:X}"
                         )
                     if capability.id == PCI_CAPABILITY_ID.PCI_EXPRESS:
                         pxcap = cast(PciExpressCapabilityInfo, capability)
-                        logger.info(f"{prefix}    - Port Number: {pxcap.port_number}")
-                        logger.info(
+                        logger.debug(f"{prefix}    - Port Number: {pxcap.port_number}")
+                        logger.debug(
                             f"{prefix}    - Device/Port Type: {pxcap.device_port_type.name}"
                         )
 
@@ -179,11 +179,11 @@ class PciBusDriver(LabeledComponent):
         return self._devices
 
     def display_devices(self):
-        logger.info(self._create_message("Enumerated PCI Devices"))
-        logger.info(self._create_message("=============================="))
+        logger.debug(self._create_message("Enumerated PCI Devices"))
+        logger.debug(self._create_message("=============================="))
         for device in self._devices:
             device.print("[PciBusDriver] ")
-            logger.info(self._create_message("------------------------------"))
+            logger.debug(self._create_message("------------------------------"))
 
     async def _scan_pci_devices(self):
         root_bus = self._root_complex.get_root_bus()
@@ -209,7 +209,7 @@ class PciBusDriver(LabeledComponent):
 
     async def _set_secondary_bus(self, bdf: int, secondary_bus: int):
         bdf_string = bdf_to_string(bdf)
-        logger.info(
+        logger.debug(
             self._create_message(f"Setting secondary bus of device {bdf_string} to {secondary_bus}")
         )
 
@@ -222,7 +222,7 @@ class PciBusDriver(LabeledComponent):
 
     async def _set_subordinate_bus(self, bdf: int, subordinate_bus: int):
         bdf_string = bdf_to_string(bdf)
-        logger.info(
+        logger.debug(
             self._create_message(
                 f"Setting subordinate bus of device {bdf_string} to {subordinate_bus}"
             )
@@ -237,7 +237,7 @@ class PciBusDriver(LabeledComponent):
 
     async def _set_memory_base(self, bdf: int, address_base: int):
         bdf_string = bdf_to_string(bdf)
-        logger.info(
+        logger.debug(
             self._create_message(
                 f"Setting memory base of device {bdf_string} to {address_base:08x}"
             )
@@ -251,7 +251,7 @@ class PciBusDriver(LabeledComponent):
         )
 
     async def _set_memory_limit(self, bdf: int, address_limit: int):
-        logger.info(
+        logger.debug(
             self._create_message(
                 f"Setting memory limit of device {bdf_to_string(bdf)} to {address_limit:08x}"
             )
@@ -266,7 +266,7 @@ class PciBusDriver(LabeledComponent):
 
     async def _set_prefetchable_memory_base(self, bdf: int, address_base: int):
         bdf_string = bdf_to_string(bdf)
-        logger.info(
+        logger.debug(
             self._create_message(
                 f"Setting prefetchable memory base of device {bdf_string} to {address_base:08x}"
             )
@@ -290,7 +290,7 @@ class PciBusDriver(LabeledComponent):
         )
 
     async def _set_prefetchable_memory_limit(self, bdf: int, address_limit: int):
-        logger.info(
+        logger.debug(
             self._create_message(
                 f"Setting prefetchable memory limit of device {bdf_to_string(bdf)}"
                 f" to {address_limit:08x}"
@@ -384,14 +384,14 @@ class PciBusDriver(LabeledComponent):
 
     async def _check_bar_size_and_set(self, bdf: int, memory_base: int, device_info: PciDeviceInfo):
         bdf_string = bdf_to_string(bdf)
-        logger.info(self._create_message(f"Checking BAR0 size of device {bdf_string}"))
+        logger.debug(self._create_message(f"Checking BAR0 size of device {bdf_string}"))
 
         # NOTE: Write 0xFFFFFFFF to BAR0 to get the size of BAR0
         await self._set_bar0(bdf, 0xFFFFFFFF)
         size = await self._get_bar0_size(bdf)
-        logger.info(self._create_message(f"BAR0 size of device {bdf_string} is {size}"))
+        logger.debug(self._create_message(f"BAR0 size of device {bdf_string} is {size}"))
         if size > 0:
-            logger.info(
+            logger.debug(
                 self._create_message(
                     f"Setting BAR0 address of device {bdf_string} to 0x{memory_base:08x}"
                 )
@@ -419,13 +419,13 @@ class PciBusDriver(LabeledComponent):
         support_cap_id_list = [member.value for member in PCI_EXTENDED_CAPABILITY_ID]
         if cap_id in support_cap_id_list:
             cap_name = PCI_EXTENDED_CAPABILITY_ID(cap_id).name
-            logger.info(
+            logger.debug(
                 self._create_message(
                     f"Found {cap_name} Extended Capbility at 0x{offset:02X} - ID: 0x{cap_id:02X}"
                 )
             )
         else:
-            logger.info(
+            logger.debug(
                 self._create_message(
                     f"Found PCI Extended Capbility at 0x{offset:02X} - ID: 0x{cap_id:02X}"
                 )
@@ -461,14 +461,14 @@ class PciBusDriver(LabeledComponent):
 
         support_cap_id_list = [member.value for member in PCI_CAPABILITY_ID]
         if cap_id in support_cap_id_list:
-            logger.info(
+            logger.debug(
                 self._create_message(
                     f"Found {PCI_CAPABILITY_ID(cap_id).name} Capbility at 0x{offset:02X}"
                     f" - ID: 0x{cap_id:02X}"
                 )
             )
         else:
-            logger.info(
+            logger.debug(
                 self._create_message(f"Found PCI Capbility at 0x{offset:02X} - ID: 0x{cap_id:02X}")
             )
 
@@ -543,10 +543,10 @@ class PciBusDriver(LabeledComponent):
             if size > 0:
                 memory_start += 0x100000
             else:
-                logger.info(self._create_message(f"BAR0 size of {bdf_to_string(bdf)} is {size}"))
+                logger.debug(self._create_message(f"BAR0 size of {bdf_to_string(bdf)} is {size}"))
 
             if is_bridge:
-                logger.info(
+                logger.debug(
                     self._create_message(
                         f"Found a bridge device at {bdf_to_string(bdf)} (VID/DID:{vid_did:08x})"
                     )
@@ -569,7 +569,7 @@ class PciBusDriver(LabeledComponent):
                 await self._set_prefetchable_memory_base(bdf, 0xFFF00000)
                 await self._set_prefetchable_memory_limit(bdf, 0xFFE00000)
             else:
-                logger.info(
+                logger.debug(
                     self._create_message(
                         f"Found an endpoint device at {bdf_to_string(bdf)} "
                         f"(VID/DID:{vid_did:08x})"
