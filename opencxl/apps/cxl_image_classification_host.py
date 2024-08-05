@@ -15,6 +15,8 @@ from typing import Dict, Optional, List
 from random import sample
 from tqdm import tqdm
 
+from tqdm import tqdm, trange
+
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.logger import logger
 from opencxl.cxl.transport.memory_fifo import (
@@ -115,28 +117,21 @@ class HostTrainIoGen(RunnableComponent):
                 pbar.update(chunk_size)
         return result
 
-    async def store(self, address: int, size: int, value: int, prog_bar: bool = False):
+    async def store(self, address: int, size: int, value: int, show_progress: bool = False):
         if address % 64 != 0 or size % 64 != 0:
             raise Exception("Size and address must be aligned to 64!")
 
-        with tqdm(
-            total=size,
-            desc="Writing Data",
-            unit="iB",
-            unit_scale=True,
-            unit_divisor=1024,
-            disable=not prog_bar,
-        ) as pbar:
-            chunk_count = 0
-            while size > 0:
-                low_64_byte = value & ((1 << (64 * 8)) - 1)
-                await self._cache_controller.cache_coherent_store(
-                    address + (chunk_count * 64), 64, low_64_byte
-                )
-                size -= 64
-                chunk_count += 1
-                value >>= 64 * 8
-                pbar.update(64)
+        # show progress for large stores
+        chunk_count = 0
+        rangeobj = trange(size, 0, -64) if show_progress else range(size, 0, -64)
+
+        for _ in rangeobj:
+            low_64_byte = value & ((1 << (64 * 8)) - 1)
+            await self._cache_controller.cache_coherent_store(
+                address + (chunk_count * 64), 64, low_64_byte
+            )
+            chunk_count += 1
+            value >>= 64 * 8
 
     async def write_config(self, bdf: int, offset: int, size: int, value: int):
         await self._root_complex.write_config(bdf, offset, size, value)
@@ -290,18 +285,22 @@ class HostTrainIoGen(RunnableComponent):
             self._sampled_file_categories += [category_name] * self._sample_from_each_category
             for s in sample_pics:
                 with open(s, "rb") as f:
+                    print(f"[HOST] absolute path is {os.path.abspath(s)}")
                     pic_data = f.read()
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
+                    print(f"[HOST] pic_data_len:{pic_data_len}")
                     for dev_id in range(self._device_count):
                         event = asyncio.Event()
+                        print(f"[HOST] writing to {self.to_device_mem_addr(dev_id, 0x00008000):x}")
                         print(f"@@{dev_id}:{self.to_device_mem_addr(dev_id, 0x00008000):x}")
                         await self.store(
                             self.to_device_mem_addr(dev_id, 0x00008000),
                             pic_data_len_rounded,
                             pic_data_int,
                         )
+                        print(f"length of picture is {pic_data_len_rounded}")
                         await self.write_mmio(
                             self.to_device_mmio_addr(dev_id, 0x1810), 8, 0x00008000
                         )
@@ -350,17 +349,17 @@ class HostTrainIoGen(RunnableComponent):
         # Pass init-info mem location to the remote using MMIO
         csv_data_mem_loc = 0x00004000
         csv_data = b""
-        logger.debug(self._create_message("Host main process waiting..."))
+        logger.info(self._create_message("Host main process waiting..."))
         await self._start_signal.wait()
-        logger.debug(self._create_message("Host main process running!"))
+        logger.info(self._create_message("Host main process running!"))
         with open(f"{self._train_data_path}/noisy_imagenette.csv", "rb") as f:
             csv_data = f.read()
         csv_data_int = int.from_bytes(csv_data, "little")
         csv_data_len = len(csv_data)
         csv_data_len_rounded = (((csv_data_len - 1) // 64) + 1) * 64
-        logger.debug(self._create_message("Storing metadata..."))
-        await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
-        logger.debug(self._create_message("Finished storing metadata!"))
+        logger.info(self._create_message("Storing metadata..."))
+        await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int, show_progress=True)
+        logger.info(self._create_message("Finished storing metadata!"))
 
         for dev_id in range(self._device_count):
             await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, csv_data_mem_loc)

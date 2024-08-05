@@ -329,7 +329,9 @@ class CxlDeviceInfo:
             interleaving_way,
         )
 
-        logger.debug(f"{self._get_prefix()}Successfully configured HDM decoder {decoder_index}")
+        logger.debug(
+            f"{self._get_prefix()}Successfully configured HDM decoder (switch) {decoder_index}"
+        )
         return True
 
     # pylint: enable=duplicate-code
