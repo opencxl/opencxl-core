@@ -62,17 +62,21 @@ async def run_demo(signame=None):
     hpa_base = 0x0
     next_available_hpa_base = hpa_base
 
+    # hack for demo purposes
     for device in cxl_mem_driver.get_devices():
         size = device.get_memory_size()
         successful = await cxl_mem_driver.attach_single_mem_device(
             device, next_available_hpa_base, size
         )
         if successful:
+            print("[HOST] device attached")
             host.append_dev_mmio_range(
                 device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
             )
             host.append_dev_mem_range(next_available_hpa_base, size)
             next_available_hpa_base += size
+
+    print("[HOST] all devices enumerated")
 
     await host.start_job()
 
