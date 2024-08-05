@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms, datasets
 from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
 from torchinfo import summary
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from opencxl.util.logger import logger
 from opencxl.util.number import split_int

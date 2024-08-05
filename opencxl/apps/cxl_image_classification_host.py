@@ -13,9 +13,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List
 from random import sample
-from tqdm import tqdm
-
-from tqdm import tqdm, trange
+from tqdm.auto import tqdm, trange
 
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.logger import logger
@@ -117,21 +115,28 @@ class HostTrainIoGen(RunnableComponent):
                 pbar.update(chunk_size)
         return result
 
-    async def store(self, address: int, size: int, value: int, show_progress: bool = False):
+    async def store(self, address: int, size: int, value: int, prog_bar: bool = False):
         if address % 64 != 0 or size % 64 != 0:
             raise Exception("Size and address must be aligned to 64!")
 
-        # show progress for large stores
-        chunk_count = 0
-        rangeobj = trange(size, 0, -64) if show_progress else range(size, 0, -64)
-
-        for _ in rangeobj:
-            low_64_byte = value & ((1 << (64 * 8)) - 1)
-            await self._cache_controller.cache_coherent_store(
-                address + (chunk_count * 64), 64, low_64_byte
-            )
-            chunk_count += 1
-            value >>= 64 * 8
+        with tqdm(
+            total=size,
+            desc="Writing Data",
+            unit="iB",
+            unit_scale=True,
+            unit_divisor=1024,
+            disable=not prog_bar,
+        ) as pbar:
+            chunk_count = 0
+            while size > 0:
+                low_64_byte = value & ((1 << (64 * 8)) - 1)
+                await self._cache_controller.cache_coherent_store(
+                    address + (chunk_count * 64), 64, low_64_byte
+                )
+                size -= 64
+                chunk_count += 1
+                value >>= 64 * 8
+                pbar.update(64)
 
     async def write_config(self, bdf: int, offset: int, size: int, value: int):
         await self._root_complex.write_config(bdf, offset, size, value)
@@ -164,7 +169,11 @@ class HostTrainIoGen(RunnableComponent):
         self._validation_results = [[] for _ in range(self._total_samples)]
         pic_id = 0
         pic_data_mem_loc = 0x00008000
-        with tqdm(total=self._total_samples, desc="Category", position=1) as pbar_cat:
+        logger.info(
+            f"Validation process started. Total pictures: {self._total_samples}, "
+            f"Num. of Accelerators: {self._device_count}"
+        )
+        with tqdm(total=self._total_samples, desc="Picture", position=0) as pbar_cat:
             for c in categories:
                 logger.debug(self._create_message(f"Validating category: {c}"))
                 category_pics = glob.glob(f"{c}/*.JPEG")
@@ -188,7 +197,12 @@ class HostTrainIoGen(RunnableComponent):
                             pic_data_len_rounded,
                             pic_data_int,
                         )
-                        for dev_id in tqdm(range(self._device_count), desc="Device", position=2):
+                        for dev_id in tqdm(
+                            range(self._device_count),
+                            desc="Device Progress",
+                            position=1,
+                            leave=False,
+                        ):
                             event = asyncio.Event()
                             self._irq_handler.register_interrupt_handler(
                                 Irq.ACCEL_VALIDATION_FINISHED,
