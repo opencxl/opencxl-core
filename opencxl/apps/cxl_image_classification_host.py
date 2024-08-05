@@ -114,7 +114,6 @@ class HostTrainIoGen(RunnableComponent):
         if address % 64 != 0 or size % 64 != 0:
             raise Exception("Size and address must be aligned to 64!")
 
-        pbar = tqdm(total=size, desc="Writing Data")
         chunk_count = 0
         rangeobj = trange(size, 0, -64) if show_progress else range(size, 0, -64)
 
@@ -125,7 +124,6 @@ class HostTrainIoGen(RunnableComponent):
             )
             chunk_count += 1
             value >>= 64 * 8
-            pbar.update(64)
 
     async def write_config(self, bdf: int, offset: int, size: int, value: int):
         await self._root_complex.write_config(bdf, offset, size, value)
