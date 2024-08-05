@@ -85,6 +85,7 @@ class HostTrainIoGen(RunnableComponent):
         self._stop_signal = asyncio.Event()
         self._internal_stop_signal = asyncio.Event()
         self._train_finished_count = 0
+        self._validation_results_lock = asyncio.Lock()
 
     def append_dev_mmio_range(self, base, size):
         self._dev_mmio_ranges.append((base, size))
@@ -197,6 +198,7 @@ class HostTrainIoGen(RunnableComponent):
                             pic_data_len_rounded,
                             pic_data_int,
                         )
+                        pic_events: list[asyncio.Event] = []
                         for dev_id in tqdm(
                             range(self._device_count),
                             desc="Device Progress",
@@ -204,6 +206,7 @@ class HostTrainIoGen(RunnableComponent):
                             leave=False,
                         ):
                             event = asyncio.Event()
+                            pic_events.append(event)
                             self._irq_handler.register_interrupt_handler(
                                 Irq.ACCEL_VALIDATION_FINISHED,
                                 self._save_validation_result_type1(pic_id, event),
@@ -232,10 +235,11 @@ class HostTrainIoGen(RunnableComponent):
                                 await asyncio.sleep(0.2)
 
                             await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
-                            await event.wait()
                             # Currently we don't send the picture information
                             # (e.g., pic_id) to the device
                             # and to prevent race condition, we need to send pics synchronously
+                        for e in pic_events:
+                            await e.wait()
                         pic_data_mem_loc += pic_data_len
                         pic_data_mem_loc = (((pic_data_mem_loc - 1) // 64) + 1) * 64
                         pic_id += 1
@@ -249,7 +253,8 @@ class HostTrainIoGen(RunnableComponent):
             host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
             data_bytes = await self.load(host_result_addr, host_result_len)
             validate_result = json.loads(data_bytes.decode())
-            self._validation_results[pic_id].append(validate_result)
+            async with self._validation_results_lock:
+                self._validation_results[pic_id].append(validate_result)
             event.set()
 
         return _func
@@ -372,7 +377,7 @@ class HostTrainIoGen(RunnableComponent):
         csv_data_len = len(csv_data)
         csv_data_len_rounded = (((csv_data_len - 1) // 64) + 1) * 64
         logger.info(self._create_message("Storing metadata..."))
-        await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int, show_progress=True)
+        await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int, prog_bar=True)
         logger.info(self._create_message("Finished storing metadata!"))
 
         for dev_id in range(self._device_count):
