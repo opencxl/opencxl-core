@@ -7,7 +7,9 @@ from opencxl.cxl.component.cxl_component import PORT_TYPE, PortConfig
 from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.virtual_switch_manager import VirtualSwitchConfig, VirtualSwitchManager
+from opencxl.util.logger import logger
 
+logger.setLevel("WARNING")
 sw_conn_manager = None
 physical_port_manager = None
 virtual_switch_manager = None
@@ -31,11 +33,11 @@ async def shutdown(signame=None):
         ]
 
     except Exception as exc:
-        print("[SWITCH]", exc.__traceback__)
+        logger.debug("[SWITCH]", exc.__traceback__)
         quit()
     await asyncio.gather(*stop_tasks, return_exceptions=True)
     await asyncio.gather(*start_tasks)
-    print("Switch quitted")
+    logger.debug("Switch quitted")
     os._exit(0)
 
 
@@ -45,7 +47,7 @@ async def main():
     lp.add_signal_handler(SIGINT, lambda signame="SIGINT": asyncio.create_task(shutdown(signame)))
 
     portno = int(sys.argv[1])
-    print(f"[SWITCH] listening on port {portno}")
+    logger.debug(f"[SWITCH] listening on port {portno}")
 
     global sw_conn_manager
     global physical_port_manager
@@ -84,7 +86,7 @@ async def main():
     os.kill(os.getppid(), SIGCONT)
 
     await asyncio.gather(*ready_tasks)
-    print("[SWITCH] ready!")
+    logger.debug("[SWITCH] ready!")
     await asyncio.Event().wait()  # blocks
 
 

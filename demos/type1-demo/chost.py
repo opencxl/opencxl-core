@@ -3,7 +3,6 @@
 from signal import *
 import asyncio
 import sys, os
-from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
 
 from opencxl.apps.cxl_image_classification_host import (
     CxlImageClassificationHost,
@@ -19,6 +18,9 @@ from opencxl.cxl.component.root_complex.root_port_switch import (
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from opencxl.drivers.pci_bus_driver import PciBusDriver
+from opencxl.util.logger import logger
+
+logger.setLevel("WARNING")
 
 host: CxlImageClassificationHost = None
 
@@ -37,11 +39,11 @@ async def shutdown(signame=None):
             asyncio.create_task(host.stop()),
         ]
     except Exception as exc:
-        print("[HOST]", exc.__traceback__)
+        logger.debug("[HOST]", exc.__traceback__)
         quit()
     await asyncio.gather(*stop_tasks, return_exceptions=True)
     await asyncio.gather(*start_tasks)
-    print("Host quitted")
+    logger.debug("Host quitted")
     os._exit(0)
 
 
@@ -60,7 +62,7 @@ async def main():
 
     sw_portno = int(sys.argv[1])
     train_data_path = sys.argv[2]
-    print(f"[HOST] listening on port {sw_portno}, train_data_path: {train_data_path}")
+    logger.debug(f"[HOST] listening on port {sw_portno}, train_data_path: {train_data_path}")
 
     global host
     global start_tasks
@@ -109,7 +111,7 @@ async def main():
         if device.device_dvsec:
             if device.device_dvsec.cache_capable:
                 cache_dev_count += 1
-    print(f"cache_dev_count: {cache_dev_count}")
+    logger.debug(f"cache_dev_count: {cache_dev_count}")
 
     host.set_device_count(cache_dev_count)
     host.get_root_complex().set_cache_coh_dev_count(cache_dev_count)
@@ -122,7 +124,7 @@ async def main():
             device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
         )
 
-    print("[HOST] ready!")
+    logger.debug("[HOST] ready!")
 
     await stop_signal.wait()
 

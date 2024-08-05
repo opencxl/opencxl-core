@@ -4,13 +4,9 @@ from signal import *
 import asyncio
 import sys, os
 from opencxl.apps.accelerator import MyType1Accelerator
+from opencxl.util.logger import logger
 
-from opencxl.cxl.component.cxl_component import PORT_TYPE, PortConfig
-from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
-from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
-from opencxl.cxl.component.virtual_switch_manager import VirtualSwitchConfig, VirtualSwitchManager
-from opencxl.util.number_const import MB
-
+logger.setLevel("WARNING")
 device = None
 start_tasks = []
 stop_signal = asyncio.Event()
@@ -28,7 +24,7 @@ async def shutdown(signame=None):
         await asyncio.gather(*stop_tasks)
         await asyncio.gather(*start_tasks)
     except Exception as exc:
-        print("[ACCEL]", exc.__traceback__)
+        logger.debug("[ACCEL]", exc.__traceback__)
     finally:
         os._exit(0)
 
@@ -42,7 +38,7 @@ async def main():
     portidx = int(sys.argv[2])
     train_data_path = sys.argv[3]
 
-    print(f"[ACCEL] listening on port {sw_portno} and physical port {portidx}")
+    logger.debug(f"[ACCEL] listening on port {sw_portno} and physical port {portidx}")
 
     global device
     global start_tasks
@@ -67,7 +63,7 @@ async def main():
     os.kill(os.getppid(), SIGCONT)
 
     await asyncio.gather(*ready_tasks)
-    print("[ACCEL] ready!")
+    logger.debug("[ACCEL] ready!")
 
     await stop_signal.wait()
 

@@ -4,7 +4,9 @@ import asyncio
 from signal import *
 import os
 import argparse
-import time
+from opencxl.util.logger import logger
+
+logger.setLevel("WARNING")
 
 sw_port = "22500"
 
@@ -25,12 +27,12 @@ def clean_shutdown(signum=None, frame=None):
     stop_signal.set()
     pthread_sigmask(SIG_BLOCK, [SIGINT])
     for prog, pid in jobs.items():
-        print(f"[RUNNER] Killing {prog} (PID {pid})")
+        logger.debug(f"[RUNNER] Killing {prog} (PID {pid})")
         # propagate SIGINT
         os.kill(pid, SIGINT)
         os.waitpid(pid, 0)
-        print(f"[RUNNER] Killed {prog} (PID {pid})")
-    print(f"[RUNNER] exiting...")
+        logger.debug(f"[RUNNER] Killed {prog} (PID {pid})")
+    logger.debug(f"[RUNNER] exiting...")
     quit()
 
 
@@ -45,7 +47,7 @@ def run_next_app(signum=None, frame=None):
 
     pthread_sigmask(SIG_BLOCK, [SIGCONT])
 
-    print("[RUNNER] SIGCONT received")
+    logger.debug("[RUNNER] SIGCONT received")
 
     global run_progress, jobs, stop_signal
 
@@ -61,7 +63,7 @@ def run_next_app(signum=None, frame=None):
         # child process
         try:
             if os.execvp(program, (program, *args)) == -1:
-                print("EXECVE FAIL!!!")
+                logger.debug("EXECVE FAIL!!!")
         except PermissionError as exc:
             raise RuntimeError(f'Failed to invoke "{program}" with args {args}') from exc
         except FileNotFoundError as exc:
@@ -70,7 +72,7 @@ def run_next_app(signum=None, frame=None):
         run_progress += 1
         jobs[component_name] = chld
         pthread_sigmask(SIG_UNBLOCK, [SIGCONT])
-        print(f"[RUNNER] PID {chld}")
+        logger.debug(f"[RUNNER] PID {chld}")
 
 
 if __name__ == "__main__":
@@ -99,7 +101,7 @@ if __name__ == "__main__":
     num_accels = args["na"]
 
     if not os.path.exists(train_data_path) or not os.path.isdir(train_data_path):
-        print(f"Path {train_data_path} does not exist, or is not a folder.")
+        logger.debug(f"Path {train_data_path} does not exist, or is not a folder.")
         quit(1)
 
     RUN_LIST = [

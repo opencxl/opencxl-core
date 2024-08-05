@@ -13,6 +13,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List
 from random import sample
+from tqdm import tqdm
 
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.logger import logger
@@ -98,17 +99,20 @@ class HostTrainIoGen(RunnableComponent):
     async def load(self, address: int, size: int) -> bytes:
         end = address + size
         result = b""
+        pbar = tqdm(total=size, desc="Reading Data")
         for cacheline_offset in range(address, address + size, 64):
             cacheline = await self._cache_controller.cache_coherent_load(cacheline_offset, 64)
             chunk_size = min(64, (end - cacheline_offset))
             chunk_data = cacheline.to_bytes(64, "little")
             result += chunk_data[:chunk_size]
+            pbar.update(chunk_size)
         return result
 
     async def store(self, address: int, size: int, value: int):
         if address % 64 != 0 or size % 64 != 0:
             raise Exception("Size and address must be aligned to 64!")
 
+        pbar = tqdm(total=size, desc="Writing Data")
         chunk_count = 0
         while size > 0:
             low_64_byte = value & ((1 << (64 * 8)) - 1)
@@ -118,6 +122,7 @@ class HostTrainIoGen(RunnableComponent):
             size -= 64
             chunk_count += 1
             value >>= 64 * 8
+            pbar.update(64)
 
     async def write_config(self, bdf: int, offset: int, size: int, value: int):
         await self._root_complex.write_config(bdf, offset, size, value)
@@ -148,9 +153,10 @@ class HostTrainIoGen(RunnableComponent):
     async def _host_process_validation_type1(self, _: int):
         categories = glob.glob(self._train_data_path + "/val/*")
         self._total_samples = len(categories) * self._sample_from_each_category
-        self._validation_results = [[] for i in range(self._total_samples)]
+        self._validation_results = [[] for _ in range(self._total_samples)]
         pic_id = 0
         pic_data_mem_loc = 0x00008000
+        pbar_cat = tqdm(total=self._total_samples, desc="Category")
         for c in categories:
             logger.debug(self._create_message(f"Validating category: {c}"))
             category_pics = glob.glob(f"{c}/*.JPEG")
@@ -168,17 +174,13 @@ class HostTrainIoGen(RunnableComponent):
                             f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
                         )
                     )
-                    for dev_id in range(self._device_count):
-                        await self.store(
-                            pic_data_mem_loc,
-                            pic_data_len_rounded,
-                            pic_data_int,
-                        )
-                    for dev_id in range(self._device_count):
-                        # Remember to configure the device when starting the app
-                        # Should make sure to_device_addr returns correct mmio for that dev_id
-                        # In fact, we can use a fixed host memory addr
-                        # and we only need to write the length to the device
+
+                    await self.store(
+                        pic_data_mem_loc,
+                        pic_data_len_rounded,
+                        pic_data_int,
+                    )
+                    for dev_id in tqdm(range(self._device_count), desc="Device"):
                         event = asyncio.Event()
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
@@ -215,13 +217,12 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data_mem_loc += pic_data_len
                     pic_data_mem_loc = (((pic_data_mem_loc - 1) // 64) + 1) * 64
                     pic_id += 1
+                    pbar_cat.update(1)
         self._merge_validation_results()
 
     def _save_validation_result_type1(self, pic_id: int, event: asyncio.Event):
         async def _func(dev_id: int):
-            print(f"saving validation results pic: {pic_id}, dev: {dev_id}")
-            # We can use a fixed host_result_addr, say 0x0A000000
-            # Only length is needed
+            logger.debug(f"Saving validation results pic: {pic_id}, dev: {dev_id}")
             host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1820), 8)
             host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
             data_bytes = await self.load(host_result_addr, host_result_len)
@@ -280,7 +281,6 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
-                    # print(f"pic_data_len:{pic_data_len}, {pic_data_int}")
                     for dev_id in range(self._device_count):
                         event = asyncio.Event()
                         print(f"@@{dev_id}:{self.to_device_mem_addr(dev_id, 0x00008000):x}")
@@ -323,9 +323,7 @@ class HostTrainIoGen(RunnableComponent):
 
     def _save_validation_result_type2(self, dev_id: int, pic_id: int, event: asyncio.Event):
         async def _func(dev_id: int):
-            print(f"saving validation results pic: {pic_id}, dev: {dev_id}")
-            # We can use a fixed host_result_addr, say 0x0A000000
-            # Only length is needed
+            print(f"Saving validation results for pic: {pic_id} from dev: {dev_id}")
             host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1820), 8)
             host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
             data_bytes = await self.load(host_result_addr, host_result_len)
