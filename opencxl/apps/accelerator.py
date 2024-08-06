@@ -97,15 +97,15 @@ class MyType1Accelerator(RunnableComponent):
             target_is_directory=True,
         )
         # Model setup
-        self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
+        self._model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
 
         # Reset the classification head and freeze params
-        self.model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
-        for p in self.model.features.parameters():
+        self._model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
+        for p in self._model.features.parameters():
             p.requires_grad = False
-        summary(self.model, input_size=(1, 3, 160, 160))
+        summary(self._model, input_size=(1, 3, 160, 160))
 
-        self.transform = transforms.Compose(
+        self._transform = transforms.Compose(
             [
                 transforms.Resize((160, 160)),
                 transforms.ToTensor(),
@@ -113,13 +113,13 @@ class MyType1Accelerator(RunnableComponent):
         )
 
         self._train_dataset = datasets.ImageFolder(
-            root=self._train_folder, transform=self.transform
+            root=self._train_folder, transform=self._transform
         )
         self._train_dataloader = DataLoader(
             self._train_dataset, batch_size=32, shuffle=True, num_workers=4
         )
 
-        self._test_dataset = datasets.ImageFolder(root=self._val_folder, transform=self.transform)
+        self._test_dataset = datasets.ImageFolder(root=self._val_folder, transform=self._transform)
         self._test_dataloader = DataLoader(
             self._train_dataset, batch_size=10, shuffle=True, num_workers=4
         )
@@ -147,7 +147,7 @@ class MyType1Accelerator(RunnableComponent):
         loss_fn,
     ):
         # pylint: disable=unused-variable
-        self.model.train()
+        self._model.train()
         correct_count = 0
         running_train_loss = 0
         inputs: torch.Tensor
@@ -163,7 +163,7 @@ class MyType1Accelerator(RunnableComponent):
             labels = labels.to(device)
 
             # logits
-            pred_logits = self.model(inputs)
+            pred_logits = self._model(inputs)
             loss = loss_fn(pred_logits, labels)
             predicted_prob = torch.softmax(pred_logits, dim=1)
             pred_classes = torch.argmax(predicted_prob, dim=1)
@@ -185,7 +185,7 @@ class MyType1Accelerator(RunnableComponent):
         if device == "cuda:0":
             torch.cuda.empty_cache()
 
-        self.model.eval()
+        self._model.eval()
         with torch.no_grad():
             running_test_loss = 0
             correct_count = 0
@@ -199,7 +199,7 @@ class MyType1Accelerator(RunnableComponent):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
-                pred_logit = self.model(inputs)
+                pred_logit = self._model(inputs)
                 loss = loss_fn(pred_logit, labels)
                 running_test_loss += loss.item() * inputs.size(0)
 
@@ -279,13 +279,13 @@ class MyType1Accelerator(RunnableComponent):
     async def _validate_model(self, _):
         # pylint: disable=E1101
         im = await self._get_test_image()
-        tens = cast(torch.Tensor, self.transform(im))
+        tens = cast(torch.Tensor, self._transform(im))
 
         # Model expects a 4-dimensional tensor
         tens = torch.unsqueeze(tens, 0)
         tens = tens.to(self._torch_device)
 
-        pred_logit = self.model(tens)
+        pred_logit = self._model(tens)
         predicted_probs = torch.softmax(pred_logit, dim=1)[0]
 
         categories = glob.glob(f"{self._val_folder}{os.path.sep}*")
@@ -346,7 +346,7 @@ class MyType1Accelerator(RunnableComponent):
             # for epoch in range(epochs):
             #     logger.debug(self._create_message(f"Starting epoch: {epoch}"))
             #     loss_fn = torch.nn.CrossEntropyLoss()
-            #     optimizer = torch.optim.SGD(self.model.parameters())
+            #     optimizer = torch.optim.SGD(self._model.parameters())
             #     scheduler = torch.optim.lr_scheduler.LinearLR(
             #         optimizer, start_factor=1, end_factor=0.5, total_iters=30
             #     )
@@ -443,6 +443,13 @@ class MyType2Accelerator(RunnableComponent):
         self.accel_dirname = f"T2Accel@{port_index}"
         self.train_data_path = train_data_path
         self._torch_device = None
+        self._model = None
+        self._transform = None
+        self._train_dataset = None
+        self._train_dataloader = None
+        self._test_dataset = None
+        self._test_dataloader = None
+        self._wait_tasks = None
 
         self._irq_manager = IrqManager(
             addr="localhost",
@@ -475,26 +482,26 @@ class MyType2Accelerator(RunnableComponent):
         os.chdir(self.accel_dirname)
 
         # Model setup
-        self.model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
+        self._model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
 
-        self.model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
-        for p in self.model.features.parameters():
+        self._model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
+        for p in self._model.features.parameters():
             p.requires_grad = False
-        summary(self.model, input_size=(1, 3, 160, 160))
+        summary(self._model, input_size=(1, 3, 160, 160))
 
-        self.transform = transforms.Compose(
+        self._transform = transforms.Compose(
             [
                 transforms.Resize((160, 160)),
                 transforms.ToTensor(),
             ]
         )
 
-        self._train_dataset = datasets.ImageFolder(root=train_dir, transform=self.transform)
+        self._train_dataset = datasets.ImageFolder(root=train_dir, transform=self._transform)
         self._train_dataloader = DataLoader(
             self._train_dataset, batch_size=32, shuffle=True, num_workers=4
         )
 
-        self._test_dataset = datasets.ImageFolder(root=val_dir, transform=self.transform)
+        self._test_dataset = datasets.ImageFolder(root=val_dir, transform=self._transform)
         self._test_dataloader = DataLoader(
             self._train_dataset, batch_size=10, shuffle=True, num_workers=4
         )
@@ -507,9 +514,8 @@ class MyType2Accelerator(RunnableComponent):
         optimizer,
         loss_fn,
     ):
-        return
         # pylint: disable=unused-variable
-        self.model.train()
+        self._model.train()
         correct_count = 0
         running_train_loss = 0
         inputs: torch.Tensor
@@ -523,7 +529,7 @@ class MyType2Accelerator(RunnableComponent):
             labels = labels.to(device)
 
             # logits
-            pred_logits = self.model(inputs)
+            pred_logits = self._model(inputs)
             loss = loss_fn(pred_logits, labels)
             predicted_prob = torch.softmax(pred_logits, dim=1)
             pred_classes = torch.argmax(predicted_prob, dim=1)
@@ -545,7 +551,7 @@ class MyType2Accelerator(RunnableComponent):
         if device == "cuda:0":
             torch.cuda.empty_cache()
 
-        self.model.eval()
+        self._model.eval()
         with torch.no_grad():
             running_test_loss = 0
             correct_count = 0
@@ -557,7 +563,7 @@ class MyType2Accelerator(RunnableComponent):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
-                pred_logit = self.model(inputs)
+                pred_logit = self._model(inputs)
                 loss = loss_fn(pred_logit, labels)
                 running_test_loss += loss.item() * inputs.size(0)
 
@@ -585,7 +591,7 @@ class MyType2Accelerator(RunnableComponent):
 
         metadata_end = metadata_addr + metadata_size
 
-        with open(f"noisy_imagenette.csv", "wb") as md_file:
+        with open("noisy_imagenette.csv", "wb") as md_file:
             logger.debug(self._create_message(f"addr: 0x{metadata_addr:x}"))
             logger.debug(self._create_message(f"end: 0x{metadata_end:x}"))
             curr_written = 0
@@ -607,7 +613,7 @@ class MyType2Accelerator(RunnableComponent):
                 unit_scale=True,
                 unit_divisor=1024,
                 position=self._device_id,
-            ) as pbar: 
+            ) as pbar:
                 for offset in range(0, metadata_size, 64):
                     data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + offset, 64)
                     curr_written += 64
@@ -640,13 +646,13 @@ class MyType2Accelerator(RunnableComponent):
     async def _validate_model(self, _):
         # pylint: disable=no-member
         im = await self._get_test_image()
-        tens = cast(torch.Tensor, self.transform(im))
+        tens = cast(torch.Tensor, self._transform(im))
 
         # Model expects a 4-dimensional tensor
         tens = torch.unsqueeze(tens, 0)
         tens = tens.to(self._torch_device)
 
-        pred_logit = self.model(tens)
+        pred_logit = self._model(tens)
         predicted_probs = torch.softmax(pred_logit, dim=1)[0]
 
         # 10 predicted classes
@@ -703,7 +709,7 @@ class MyType2Accelerator(RunnableComponent):
         for epoch in range(epochs):
             logger.debug(self._create_message(f"Starting epoch: {epoch}"))
             loss_fn = torch.nn.CrossEntropyLoss()
-            optimizer = torch.optim.SGD(self.model.parameters())
+            optimizer = torch.optim.SGD(self._model.parameters())
             scheduler = torch.optim.lr_scheduler.LinearLR(
                 optimizer, start_factor=1, end_factor=0.5, total_iters=30
             )
@@ -755,4 +761,3 @@ class MyType2Accelerator(RunnableComponent):
         ]
         await gather(*tasks)
         await self._app_shutdown()
-        pass

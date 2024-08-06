@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-# pylint: disable=duplicate-code, unused-import
+# pylint: disable=duplicate-code, unused-import, unused-argument
 import asyncio
 import glob
 import os
@@ -189,7 +189,8 @@ class HostTrainIoGen(RunnableComponent):
                         pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
                         logger.debug(
                             self._create_message(
-                                f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
+                                f"Reading loc: 0x{pic_data_mem_loc:x}"
+                                f"len: 0x{pic_data_len_rounded:x}",
                             )
                         )
                         await self.store(
@@ -342,7 +343,11 @@ class HostTrainIoGen(RunnableComponent):
 
     def _save_validation_result_type2(self, dev_id: int, pic_id: int, event: asyncio.Event):
         async def _func(dev_id: int):
-            logger.debug(self._create_message(f"Saving validation results for pic: {pic_id} from dev: {dev_id}"))
+            logger.debug(
+                self._create_message(
+                    f"Saving validation results for pic: {pic_id} from dev: {dev_id}"
+                )
+            )
             host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1820), 8)
             host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
             data_bytes = await self.load(host_result_addr, host_result_len)
@@ -486,7 +491,7 @@ class CxlImageClassificationHost(RunnableComponent):
             processor_to_cache_fifo=processor_to_cache_fifo,
             cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
-            cache_num_assoc=4, ### used to be 4
+            cache_num_assoc=4,  ### used to be 4
             cache_num_set=8,
         )
         self._cache_controller = CacheController(cache_controller_config)
