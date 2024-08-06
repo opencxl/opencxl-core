@@ -280,13 +280,11 @@ class HostTrainIoGen(RunnableComponent):
         self._stop_signal.set()
 
     async def _host_check_start_validation_type2(self, dev_id: int):
-        logger.info(f"_host_check_start_validation_type2 for dev {dev_id}")
         self._train_finished_count += 1
         if self._train_finished_count == self._device_count:
             await self._host_process_validation_type2(dev_id)
 
     async def _host_process_validation_type2(self, _):
-        logger.info(f"_host_process_validation_type2 triggered")
         categories = glob.glob(self._train_data_path + "/val/*")
         self._total_samples = len(categories) * self._sample_from_each_category
         self._validation_results = [[] for i in range(self._total_samples)]
@@ -304,7 +302,6 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data_len = len(pic_data)
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
                     for dev_id in range(self._device_count):
-                        logger.info(f"sending picture {c} {s} memory cxl.mem to dev {dev_id}")
                         event = asyncio.Event()
                         write_addr = self.to_device_mem_addr(dev_id, IMAGE_WRITE_ADDR)
                         await self.store(
@@ -312,7 +309,6 @@ class HostTrainIoGen(RunnableComponent):
                             pic_data_len_rounded,
                             pic_data_int,
                         )
-                        logger.info(f"picture {c} {s} stored to dev {dev_id}")
                         await self.write_mmio(
                             self.to_device_mmio_addr(dev_id, 0x1810), 8, IMAGE_WRITE_ADDR
                         )
@@ -333,16 +329,13 @@ class HostTrainIoGen(RunnableComponent):
                             ):
                                 break
                             await asyncio.sleep(0.2)
-                        logger.info(f"mmio done for pic {c} {s} and dev {dev_id}")
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
                             self._save_validation_result_type2(dev_id, pic_id, event),
                             dev_id,
                         )
-                        logger.info(f"host {c} {s} HOST_SENT irq set up dev {dev_id}")
                         await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
                         await event.wait()
-                        logger.info(f"host {c} {s} wait set for dev {dev_id}")
                         # Currently we don't send the picture information to the device
                         # and to prevent race condition, we need to send pics synchronously
                     pic_id += 1
@@ -394,18 +387,10 @@ class HostTrainIoGen(RunnableComponent):
                     csv_data_len_rb = await self.read_mmio(
                         self.to_device_mmio_addr(dev_id, 0x1808), 8
                     )
-                    logger.info(
-                        f"csv_data_mem_loc: {csv_data_mem_loc}, csv_data_len: {csv_data_len}"
-                    )
-                    logger.info(
-                        f"csv_data_mem_loc_rb: {csv_data_mem_loc_rb}, csv_data_len_rb: {csv_data_len_rb}"
-                    )
 
                     if csv_data_mem_loc_rb == csv_data_mem_loc and csv_data_len_rb == csv_data_len:
-                        logger.info(f"breaking for t1 dev {dev_id}")
                         break
                     await asyncio.sleep(0.2)
-                logger.info(f"Host Setting up irq for dev {dev_id}")
                 self._irq_handler.register_interrupt_handler(
                     Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type1, dev_id
                 )
@@ -429,7 +414,6 @@ class HostTrainIoGen(RunnableComponent):
                     if csv_data_mem_loc_rb == write_addr and csv_data_len_rb == csv_data_len:
                         break
                     await asyncio.sleep(0.2)
-                logger.info(f"Host setting ACCEL_TRAINING_FINISHED irq for dev {dev_id}")
                 self._irq_handler.register_interrupt_handler(
                     Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type2, dev_id
                 )
@@ -437,7 +421,6 @@ class HostTrainIoGen(RunnableComponent):
             raise Exception("Only T1 and T2 devices are allowed!")
 
         for dev_id in range(self._device_count):
-            logger.info(f"sending irq from host to dev {dev_id} type {self._dev_type.name}")
             await self._irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
 
         await self._internal_stop_signal.wait()
