@@ -297,23 +297,17 @@ class HostTrainIoGen(RunnableComponent):
             self._sampled_file_categories += [category_name] * self._sample_from_each_category
             for s in sample_pics:
                 with open(s, "rb") as f:
-                    print(f"[HOST] absolute path is {os.path.abspath(s)}")
                     pic_data = f.read()
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
-                    print(f"rounded: {pic_data_len_rounded}")
-                    print(f"[HOST] pic_data_len:{pic_data_len}")
                     for dev_id in range(self._device_count):
                         event = asyncio.Event()
-                        print(f"[HOST] writing to {self.to_device_mem_addr(dev_id, IMAGE_WRITE_ADDR):x}")
-                        print(f"@@{dev_id}:{self.to_device_mem_addr(dev_id, IMAGE_WRITE_ADDR):x}")
                         await self.store(
                             self.to_device_mem_addr(dev_id, IMAGE_WRITE_ADDR),
                             pic_data_len_rounded,
                             pic_data_int,
                         )
-                        print(f"length of picture is {pic_data_len_rounded}")
                         await self.write_mmio(
                             self.to_device_mmio_addr(dev_id, 0x1810), 8, 0x00008000
                         )
@@ -348,11 +342,10 @@ class HostTrainIoGen(RunnableComponent):
 
     def _save_validation_result_type2(self, dev_id: int, pic_id: int, event: asyncio.Event):
         async def _func(dev_id: int):
-            print(f"Saving validation results for pic: {pic_id} from dev: {dev_id}")
+            logger.debug(self._create_message(f"Saving validation results for pic: {pic_id} from dev: {dev_id}"))
             host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1820), 8)
             host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
             data_bytes = await self.load(host_result_addr, host_result_len)
-            print(f"received json:{data_bytes.decode()}")
             validate_result = json.loads(data_bytes.decode())
             self._validation_results[pic_id].append(validate_result)
             event.set()
@@ -378,7 +371,6 @@ class HostTrainIoGen(RunnableComponent):
         for dev_id in range(self._device_count):
             await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, csv_data_mem_loc)
             await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
-        logger.debug(f"1111111!!!!!!!!!!!!!!!!!_host_process_llc_iogen !!!!!!!!!!!!!!!!!!!!!")
         while True:
             csv_data_mem_loc_rb = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8)
             csv_data_len_rb = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8)
@@ -386,7 +378,6 @@ class HostTrainIoGen(RunnableComponent):
             if csv_data_mem_loc_rb == csv_data_mem_loc and csv_data_len_rb == csv_data_len:
                 break
             await asyncio.sleep(0.2)
-        logger.debug(f"{self._device_count}!!!!!!!!!_process_llc_iogen !!!!!!!!!!!!!!!!!!!!!")
 
         if self._dev_type == CXL_COMPONENT_TYPE.T1:
             for i in range(self._device_count):
@@ -395,7 +386,6 @@ class HostTrainIoGen(RunnableComponent):
                 )
         elif self._dev_type == CXL_COMPONENT_TYPE.T2:
             for i in range(self._device_count):
-                logger.debug(f"REG: {i} !!!!!!!!!!!!!!!!!!!!!")
                 self._irq_handler.register_interrupt_handler(
                     Irq.ACCEL_TRAINING_FINISHED, self._host_process_validation_type2, i
                 )

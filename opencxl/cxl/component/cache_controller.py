@@ -101,7 +101,7 @@ class CacheController(RunnableComponent):
         self._coh_agent_to_cache_fifo = config.coh_agent_to_cache_fifo
 
         self._init_cache()
-        logger.info(self._create_message(f"{config.component_name} LLC Generated"))
+        logger.debug(self._create_message(f"{config.component_name} LLC Generated"))
 
     def _init_cache(self) -> None:
         # simple cache structure

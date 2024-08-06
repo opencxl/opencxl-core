@@ -309,7 +309,6 @@ class CxlMemRouter(CxlRouter):
                 for i, bind_slot in enumerate(self._downstream_connections):
                     dsp_device = bind_slot.dsp
                     bus = dsp_device.get_secondary_bus_number()
-                    print("bus number:", bus)
                     if bus == cxl_mem_bi_packet.m2sbirsp_header.bi_id:
                         target_port = i
                         break
@@ -344,7 +343,6 @@ class CxlMemRouter(CxlRouter):
             if cxl_mem_base_packet.is_s2mbisnp():
                 # NOTE: Following vars might be uninitialized before while
                 bi_id = dsp_device.get_secondary_bus_number()
-                print(f"got bi_id: {bi_id}")
                 bi_decoder_options = dsp_component.get_bi_decoder_options()
 
                 if self._bi_enable_override_for_test is None:
@@ -355,7 +353,6 @@ class CxlMemRouter(CxlRouter):
                 cxl_mem_bi_packet: CxlMemS2MBISnpPacket = cast(
                     CxlMemS2MBISnpPacket, cxl_mem_base_packet
                 )
-                print(f"enable/forward={bi_enable}/{bi_forward}")
                 if bi_enable == bi_forward:
                     continue
 
@@ -364,11 +361,9 @@ class CxlMemRouter(CxlRouter):
                 elif bi_enable == 1 and bi_forward == 0:
                     hdm_decoder_manager = usp_component.get_hdm_decoder_manager()
                     if hdm_decoder_manager.is_bi_capable():
-                        print("hdm_decoder_manager is capable")
                         cxl_mem_bi_packet.s2mbisnp_header.bi_id = bi_id
                         await self._upstream_connection_fifo.target_to_host.put(packet)
                     else:
-                        print("hdm_decoder_manager is NOT capable")
                         continue
             else:
                 await self._upstream_connection_fifo.target_to_host.put(packet)

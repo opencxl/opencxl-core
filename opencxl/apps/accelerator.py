@@ -79,6 +79,7 @@ class MyType1Accelerator(RunnableComponent):
         self._wait_tasks = []
         self._device_id = device_id
         self.original_base_folder = train_data_path
+        print(os.getcwd())
         self.accel_dirname = f"/tmp/T1Accel@{self._label}"
         if os.path.exists(self.accel_dirname) and os.path.isdir(self.accel_dirname):
             shutil.rmtree(self.accel_dirname)
@@ -430,6 +431,8 @@ class MyType2Accelerator(RunnableComponent):
             port_index, CXL_COMPONENT_TYPE.T2, host=host, port=port
         )
 
+        self._device_id = device_id
+
         device_config = CxlType2DeviceConfig(
             device_name=label,
             transport_connection=self._sw_conn_client.get_cxl_connection(),
@@ -454,8 +457,6 @@ class MyType2Accelerator(RunnableComponent):
         self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self._validate_model)
 
     def _setup_test_env(self):
-        logger.info(f"CWD: {os.getcwd()}")
-
         if not os.path.isdir(self.accel_dirname):
             os.mkdir(self.accel_dirname)
 
@@ -467,7 +468,7 @@ class MyType2Accelerator(RunnableComponent):
         train_dir = os.path.abspath(train_dir)
         val_dir = os.path.abspath(val_dir)
 
-        logger.info(
+        logger.debug(
             self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
         )
 
@@ -584,21 +585,34 @@ class MyType2Accelerator(RunnableComponent):
 
         metadata_end = metadata_addr + metadata_size
 
-        logger.debug(self._create_message("Writing metadata"))
         with open(f"noisy_imagenette.csv", "wb") as md_file:
             logger.debug(self._create_message(f"addr: 0x{metadata_addr:x}"))
             logger.debug(self._create_message(f"end: 0x{metadata_end:x}"))
             curr_written = 0
+            """
             for offset in tqdm(
                 range(0, metadata_size, 64),
                 total=(metadata_size // 64),
-                desc="Progress",
+                desc=f"Dev {self._device_id} Reading Metadata",
+                unit="iB",
+                unit_scale=True,
+                unit_divisor=1024,
+                position=self._device_id,
             ):
-                data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + offset, 64)
-                curr_written += 64
-                md_file.write(data.to_bytes(64, byteorder="little"))
-
-        logger.debug(self._create_message("Finished writing file"))
+            """
+            with tqdm(
+                total=metadata_size,
+                desc=f"Dev {self._device_id} Reading Metadata",
+                unit="iB",
+                unit_scale=True,
+                unit_divisor=1024,
+                position=self._device_id,
+            ) as pbar: 
+                for offset in range(0, metadata_size, 64):
+                    data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + offset, 64)
+                    curr_written += 64
+                    md_file.write(data.to_bytes(64, byteorder="little"))
+                    pbar.update(64)
 
     async def _get_test_image(self) -> Image.Image:
         image_addr_mmio_addr = 0x1810
@@ -613,17 +627,12 @@ class MyType2Accelerator(RunnableComponent):
         #     chunk_data = cacheline.to_bytes(64, "little")
         #     result += chunk_data[:chunk_size]
         end = image_addr + image_size
-        logger.info(f"!!!!!!!!!!!!HERE!!!!!!!!!!!!!!")
-        logger.info(f"img: {image_addr:x}, {image_size}")
         with BytesIO() as imgbuf:
             for offset in range(image_addr, image_addr + image_size + 64, 64):
                 data = await self._cxl_type2_device.read_mem_hpa(offset, 64)
                 chunk_size = min(64, (end - offset))
                 chunk_data = data.to_bytes(64, "little")
                 chunk_data = chunk_data[:chunk_size]
-                self._create_message(
-                    logger.info(f"{offset:x}: {chunk_size:x}, {len(chunk_data):x} {chunk_data}")
-                )
                 imgbuf.write(chunk_data)
             im = Image.open(imgbuf).convert("RGB")
         return im
@@ -648,7 +657,6 @@ class MyType2Accelerator(RunnableComponent):
         bytes_size = len(json_asenc)
 
         json_asint = int.from_bytes(json_asenc, "little")
-        print("sent json:",json_asint.to_bytes(bytes_size, "little").decode())
         RESULTS_HPA = 0x900  # Arbitrarily chosen
         rounded_bytes_size = math.ceil(bytes_size / 64) * 64
         curr_written = 0

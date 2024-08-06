@@ -28,7 +28,7 @@ async def shutdown(signame=None):
         await asyncio.gather(*stop_tasks, return_exceptions=True)
         await asyncio.gather(*start_tasks)
     except Exception as exc:
-        print("[HOST]", exc.__traceback__)
+        print("[ACCEL]", exc.__traceback__)
     finally:
         os._exit(0)
 
@@ -44,12 +44,9 @@ async def main():
     global train_data_path
     train_data_path = sys.argv[3]
 
-    print(f"[ACCEL] listening on port {sw_portno} and physical port {portidx}")
-
     global device
     global start_tasks
 
-    print("ACCEL CWD", os.getcwd())
     mempath = f"../mem{sw_portno}.bin"
     with open(mempath, "a") as _:
         pass
@@ -60,6 +57,7 @@ async def main():
         host="localhost",
         port=sw_portno,
         train_data_path=train_data_path,
+        device_id=portidx - 1,
     )
 
     start_tasks = [
@@ -72,7 +70,6 @@ async def main():
     os.kill(os.getppid(), SIGCONT)
 
     await asyncio.gather(*ready_tasks)
-    print("[ACCEL] ready!")
 
     await asyncio.Event().wait()  # blocks
 

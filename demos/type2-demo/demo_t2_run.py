@@ -10,7 +10,7 @@ RUN_LIST = [
     ("switch", "./switch.py", (sw_port,)),
     ("host", "./chost.py", (sw_port, train_data_path)),
     ("accel1", "./accel.py", (sw_port, "1", train_data_path)),
-    # ("accel2", "./accel.py", (sw_port, "2", train_data_path)),
+    ("accel2", "./accel.py", (sw_port, "2", train_data_path)),
 ]
 
 jobs = {}  # list of pids
@@ -24,15 +24,11 @@ def clean_shutdown(signum=None, frame=None):
         # propagate SIGINT
         os.kill(pid, SIGINT)
         os.waitpid(pid, 0)
-        print(f"[RUNNER] Killed {prog} (PID {pid})")
-    print(f"[RUNNER] exiting...")
     quit()
 
 
 def run_next_app(signum=None, frame=None):
     pthread_sigmask(SIG_BLOCK, [SIGCONT])
-
-    print("[RUNNER] SIGCONT received")
 
     global run_progress, jobs
 
@@ -57,7 +53,6 @@ def run_next_app(signum=None, frame=None):
         run_progress += 1
         jobs[component_name] = chld
         pthread_sigmask(SIG_UNBLOCK, [SIGCONT])
-        print(f"[RUNNER] PID {chld}")
 
 
 if __name__ == "__main__":

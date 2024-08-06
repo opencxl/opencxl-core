@@ -50,8 +50,6 @@ async def run_demo(signame=None):
 
     global host
 
-    print("[HOST] IO ready, running test")
-
     pci_bus_driver = PciBusDriver(host.get_root_complex())
     cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
     cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
@@ -69,18 +67,14 @@ async def run_demo(signame=None):
             device, next_available_hpa_base, size
         )
         if successful:
-            print("[HOST] device attached")
             host.append_dev_mmio_range(
                 device.pci_device_info.bars[0].base_address, device.pci_device_info.bars[0].size
             )
             host.append_dev_mem_range(next_available_hpa_base, size)
             next_available_hpa_base += size
 
-    print("[HOST] all devices enumerated")
-
     await host.start_job()
 
-    print(f"[HOST] demo done!")
     os.kill(os.getppid(), SIGINT)
 
 
@@ -93,8 +87,6 @@ async def main():
     sw_portno = int(sys.argv[1])
     global train_data_path
     train_data_path = sys.argv[2] if len(sys.argv) > 2 else None
-
-    print(f"[HOST] listening on port {sw_portno}")
 
     global host
     global start_tasks
@@ -131,7 +123,6 @@ async def main():
     os.kill(os.getppid(), SIGCONT)
 
     await asyncio.gather(*ready_tasks)
-    print("[HOST] ready!")
 
     await asyncio.Event().wait()  # blocks
 

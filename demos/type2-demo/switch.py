@@ -40,7 +40,6 @@ async def main():
     lp.add_signal_handler(SIGINT, lambda signame="SIGINT": asyncio.create_task(shutdown(signame)))
 
     portno = int(sys.argv[1])
-    print(f"[SWITCH] listening on port {portno}")
 
     global sw_conn_manager
     global physical_port_manager
@@ -78,7 +77,6 @@ async def main():
     os.kill(os.getppid(), SIGCONT)
 
     await asyncio.gather(*ready_tasks)
-    print("[SWITCH] ready!")
 
     await asyncio.Event().wait() # blocks
 
