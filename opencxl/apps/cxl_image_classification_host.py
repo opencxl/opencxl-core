@@ -289,6 +289,7 @@ class HostTrainIoGen(RunnableComponent):
         self._total_samples = len(categories) * self._sample_from_each_category
         self._validation_results = [[] for i in range(self._total_samples)]
         pic_id = 0
+        IMAGE_WRITE_ADDR = 0x8000
         for c in categories:
             category_pics = glob.glob(f"{c}/*.JPEG")
             sample_pics = sample(category_pics, self._sample_from_each_category)
@@ -301,13 +302,14 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data_int = int.from_bytes(pic_data, "little")
                     pic_data_len = len(pic_data)
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
+                    print(f"rounded: {pic_data_len_rounded}")
                     print(f"[HOST] pic_data_len:{pic_data_len}")
                     for dev_id in range(self._device_count):
                         event = asyncio.Event()
-                        print(f"[HOST] writing to {self.to_device_mem_addr(dev_id, 0x00008000):x}")
-                        print(f"@@{dev_id}:{self.to_device_mem_addr(dev_id, 0x00008000):x}")
+                        print(f"[HOST] writing to {self.to_device_mem_addr(dev_id, IMAGE_WRITE_ADDR):x}")
+                        print(f"@@{dev_id}:{self.to_device_mem_addr(dev_id, IMAGE_WRITE_ADDR):x}")
                         await self.store(
-                            self.to_device_mem_addr(dev_id, 0x00008000),
+                            self.to_device_mem_addr(dev_id, IMAGE_WRITE_ADDR),
                             pic_data_len_rounded,
                             pic_data_int,
                         )
@@ -350,6 +352,7 @@ class HostTrainIoGen(RunnableComponent):
             host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1820), 8)
             host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
             data_bytes = await self.load(host_result_addr, host_result_len)
+            print(f"received json:{data_bytes.decode()}")
             validate_result = json.loads(data_bytes.decode())
             self._validation_results[pic_id].append(validate_result)
             event.set()
@@ -476,13 +479,14 @@ class CxlImageClassificationHost(RunnableComponent):
             memory_controller=config.memory_controller,
             memory_ranges=config.memory_ranges,
             root_ports=root_complex_root_ports,
+            coh_type=config.coh_type,
         )
         self._root_complex = RootComplex(root_complex_config)
 
         if config.coh_type == COH_POLICY_TYPE.DotCache:
             cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
             coh_agent_to_cache_fifo = coh_bridge_to_cache_fifo
-        elif config.coh_type == COH_POLICY_TYPE.DotMemBI:
+        elif config.coh_type in (COH_POLICY_TYPE.NonCache, COH_POLICY_TYPE.DotMemBI):
             cache_to_coh_agent_fifo = cache_to_home_agent_fifo
             coh_agent_to_cache_fifo = home_agent_to_cache_fifo
 
@@ -491,7 +495,7 @@ class CxlImageClassificationHost(RunnableComponent):
             processor_to_cache_fifo=processor_to_cache_fifo,
             cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
-            cache_num_assoc=4,
+            cache_num_assoc=4, ### used to be 4
             cache_num_set=8,
         )
         self._cache_controller = CacheController(cache_controller_config)

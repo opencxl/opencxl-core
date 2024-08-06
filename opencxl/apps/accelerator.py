@@ -9,6 +9,7 @@
 from asyncio import CancelledError, gather, create_task, Event, sleep
 import glob
 from io import BytesIO
+import math
 from typing import cast
 import shutil
 from pathlib import Path
@@ -612,24 +613,19 @@ class MyType2Accelerator(RunnableComponent):
         #     chunk_data = cacheline.to_bytes(64, "little")
         #     result += chunk_data[:chunk_size]
         end = image_addr + image_size
-        results = b""
         logger.info(f"!!!!!!!!!!!!HERE!!!!!!!!!!!!!!")
         logger.info(f"img: {image_addr:x}, {image_size}")
-        for offset in range(image_addr, image_addr + image_size, 64):
-            data = await self._cxl_type2_device.read_mem_hpa(offset, 64)
-            chunk_size = min(64, (end - offset))
-            chunk_data = data.to_bytes(64, "little")
-            chunk_data = chunk_data[:chunk_size]
-            results += chunk_data
-            self._create_message(
-                logger.info(f"{offset:x}: {chunk_size:x}, {len(chunk_data):x} {chunk_data}")
-            )
-
-        imgbuf = BytesIO()
-        imgbuf.write(results)
-        with open("thing.bin", "wb") as t:
-            t.write(imgbuf.getbuffer())
-        im = Image.open(imgbuf).convert("RGB")
+        with BytesIO() as imgbuf:
+            for offset in range(image_addr, image_addr + image_size + 64, 64):
+                data = await self._cxl_type2_device.read_mem_hpa(offset, 64)
+                chunk_size = min(64, (end - offset))
+                chunk_data = data.to_bytes(64, "little")
+                chunk_data = chunk_data[:chunk_size]
+                self._create_message(
+                    logger.info(f"{offset:x}: {chunk_size:x}, {len(chunk_data):x} {chunk_data}")
+                )
+                imgbuf.write(chunk_data)
+            im = Image.open(imgbuf).convert("RGB")
         return im
 
     async def _validate_model(self, _):
@@ -646,17 +642,20 @@ class MyType2Accelerator(RunnableComponent):
 
         # 10 predicted classes
         # TODO: avoid magic number usage
-        pred_kv = {self.test_dataset.classes[i]: predicted_probs[i].item() for i in range(0, 10)}
+        pred_kv = {self._test_dataset.classes[i]: predicted_probs[i].item() for i in range(0, 10)}
 
         json_asenc = str.encode(json.dumps(pred_kv))
         bytes_size = len(json_asenc)
 
         json_asint = int.from_bytes(json_asenc, "little")
-
+        print("sent json:",json_asint.to_bytes(bytes_size, "little").decode())
         RESULTS_HPA = 0x900  # Arbitrarily chosen
-        rounded_bytes_size = (((bytes_size - 1) // 64) + 1) * 64
-        while curr_written < bytes_size:
-            await self._cxl_type2_device.write_mem_hpa(RESULTS_HPA, json_asint, rounded_bytes_size)
+        rounded_bytes_size = math.ceil(bytes_size / 64) * 64
+        curr_written = 0
+        while curr_written < rounded_bytes_size:
+            chunk = json_asint & ((1 << (64 * 8)) - 1)
+            await self._cxl_type2_device.write_mem_hpa(RESULTS_HPA + curr_written, chunk, 64)
+            json_asint >>= 64 * 8
             curr_written += 64
 
         HOST_VECTOR_ADDR = 0x1820
@@ -665,7 +664,13 @@ class MyType2Accelerator(RunnableComponent):
         await self._cxl_type2_device.write_mmio(HOST_VECTOR_ADDR, 8, RESULTS_HPA)
         await self._cxl_type2_device.write_mmio(HOST_VECTOR_SIZE, 8, bytes_size)
 
-        await sleep(2)
+        while True:
+            json_addr_rb = await self._cxl_type2_device.read_mmio(HOST_VECTOR_ADDR, 8)
+            json_size_rb = await self._cxl_type2_device.read_mmio(HOST_VECTOR_SIZE, 8)
+
+            if json_addr_rb == RESULTS_HPA and json_size_rb == bytes_size:
+                break
+            await sleep(0.2)
 
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)

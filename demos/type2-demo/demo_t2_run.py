@@ -10,7 +10,7 @@ RUN_LIST = [
     ("switch", "./switch.py", (sw_port,)),
     ("host", "./chost.py", (sw_port, train_data_path)),
     ("accel1", "./accel.py", (sw_port, "1", train_data_path)),
-    ("accel2", "./accel.py", (sw_port, "2", train_data_path)),
+    # ("accel2", "./accel.py", (sw_port, "2", train_data_path)),
 ]
 
 jobs = {}  # list of pids
