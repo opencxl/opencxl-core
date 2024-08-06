@@ -50,6 +50,9 @@ async def main():
     global start_tasks
 
     print("ACCEL CWD", os.getcwd())
+    mempath = f"../mem{sw_portno}.bin"
+    with open(mempath, "a") as _:
+        pass
     device = MyType2Accelerator(
         port_index=portidx,
         memory_size=256 * MB,  # min 256MB, or will cause error for DVSEC
