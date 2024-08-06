@@ -26,7 +26,7 @@ host = None
 start_tasks = []
 
 train_data_path = None
-hpa_base = 0x28000000
+hpa_base = 0x00
 
 
 async def shutdown(signame=None):
@@ -118,7 +118,6 @@ async def main():
         root_ports,
         coh_type=COH_POLICY_TYPE.DotMemBI,
         device_type=CXL_COMPONENT_TYPE.T2,
-        hpa_base=hpa_base,
     )
     host = CxlImageClassificationHost(config)
 
