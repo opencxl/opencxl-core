@@ -1,0 +1,259 @@
+Starting Timestamp: 2024-08-05 21:00:23.274130
+[SwitchConnectionManager] Creating TCP server
+[SwitchConnectionManager] Listening to port 22500
+[UpstreamPortDevice:USP0] Starting
+[DownstreamPortDevice:DSP1] Starting
+[DownstreamPortDevice:DSP2] Starting
+[CxlVirtualSwitch 0] Started Binding physical port 1 to vPPB 0
+[CxlVirtualSwitch 0] Succcessfully bound physical port 1 to vPPB 0
+[CxlVirtualSwitch 0] Started Binding physical port 2 to vPPB 1
+[CxlVirtualSwitch 0] Succcessfully bound physical port 2 to vPPB 1
+[DownstreamPortDevice:VCS0:vPPB0(DSP)] Starting
+[DownstreamPortDevice:VCS0:vPPB1(DSP)] Starting
+[SwitchConnectionManager] Starting TCP server task
+Starting Timestamp: 2024-08-05 21:00:23.476330
+[foo:HostTrainIoGen] Host main process waiting...
+[SwitchConnectionManager] Found a new socket connection
+[SwitchConnectionManager] Binding incoming connection to port 0
+[SwitchConnectionManager] Starting PacketProcessor for port 0
+Starting Timestamp: 2024-08-05 21:00:25.253778
+CWD: /Users/ben/Documents/EEUM/opencxl-core-ce75/demos/type2-demo
+[MyType2Accelerator:Port1] Changing into accelerator directory: T2Accel@1
+=========================================================================================================
+Layer (type:depth-idx)                                  Output Shape              Param #
+=========================================================================================================
+EfficientNet                                            [1, 10]                   --
+├─Sequential: 1-1                                       [1, 1280, 5, 5]           --
+│    └─Conv2dNormActivation: 2-1                        [1, 24, 80, 80]           --
+│    │    └─Conv2d: 3-1                                 [1, 24, 80, 80]           (648)
+│    │    └─BatchNorm2d: 3-2                            [1, 24, 80, 80]           (48)
+│    │    └─SiLU: 3-3                                   [1, 24, 80, 80]           --
+│    └─Sequential: 2-2                                  [1, 24, 80, 80]           --
+│    │    └─FusedMBConv: 3-4                            [1, 24, 80, 80]           (5,232)
+│    │    └─FusedMBConv: 3-5                            [1, 24, 80, 80]           (5,232)
+│    └─Sequential: 2-3                                  [1, 48, 40, 40]           --
+│    │    └─FusedMBConv: 3-6                            [1, 48, 40, 40]           (25,632)
+│    │    └─FusedMBConv: 3-7                            [1, 48, 40, 40]           (92,640)
+│    │    └─FusedMBConv: 3-8                            [1, 48, 40, 40]           (92,640)
+│    │    └─FusedMBConv: 3-9                            [1, 48, 40, 40]           (92,640)
+│    └─Sequential: 2-4                                  [1, 64, 20, 20]           --
+│    │    └─FusedMBConv: 3-10                           [1, 64, 20, 20]           (95,744)
+│    │    └─FusedMBConv: 3-11                           [1, 64, 20, 20]           (164,480)
+│    │    └─FusedMBConv: 3-12                           [1, 64, 20, 20]           (164,480)
+│    │    └─FusedMBConv: 3-13                           [1, 64, 20, 20]           (164,480)
+│    └─Sequential: 2-5                                  [1, 128, 10, 10]          --
+│    │    └─MBConv: 3-14                                [1, 128, 10, 10]          (61,200)
+│    │    └─MBConv: 3-15                                [1, 128, 10, 10]          (171,296)
+│    │    └─MBConv: 3-16                                [1, 128, 10, 10]          (171,296)
+│    │    └─MBConv: 3-17                                [1, 128, 10, 10]          (171,296)
+│    │    └─MBConv: 3-18                                [1, 128, 10, 10]          (171,296)
+│    │    └─MBConv: 3-19                                [1, 128, 10, 10]          (171,296)
+│    └─Sequential: 2-6                                  [1, 160, 10, 10]          --
+│    │    └─MBConv: 3-20                                [1, 160, 10, 10]          (281,440)
+│    │    └─MBConv: 3-21                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-22                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-23                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-24                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-25                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-26                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-27                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-28                                [1, 160, 10, 10]          (397,800)
+│    └─Sequential: 2-7                                  [1, 256, 5, 5]            --
+│    │    └─MBConv: 3-29                                [1, 256, 5, 5]            (490,152)
+│    │    └─MBConv: 3-30                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-31                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-32                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-33                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-34                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-35                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-36                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-37                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-38                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-39                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-40                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-41                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-42                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-43                                [1, 256, 5, 5]            (1,005,120)
+│    └─Conv2dNormActivation: 2-8                        [1, 1280, 5, 5]           --
+│    │    └─Conv2d: 3-44                                [1, 1280, 5, 5]           (327,680)
+│    │    └─BatchNorm2d: 3-45                           [1, 1280, 5, 5]           (2,560)
+│    │    └─SiLU: 3-46                                  [1, 1280, 5, 5]           --
+├─AdaptiveAvgPool2d: 1-2                                [1, 1280, 1, 1]           --
+├─Sequential: 1-3                                       [1, 10]                   --
+│    └─Dropout: 2-9                                     [1, 1280]                 --
+│    └─Linear: 2-10                                     [1, 10]                   12,810
+=========================================================================================================
+Total params: 20,190,298
+Trainable params: 12,810
+Non-trainable params: 20,177,488
+Total mult-adds (Units.GIGABYTES): 1.46
+=========================================================================================================
+Input size (MB): 0.31
+Forward/backward pass size (MB): 99.53
+Params size (MB): 80.76
+Estimated Total Size (MB): 180.60
+=========================================================================================================
+[SwitchConnectionManager] Found a new socket connection
+[SwitchConnectionManager] Binding incoming connection to port 1
+[SwitchConnectionManager] Starting PacketProcessor for port 1
+Starting Timestamp: 2024-08-05 21:00:26.432008
+CWD: /Users/ben/Documents/EEUM/opencxl-core-ce75/demos/type2-demo
+[MyType2Accelerator:Port2] Changing into accelerator directory: T2Accel@2
+=========================================================================================================
+Layer (type:depth-idx)                                  Output Shape              Param #
+=========================================================================================================
+EfficientNet                                            [1, 10]                   --
+├─Sequential: 1-1                                       [1, 1280, 5, 5]           --
+│    └─Conv2dNormActivation: 2-1                        [1, 24, 80, 80]           --
+│    │    └─Conv2d: 3-1                                 [1, 24, 80, 80]           (648)
+│    │    └─BatchNorm2d: 3-2                            [1, 24, 80, 80]           (48)
+│    │    └─SiLU: 3-3                                   [1, 24, 80, 80]           --
+│    └─Sequential: 2-2                                  [1, 24, 80, 80]           --
+│    │    └─FusedMBConv: 3-4                            [1, 24, 80, 80]           (5,232)
+│    │    └─FusedMBConv: 3-5                            [1, 24, 80, 80]           (5,232)
+│    └─Sequential: 2-3                                  [1, 48, 40, 40]           --
+│    │    └─FusedMBConv: 3-6                            [1, 48, 40, 40]           (25,632)
+│    │    └─FusedMBConv: 3-7                            [1, 48, 40, 40]           (92,640)
+│    │    └─FusedMBConv: 3-8                            [1, 48, 40, 40]           (92,640)
+│    │    └─FusedMBConv: 3-9                            [1, 48, 40, 40]           (92,640)
+│    └─Sequential: 2-4                                  [1, 64, 20, 20]           --
+│    │    └─FusedMBConv: 3-10                           [1, 64, 20, 20]           (95,744)
+│    │    └─FusedMBConv: 3-11                           [1, 64, 20, 20]           (164,480)
+│    │    └─FusedMBConv: 3-12                           [1, 64, 20, 20]           (164,480)
+│    │    └─FusedMBConv: 3-13                           [1, 64, 20, 20]           (164,480)
+│    └─Sequential: 2-5                                  [1, 128, 10, 10]          --
+│    │    └─MBConv: 3-14                                [1, 128, 10, 10]          (61,200)
+│    │    └─MBConv: 3-15                                [1, 128, 10, 10]          (171,296)
+│    │    └─MBConv: 3-16                                [1, 128, 10, 10]          (171,296)
+│    │    └─MBConv: 3-17                                [1, 128, 10, 10]          (171,296)
+│    │    └─MBConv: 3-18                                [1, 128, 10, 10]          (171,296)
+│    │    └─MBConv: 3-19                                [1, 128, 10, 10]          (171,296)
+│    └─Sequential: 2-6                                  [1, 160, 10, 10]          --
+│    │    └─MBConv: 3-20                                [1, 160, 10, 10]          (281,440)
+│    │    └─MBConv: 3-21                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-22                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-23                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-24                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-25                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-26                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-27                                [1, 160, 10, 10]          (397,800)
+│    │    └─MBConv: 3-28                                [1, 160, 10, 10]          (397,800)
+│    └─Sequential: 2-7                                  [1, 256, 5, 5]            --
+│    │    └─MBConv: 3-29                                [1, 256, 5, 5]            (490,152)
+│    │    └─MBConv: 3-30                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-31                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-32                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-33                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-34                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-35                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-36                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-37                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-38                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-39                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-40                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-41                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-42                                [1, 256, 5, 5]            (1,005,120)
+│    │    └─MBConv: 3-43                                [1, 256, 5, 5]            (1,005,120)
+│    └─Conv2dNormActivation: 2-8                        [1, 1280, 5, 5]           --
+│    │    └─Conv2d: 3-44                                [1, 1280, 5, 5]           (327,680)
+│    │    └─BatchNorm2d: 3-45                           [1, 1280, 5, 5]           (2,560)
+│    │    └─SiLU: 3-46                                  [1, 1280, 5, 5]           --
+├─AdaptiveAvgPool2d: 1-2                                [1, 1280, 1, 1]           --
+├─Sequential: 1-3                                       [1, 10]                   --
+│    └─Dropout: 2-9                                     [1, 1280]                 --
+│    └─Linear: 2-10                                     [1, 10]                   12,810
+=========================================================================================================
+Total params: 20,190,298
+Trainable params: 12,810
+Non-trainable params: 20,177,488
+Total mult-adds (Units.GIGABYTES): 1.46
+=========================================================================================================
+Input size (MB): 0.31
+Forward/backward pass size (MB): 99.53
+Params size (MB): 80.76
+Estimated Total Size (MB): 180.60
+=========================================================================================================
+[SwitchConnectionManager] Found a new socket connection
+[SwitchConnectionManager] Binding incoming connection to port 2
+[SwitchConnectionManager] Starting PacketProcessor for port 2
+[Port1:DeviceHdmDecoderManager] [Decoder Commit] index: 0, base: 0x0, size: 0x10000000, ig: SIZE_256B, iw: WAY_1, dpa skip: 0
+[SwitchHdmDecoderManager:USP0] [Decoder Commit] index: 0, base: 0x0, size: 0x10000000, ig: SIZE_256B, iw: WAY_1, target ports: [0, 0, 0, 0, 0, 0, 0, 0]
+[Port2:DeviceHdmDecoderManager] [Decoder Commit] index: 0, base: 0x10000000, size: 0x10000000, ig: SIZE_256B, iw: WAY_1, dpa skip: 0
+[SwitchHdmDecoderManager:USP0] [Decoder Commit] index: 1, base: 0x10000000, size: 0x10000000, ig: SIZE_256B, iw: WAY_1, target ports: [1, 0, 0, 0, 0, 0, 0, 0]
+[foo:HostTrainIoGen] Host main process running!
+[foo:HostTrainIoGen] Storing metadata...
+[foo:HostTrainIoGen] Finished storing metadata!
+[MyType2Accelerator:Port1] Getting metadata for the image dataset
+[MyType2Accelerator:Port1] Begin Model Training
+Saving validation results for pic: 0 from dev: 0
+Saving validation results for pic: 1 from dev: 0
+Saving validation results for pic: 2 from dev: 0
+Saving validation results for pic: 3 from dev: 0
+Saving validation results for pic: 4 from dev: 0
+Saving validation results for pic: 5 from dev: 0
+Saving validation results for pic: 6 from dev: 0
+Saving validation results for pic: 7 from dev: 0
+Saving validation results for pic: 8 from dev: 0
+Saving validation results for pic: 9 from dev: 0
+Saving validation results for pic: 10 from dev: 0
+Saving validation results for pic: 11 from dev: 0
+Saving validation results for pic: 12 from dev: 0
+Saving validation results for pic: 13 from dev: 0
+Saving validation results for pic: 14 from dev: 0
+Saving validation results for pic: 15 from dev: 0
+Saving validation results for pic: 16 from dev: 0
+Saving validation results for pic: 17 from dev: 0
+Saving validation results for pic: 18 from dev: 0
+Saving validation results for pic: 19 from dev: 0
+Picture 0 category: Real: n03394916, validated: n03425413
+Picture 1 category: Real: n03394916, validated: n03425413
+Picture 2 category: Real: n03417042, validated: n03417042
+Picture 3 category: Real: n03417042, validated: n03425413
+Picture 4 category: Real: n03445777, validated: n03425413
+Picture 5 category: Real: n03445777, validated: n01440764
+Picture 6 category: Real: n02102040, validated: n03425413
+Picture 7 category: Real: n02102040, validated: n03425413
+Picture 8 category: Real: n03425413, validated: n03394916
+Picture 9 category: Real: n03425413, validated: n03888257
+Picture 10 category: Real: n03888257, validated: n03425413
+Picture 11 category: Real: n03888257, validated: n03425413
+Picture 12 category: Real: n03028079, validated: n01440764
+Picture 13 category: Real: n03028079, validated: n03425413
+Picture 14 category: Real: n03000684, validated: n03888257
+Picture 15 category: Real: n03000684, validated: n03888257
+Picture 16 category: Real: n01440764, validated: n03394916
+Picture 17 category: Real: n01440764, validated: n03425413
+Picture 18 category: Real: n02979186, validated: n03000684
+Picture 19 category: Real: n02979186, validated: n03425413
+Validation finished. Results:
+Correct/Total: 1/20 (5.00%)
+[SwitchConnectionManager] Canceling TCP server task
+[UpstreamPortDevice:USP0] Stopping
+[DownstreamPortDevice:DSP1] Stopping
+[DownstreamPortDevice:DSP2] Stopping
+[SwitchConnectionManager] Stopped TCP server
+[SwitchConnectionManager] Stopping PacketProcessor for port 0
+[DownstreamPortDevice:VCS0:vPPB0(DSP)] Stopping
+[DownstreamPortDevice:VCS0:vPPB1(DSP)] Stopping
+[SwitchConnectionManager] Stopped PacketProcessor for port 0
+[SwitchConnectionManager] Stopping PacketProcessor for port 1
+[UpstreamPortDevice:USP0] Stopped
+[DownstreamPortDevice:DSP1] Stopped
+[DownstreamPortDevice:DSP2] Stopped
+[SwitchConnectionManager] Closed connection for port 0
+[DownstreamPortDevice:VCS0:vPPB0(DSP)] Stopped
+[DownstreamPortDevice:VCS0:vPPB1(DSP)] Stopped
+[SwitchConnectionManager] Stopped PacketProcessor for port 1
+[SwitchConnectionManager] Stopping PacketProcessor for port 2
+[SwitchConnectionManager] Closed connection for port 1
+[SwitchConnectionManager] Stopped PacketProcessor for port 2
+[SwitchConnectionManager] Closed connection for port 2
+[foo:RootPortClientManager:] Cannot stop when it is not running
+[IrqManager:foo:IrqHandler] IRQ enable listener stopped
+[IrqManager:foo:IrqHandler] All IRQ tasks cancelled
+[SwitchConnectionClient:Port1] Cannot stop when it is not running
+[IrqManager:Port1:IrqHandler] IRQ enable listener stopped
+[IrqManager:Port1:IrqHandler] All IRQ tasks cancelled
+[SwitchConnectionClient:Port2] Cannot stop when it is not running
+[IrqManager:Port2:IrqHandler] IRQ enable listener stopped
+[IrqManager:Port2:IrqHandler] All IRQ tasks cancelled
