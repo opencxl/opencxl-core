@@ -2,7 +2,7 @@ import argparse
 from signal import *
 import os
 
-sw_port = "22600"
+sw_port = "22500"
 
 train_data_path = ""
 

@@ -421,8 +421,8 @@ class MyType2Accelerator(RunnableComponent):
         memory_size: int,
         memory_file: str,
         host: str = "0.0.0.0",
-        port: int = 8050,
-        server_port: int = 9075,
+        port: int = 8000,
+        server_port: int = 9050,
         device_id: int = 0,
         train_data_path: str = None,
     ):
