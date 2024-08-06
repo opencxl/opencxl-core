@@ -26,7 +26,7 @@ host = None
 start_tasks = []
 
 train_data_path = None
-hpa_base = 0x00
+hpa_base = 0x290000000
 
 
 async def shutdown(signame=None):
@@ -58,9 +58,9 @@ async def run_demo(signame=None):
     await cxl_bus_driver.init()
     await cxl_mem_driver.init()
 
-    next_available_hpa_base = hpa_base
-
     # hack for demo purposes
+    dev_count = 0
+    next_available_hpa_base = hpa_base
     for device in cxl_mem_driver.get_devices():
         size = device.get_memory_size()
         successful = await cxl_mem_driver.attach_single_mem_device(
@@ -72,6 +72,9 @@ async def run_demo(signame=None):
             )
             host.append_dev_mem_range(next_available_hpa_base, size)
             next_available_hpa_base += size
+            dev_count += 1
+
+    host.set_device_count(dev_count)
 
     await host.start_job()
 
@@ -110,6 +113,7 @@ async def main():
         root_ports,
         coh_type=COH_POLICY_TYPE.DotMemBI,
         device_type=CXL_COMPONENT_TYPE.T2,
+        base_addr=hpa_base,
     )
     host = CxlImageClassificationHost(config)
 

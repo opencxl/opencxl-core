@@ -361,6 +361,7 @@ class MyType1Accelerator(RunnableComponent):
             #     logger.debug(self._create_message(f"Epoch: {epoch} finished"))
 
             # Done training
+            logger.info(self._create_message("Done Model Training"))
             await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
         except CancelledError:
             print(self._create_message("Runapp Cancelled"))
@@ -432,7 +433,7 @@ class MyType2Accelerator(RunnableComponent):
         )
 
         self._device_id = device_id
-
+        logger.info(f"self._device_id:{self._device_id}")
         device_config = CxlType2DeviceConfig(
             device_name=label,
             transport_connection=self._sw_conn_client.get_cxl_connection(),
@@ -600,6 +601,7 @@ class MyType2Accelerator(RunnableComponent):
                 position=self._device_id,
             ):
             """
+            logger.info(f"@@@@@@@@@@@@@@@@@@@{self._device_id}")
             with tqdm(
                 total=metadata_size,
                 desc=f"Dev {self._device_id} Reading Metadata",
@@ -607,7 +609,7 @@ class MyType2Accelerator(RunnableComponent):
                 unit_scale=True,
                 unit_divisor=1024,
                 position=self._device_id,
-            ) as pbar: 
+            ) as pbar:
                 for offset in range(0, metadata_size, 64):
                     data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + offset, 64)
                     curr_written += 64
@@ -639,7 +641,9 @@ class MyType2Accelerator(RunnableComponent):
 
     async def _validate_model(self, _):
         # pylint: disable=no-member
+        logger.info(f"Getting test image for dev {self._device_id}")
         im = await self._get_test_image()
+        logger.info(f"Got test image for dev {self._device_id}")
         tens = cast(torch.Tensor, self.transform(im))
 
         # Model expects a 4-dimensional tensor
@@ -656,6 +660,8 @@ class MyType2Accelerator(RunnableComponent):
         json_asenc = str.encode(json.dumps(pred_kv))
         bytes_size = len(json_asenc)
 
+        logger.info(f"dev middle {self._device_id}")
+
         json_asint = int.from_bytes(json_asenc, "little")
         RESULTS_HPA = 0x900  # Arbitrarily chosen
         rounded_bytes_size = math.ceil(bytes_size / 64) * 64
@@ -668,6 +674,7 @@ class MyType2Accelerator(RunnableComponent):
 
         HOST_VECTOR_ADDR = 0x1820
         HOST_VECTOR_SIZE = 0x1828
+        logger.info(f"dev middle {self._device_id}")
 
         await self._cxl_type2_device.write_mmio(HOST_VECTOR_ADDR, 8, RESULTS_HPA)
         await self._cxl_type2_device.write_mmio(HOST_VECTOR_SIZE, 8, bytes_size)
@@ -679,7 +686,7 @@ class MyType2Accelerator(RunnableComponent):
             if json_addr_rb == RESULTS_HPA and json_size_rb == bytes_size:
                 break
             await sleep(0.2)
-
+        logger.info(f"sending irq ACCEL_VALIDATION_FINISHED from dev {self._device_id}")
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
 
@@ -696,28 +703,36 @@ class MyType2Accelerator(RunnableComponent):
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
         logger.info(self._create_message("Getting metadata for the image dataset"))
-        await self._get_metadata()
+        logger.info(f"@@@@@@@@@@@@@@@@@@@222222222{self._device_id}")
+
+        # await self._get_metadata()
+        # If testing:
+        # shutil.copy(
+        #     f"{self.train_data_path}{os.path.sep}noisy_imagenette.csv",
+        #     f"noisy_imagenette.csv",
+        # )
 
         logger.info(self._create_message("Begin Model Training"))
-        epochs = 1
-        for epoch in range(epochs):
-            logger.debug(self._create_message(f"Starting epoch: {epoch}"))
-            loss_fn = torch.nn.CrossEntropyLoss()
-            optimizer = torch.optim.SGD(self.model.parameters())
-            scheduler = torch.optim.lr_scheduler.LinearLR(
-                optimizer, start_factor=1, end_factor=0.5, total_iters=30
-            )
-            self._train_one_epoch(
-                train_dataloader=self._train_dataloader,
-                test_dataloader=self._test_dataloader,
-                optimizer=optimizer,
-                loss_fn=loss_fn,
-                device=self._torch_device,
-            )
-            # scheduler.step()
-            logger.debug(self._create_message(f"Epoch: {epoch} finished"))
+        # epochs = 1
+        # for epoch in range(epochs):
+        #     logger.debug(self._create_message(f"Starting epoch: {epoch}"))
+        #     loss_fn = torch.nn.CrossEntropyLoss()
+        #     optimizer = torch.optim.SGD(self.model.parameters())
+        #     scheduler = torch.optim.lr_scheduler.LinearLR(
+        #         optimizer, start_factor=1, end_factor=0.5, total_iters=30
+        #     )
+        #     self._train_one_epoch(
+        #         train_dataloader=self._train_dataloader,
+        #         test_dataloader=self._test_dataloader,
+        #         optimizer=optimizer,
+        #         loss_fn=loss_fn,
+        #         device=self._torch_device,
+        #     )
+        #     # scheduler.step()
+        #     logger.debug(self._create_message(f"Epoch: {epoch} finished"))
 
         # Done training
+        logger.info(self._create_message("Done Model Training"))
         await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
 
     async def _app_shutdown(self):
