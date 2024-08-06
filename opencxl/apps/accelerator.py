@@ -79,7 +79,6 @@ class MyType1Accelerator(RunnableComponent):
         self._wait_tasks = []
         self._device_id = device_id
         self.original_base_folder = train_data_path
-        print(os.getcwd())
         self.accel_dirname = f"/tmp/T1Accel@{self._label}"
         if os.path.exists(self.accel_dirname) and os.path.isdir(self.accel_dirname):
             shutil.rmtree(self.accel_dirname)
@@ -341,24 +340,24 @@ class MyType1Accelerator(RunnableComponent):
             #     f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
             # )
 
-            # logger.info(self._create_message("Begin Model Training"))
-            # epochs = 1
-            # for epoch in range(epochs):
-            #     logger.debug(self._create_message(f"Starting epoch: {epoch}"))
-            #     loss_fn = torch.nn.CrossEntropyLoss()
-            #     optimizer = torch.optim.SGD(self.model.parameters())
-            #     scheduler = torch.optim.lr_scheduler.LinearLR(
-            #         optimizer, start_factor=1, end_factor=0.5, total_iters=30
-            #     )
-            #     self._train_one_epoch(
-            #         train_dataloader=self._train_dataloader,
-            #         test_dataloader=self._test_dataloader,
-            #         optimizer=optimizer,
-            #         loss_fn=loss_fn,
-            #         device=self._torch_device,
-            #     )
-            #     scheduler.step()
-            #     logger.debug(self._create_message(f"Epoch: {epoch} finished"))
+            logger.info(self._create_message("Begin Model Training"))
+            epochs = 1
+            for epoch in range(epochs):
+                logger.debug(self._create_message(f"Starting epoch: {epoch}"))
+                loss_fn = torch.nn.CrossEntropyLoss()
+                optimizer = torch.optim.SGD(self.model.parameters())
+                scheduler = torch.optim.lr_scheduler.LinearLR(
+                    optimizer, start_factor=1, end_factor=0.5, total_iters=30
+                )
+                self._train_one_epoch(
+                    train_dataloader=self._train_dataloader,
+                    test_dataloader=self._test_dataloader,
+                    optimizer=optimizer,
+                    loss_fn=loss_fn,
+                    device=self._torch_device,
+                )
+                scheduler.step()
+                logger.debug(self._create_message(f"Epoch: {epoch} finished"))
 
             # Done training
             logger.info(self._create_message("Done Model Training"))
@@ -508,7 +507,6 @@ class MyType2Accelerator(RunnableComponent):
         optimizer,
         loss_fn,
     ):
-        return
         # pylint: disable=unused-variable
         self.model.train()
         correct_count = 0
@@ -601,7 +599,6 @@ class MyType2Accelerator(RunnableComponent):
                 position=self._device_id,
             ):
             """
-            logger.info(f"@@@@@@@@@@@@@@@@@@@{self._device_id}")
             with tqdm(
                 total=metadata_size,
                 desc=f"Dev {self._device_id} Reading Metadata",
@@ -660,8 +657,6 @@ class MyType2Accelerator(RunnableComponent):
         json_asenc = str.encode(json.dumps(pred_kv))
         bytes_size = len(json_asenc)
 
-        logger.info(f"dev middle {self._device_id}")
-
         json_asint = int.from_bytes(json_asenc, "little")
         RESULTS_HPA = 0x900  # Arbitrarily chosen
         rounded_bytes_size = math.ceil(bytes_size / 64) * 64
@@ -674,7 +669,6 @@ class MyType2Accelerator(RunnableComponent):
 
         HOST_VECTOR_ADDR = 0x1820
         HOST_VECTOR_SIZE = 0x1828
-        logger.info(f"dev middle {self._device_id}")
 
         await self._cxl_type2_device.write_mmio(HOST_VECTOR_ADDR, 8, RESULTS_HPA)
         await self._cxl_type2_device.write_mmio(HOST_VECTOR_SIZE, 8, bytes_size)
@@ -686,7 +680,7 @@ class MyType2Accelerator(RunnableComponent):
             if json_addr_rb == RESULTS_HPA and json_size_rb == bytes_size:
                 break
             await sleep(0.2)
-        logger.info(f"sending irq ACCEL_VALIDATION_FINISHED from dev {self._device_id}")
+        logger.debug(f"Sending irq ACCEL_VALIDATION_FINISHED from dev {self._device_id}")
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
 
@@ -703,7 +697,6 @@ class MyType2Accelerator(RunnableComponent):
 
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
         logger.info(self._create_message("Getting metadata for the image dataset"))
-        logger.info(f"@@@@@@@@@@@@@@@@@@@222222222{self._device_id}")
 
         await self._get_metadata()
         # If testing:
@@ -713,23 +706,23 @@ class MyType2Accelerator(RunnableComponent):
         # )
 
         logger.info(self._create_message("Begin Model Training"))
-        # epochs = 1
-        # for epoch in range(epochs):
-        #     logger.debug(self._create_message(f"Starting epoch: {epoch}"))
-        #     loss_fn = torch.nn.CrossEntropyLoss()
-        #     optimizer = torch.optim.SGD(self.model.parameters())
-        #     scheduler = torch.optim.lr_scheduler.LinearLR(
-        #         optimizer, start_factor=1, end_factor=0.5, total_iters=30
-        #     )
-        #     self._train_one_epoch(
-        #         train_dataloader=self._train_dataloader,
-        #         test_dataloader=self._test_dataloader,
-        #         optimizer=optimizer,
-        #         loss_fn=loss_fn,
-        #         device=self._torch_device,
-        #     )
-        #     # scheduler.step()
-        #     logger.debug(self._create_message(f"Epoch: {epoch} finished"))
+        epochs = 1
+        for epoch in range(epochs):
+            logger.debug(self._create_message(f"Starting epoch: {epoch}"))
+            loss_fn = torch.nn.CrossEntropyLoss()
+            optimizer = torch.optim.SGD(self.model.parameters())
+            scheduler = torch.optim.lr_scheduler.LinearLR(
+                optimizer, start_factor=1, end_factor=0.5, total_iters=30
+            )
+            self._train_one_epoch(
+                train_dataloader=self._train_dataloader,
+                test_dataloader=self._test_dataloader,
+                optimizer=optimizer,
+                loss_fn=loss_fn,
+                device=self._torch_device,
+            )
+            scheduler.step()
+            logger.debug(self._create_message(f"Epoch: {epoch} finished"))
 
         # Done training
         logger.info(self._create_message("Done Model Training"))
