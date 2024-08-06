@@ -614,6 +614,7 @@ class CxlRootPortDevice(RunnableComponent):
         await self.scan_pcie_cap_helper(bdf, PCIE_CONFIG_BASE, capabilities)
 
     async def scan_component_registers(self, info: DeviceEnumerationInfo):
+        # pylint: disable=duplicate-code
         component_registers = info.capabilities.dvsec.register_locators.component_registers
         if not component_registers:
             return

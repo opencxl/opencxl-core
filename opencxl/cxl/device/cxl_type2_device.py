@@ -90,6 +90,7 @@ class CxlType2Device(RunnableComponent):
         self._upstream_connection = config.transport_connection
         self._cache_line_count = config.cache_line_count
         self._cache_line_size = config.cache_line_size
+        self._mmio_manager = None
 
         self._cxl_io_manager = CxlIoManager(
             self._upstream_connection.mmio_fifo,
