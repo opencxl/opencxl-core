@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-# pylint: disable=duplicate-code, unused-import
+# pylint: disable=duplicate-code, unused-import, unused-argument
 import asyncio
 import glob
 import os
@@ -189,7 +189,8 @@ class HostTrainIoGen(RunnableComponent):
                         pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
                         logger.debug(
                             self._create_message(
-                                f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
+                                f"Reading loc: 0x{pic_data_mem_loc:x}"
+                                f"len: 0x{pic_data_len_rounded:x}",
                             )
                         )
                         await self.store(
