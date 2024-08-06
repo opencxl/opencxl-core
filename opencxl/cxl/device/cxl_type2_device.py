@@ -137,11 +137,19 @@ class CxlType2Device(RunnableComponent):
         )
         self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
 
+    async def read_mmio(self, addr: int, size: int, bar: int = 0):
+        return await self._mmio_manager.read_mmio(addr, size, bar)
+
+    async def write_mmio(self, addr: int, size: int, data: int, bar: int = 0):
+        await self._mmio_manager.write_mmio(addr, size, data, bar)
+
     def _init_device(
         self,
         mmio_manager: MmioManager,
         config_space_manager: ConfigSpaceManager,
     ):
+        self._mmio_manager = mmio_manager
+
         # Create PCiComponent
         pci_identity = PciComponentIdentity(
             vendor_id=EEUM_VID,
@@ -225,15 +233,15 @@ class CxlType2Device(RunnableComponent):
     async def cxl_cache_writeline(self, hpa: int, data: int):
         raise NotImplementedError()
 
-    async def read_mem_dpa(self, dpa: int, size: int = 64) -> int:
+    async def read_mem_hpa(self, hpa: int, size: int = 64) -> int:
         if not self._cxl_memory_device_component:
             raise RuntimeError(self._create_message("Memory device not yet initialized"))
-        return await self._cxl_memory_device_component.read_mem_dpa(dpa, size)
+        return await self._cache_controller.cache_coherent_load(hpa, size)
 
-    async def write_mem_dpa(self, dpa: int, data: int, size: int = 64):
+    async def write_mem_hpa(self, hpa: int, data: int, size: int = 64):
         if not self._cxl_memory_device_component:
             raise RuntimeError(self._create_message("Memory device not yet initialized"))
-        await self._cxl_memory_device_component.write_mem_dpa(dpa, data, size)
+        await self._cache_controller.cache_coherent_store(hpa, size, data)
 
     async def _run(self):
         # pylint: disable=duplicate-code

@@ -170,8 +170,8 @@ class CxlDownstreamPortComponent(CxlComponent):
             explicit_bi_decoder_commit_required=1
         )
         options["control_options"] = CxlBIDecoderControlRegisterOptions(
-            bi_forward=1,
-            bi_enable=0,
+            bi_forward=0,
+            bi_enable=1,
             bi_decoder_commit=0,
         )
         options["status_options"] = CxlBIDecoderStatusRegisterOptions(

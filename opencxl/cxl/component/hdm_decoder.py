@@ -231,12 +231,14 @@ class DeviceHdmDecoderManager(HdmDecoderManagerBase):
             f"[Decoder Commit] index: {index}, base: 0x{decoder.base:x}, size: 0x{decoder.size:x}, "
             + f"ig: {decoder.ig.name}, iw: {decoder.iw.name}, dpa skip: {str(decoder.dpa_skip)}"
         )
-        logger.info(self._create_message(decoder_commit_info))
+        logger.debug(self._create_message(decoder_commit_info))
 
         return True
 
     def get_dpa(self, hpa: int) -> Optional[int]:
         decoder = self.get_decoder_from_hpa(hpa)
+        # print(decoder)
+        # print("")
         if not decoder:
             return None
         device_decoder = cast(DeviceHdmDecoder, decoder)
@@ -290,7 +292,7 @@ class SwitchHdmDecoderManager(HdmDecoderManagerBase):
             + f"ig: {decoder.ig.name}, iw: {decoder.iw.name}, "
             + f"target ports: {str(decoder.target_ports)}"
         )
-        logger.info(self._create_message(decoder_commit_info))
+        logger.debug(self._create_message(decoder_commit_info))
         return True
 
     def get_target(self, hpa: int) -> Optional[int]:
