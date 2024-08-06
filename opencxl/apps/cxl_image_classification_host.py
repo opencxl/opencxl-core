@@ -53,11 +53,11 @@ class HostTrainIoGenConfig:
     root_complex: RootComplex
     irq_handler: IrqManager
     base_addr: int
-    device_count: int
     interleave_gran: int
     device_type: CXL_COMPONENT_TYPE.T1
     cache_controller: CacheController
     train_data_path: str
+    device_count: Optional[int] = None
 
 
 class HostTrainIoGen(RunnableComponent):
