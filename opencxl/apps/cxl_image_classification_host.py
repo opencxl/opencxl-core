@@ -380,13 +380,13 @@ class HostTrainIoGen(RunnableComponent):
 
         logger.info(self._create_message("Storing metadata..."))
         if self._dev_type == CXL_COMPONENT_TYPE.T1:
+            await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int, prog_bar=True)
             for dev_id in range(self._device_count):
-                await self.store(
-                    csv_data_mem_loc, csv_data_len_rounded, csv_data_int, prog_bar=True
-                )
                 await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, csv_data_mem_loc)
                 await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
-                logger.info(self._create_message(f"Checking metadata integrity for dev {dev_id}!"))
+                logger.info(
+                    self._create_message(f"Checking T1 metadata integrity for dev {dev_id}!")
+                )
                 while True:
                     csv_data_mem_loc_rb = await self.read_mmio(
                         self.to_device_mmio_addr(dev_id, 0x1800), 8
@@ -394,20 +394,30 @@ class HostTrainIoGen(RunnableComponent):
                     csv_data_len_rb = await self.read_mmio(
                         self.to_device_mmio_addr(dev_id, 0x1808), 8
                     )
+                    logger.info(
+                        f"csv_data_mem_loc: {csv_data_mem_loc}, csv_data_len: {csv_data_len}"
+                    )
+                    logger.info(
+                        f"csv_data_mem_loc_rb: {csv_data_mem_loc_rb}, csv_data_len_rb: {csv_data_len_rb}"
+                    )
 
                     if csv_data_mem_loc_rb == csv_data_mem_loc and csv_data_len_rb == csv_data_len:
+                        logger.info(f"breaking for t1 dev {dev_id}")
                         break
                     await asyncio.sleep(0.2)
+                logger.info(f"Host Setting up irq for dev {dev_id}")
                 self._irq_handler.register_interrupt_handler(
                     Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type1, dev_id
                 )
         elif self._dev_type == CXL_COMPONENT_TYPE.T2:
             for dev_id in range(self._device_count):
                 write_addr = csv_data_mem_loc + self.to_device_mem_addr(dev_id, csv_data_mem_loc)
-                # await self.store(write_addr, csv_data_len_rounded, csv_data_int, prog_bar=True)
+                await self.store(write_addr, csv_data_len_rounded, csv_data_int, prog_bar=True)
                 await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, write_addr)
                 await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
-                logger.info(self._create_message(f"Checking metadata integrity for dev {dev_id}!"))
+                logger.info(
+                    self._create_message(f"Checking T2 metadata integrity for dev {dev_id}!")
+                )
                 while True:
                     csv_data_mem_loc_rb = await self.read_mmio(
                         self.to_device_mmio_addr(dev_id, 0x1800), 8
@@ -427,6 +437,7 @@ class HostTrainIoGen(RunnableComponent):
             raise Exception("Only T1 and T2 devices are allowed!")
 
         for dev_id in range(self._device_count):
+            logger.info(f"sending irq from host to dev {dev_id} type {self._dev_type.name}")
             await self._irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
 
         await self._internal_stop_signal.wait()

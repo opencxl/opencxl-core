@@ -705,7 +705,7 @@ class MyType2Accelerator(RunnableComponent):
         logger.info(self._create_message("Getting metadata for the image dataset"))
         logger.info(f"@@@@@@@@@@@@@@@@@@@222222222{self._device_id}")
 
-        # await self._get_metadata()
+        await self._get_metadata()
         # If testing:
         # shutil.copy(
         #     f"{self.train_data_path}{os.path.sep}noisy_imagenette.csv",
