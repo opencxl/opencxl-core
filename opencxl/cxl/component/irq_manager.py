@@ -71,6 +71,7 @@ class IrqManager(RunnableComponent):
         self._writer_id = {}
         self._device_id = device_id
         self._run_status = False
+        self._irq_tasks: list[Task] = []
 
     def register_interrupt_handler(self, irq_msg: Irq, irq_recv_cb: Callable, dev_id: int = 0):
         """
@@ -87,7 +88,7 @@ class IrqManager(RunnableComponent):
             await irq_recv_cb(dev_id)
 
         cb_func = _callback
-        logger.info(
+        logger.debug(
             self._create_message(
                 f"Registering interrupt for IRQ {irq_msg.name} for remote {device_name}"
             )
@@ -126,7 +127,8 @@ class IrqManager(RunnableComponent):
             if irq not in self._msg_to_interrupt_event[remote_dev_id]:
                 raise RuntimeError(f"Invalid IRQ: {irq} for remote {remote_dev_name}")
 
-            create_task(self._msg_to_interrupt_event[remote_dev_id][irq](remote_dev_id))
+            t = create_task(self._msg_to_interrupt_event[remote_dev_id][irq](remote_dev_id))
+            self._irq_tasks.append(t)
             logger.debug(
                 self._create_message(f"IRQ handled for {irq.name} from remote {remote_dev_name}")
             )
@@ -185,10 +187,15 @@ class IrqManager(RunnableComponent):
             await gather(*self._tasks)
             # await gather(*self._callback_tasks)
         except CancelledError:
-            logger.info(self._create_message("Irq enable listener stopped"))
+            logger.info(self._create_message("IRQ enable listener stopped"))
+            for task in self._irq_tasks:
+                task.cancel()
+            logger.info(self._create_message("All IRQ tasks cancelled"))
 
     async def _stop(self):
         logger.debug(self._create_message("IRQ Manager Stopping"))
+        for task in self._irq_tasks:
+            task.cancel()
         self._end_signal.set()
         for task in self._tasks:
             task.cancel()

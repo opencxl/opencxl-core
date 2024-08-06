@@ -13,6 +13,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List
 from random import sample
+from tqdm.auto import tqdm, trange
 
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.logger import logger
@@ -52,11 +53,11 @@ class HostTrainIoGenConfig:
     root_complex: RootComplex
     irq_handler: IrqManager
     base_addr: int
-    device_count: int
     interleave_gran: int
     device_type: CXL_COMPONENT_TYPE.T1
     cache_controller: CacheController
     train_data_path: str
+    device_count: Optional[int] = None
 
 
 class HostTrainIoGen(RunnableComponent):
@@ -84,6 +85,7 @@ class HostTrainIoGen(RunnableComponent):
         self._stop_signal = asyncio.Event()
         self._internal_stop_signal = asyncio.Event()
         self._train_finished_count = 0
+        self._validation_results_lock = asyncio.Lock()
 
     def append_dev_mmio_range(self, base, size):
         self._dev_mmio_ranges.append((base, size))
@@ -95,29 +97,47 @@ class HostTrainIoGen(RunnableComponent):
         self._device_count = dev_count
 
     # pylint: disable=duplicate-code
-    async def load(self, address: int, size: int) -> bytes:
+    async def load(self, address: int, size: int, prog_bar: bool = False) -> bytes:
         end = address + size
         result = b""
-        for cacheline_offset in range(address, address + size, 64):
-            cacheline = await self._cache_controller.cache_coherent_load(cacheline_offset, 64)
-            chunk_size = min(64, (end - cacheline_offset))
-            chunk_data = cacheline.to_bytes(64, "little")
-            result += chunk_data[:chunk_size]
+        with tqdm(
+            total=size,
+            desc="Reading Data",
+            unit="iB",
+            unit_scale=True,
+            unit_divisor=1024,
+            disable=not prog_bar,
+        ) as pbar:
+            for cacheline_offset in range(address, address + size, 64):
+                cacheline = await self._cache_controller.cache_coherent_load(cacheline_offset, 64)
+                chunk_size = min(64, (end - cacheline_offset))
+                chunk_data = cacheline.to_bytes(64, "little")
+                result += chunk_data[:chunk_size]
+                pbar.update(chunk_size)
         return result
 
-    async def store(self, address: int, size: int, value: int):
+    async def store(self, address: int, size: int, value: int, prog_bar: bool = False):
         if address % 64 != 0 or size % 64 != 0:
             raise Exception("Size and address must be aligned to 64!")
 
-        chunk_count = 0
-        while size > 0:
-            low_64_byte = value & ((1 << (64 * 8)) - 1)
-            await self._cache_controller.cache_coherent_store(
-                address + (chunk_count * 64), 64, low_64_byte
-            )
-            size -= 64
-            chunk_count += 1
-            value >>= 64 * 8
+        with tqdm(
+            total=size,
+            desc="Writing Data",
+            unit="iB",
+            unit_scale=True,
+            unit_divisor=1024,
+            disable=not prog_bar,
+        ) as pbar:
+            chunk_count = 0
+            while size > 0:
+                low_64_byte = value & ((1 << (64 * 8)) - 1)
+                await self._cache_controller.cache_coherent_store(
+                    address + (chunk_count * 64), 64, low_64_byte
+                )
+                size -= 64
+                chunk_count += 1
+                value >>= 64 * 8
+                pbar.update(64)
 
     async def write_config(self, bdf: int, offset: int, size: int, value: int):
         await self._root_complex.write_config(bdf, offset, size, value)
@@ -147,80 +167,81 @@ class HostTrainIoGen(RunnableComponent):
     async def _host_process_validation_type1(self, _: int):
         categories = glob.glob(self._train_data_path + "/val/*")
         self._total_samples = len(categories) * self._sample_from_each_category
-        self._validation_results = [[] for i in range(self._total_samples)]
+        self._validation_results = [[] for _ in range(self._total_samples)]
         pic_id = 0
         pic_data_mem_loc = 0x00008000
-        for c in categories:
-            logger.debug(self._create_message(f"Validating category: {c}"))
-            category_pics = glob.glob(f"{c}/*.JPEG")
-            sample_pics = sample(category_pics, self._sample_from_each_category)
-            category_name = c.split(os.path.sep)[-1]
-            self._sampled_file_categories += [category_name] * self._sample_from_each_category
-            for s in sample_pics:
-                with open(s, "rb") as f:
-                    pic_data = f.read()
-                    pic_data_int = int.from_bytes(pic_data, "little")
-                    pic_data_len = len(pic_data)
-                    pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
-                    logger.debug(
-                        self._create_message(
-                            f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
+        logger.info(
+            f"Validation process started. Total pictures: {self._total_samples}, "
+            f"Num. of Accelerators: {self._device_count}"
+        )
+        with tqdm(total=self._total_samples, desc="Picture", position=0) as pbar_cat:
+            for c in categories:
+                logger.debug(self._create_message(f"Validating category: {c}"))
+                category_pics = glob.glob(f"{c}/*.JPEG")
+                sample_pics = sample(category_pics, self._sample_from_each_category)
+                category_name = c.split(os.path.sep)[-1]
+                self._sampled_file_categories += [category_name] * self._sample_from_each_category
+                for s in sample_pics:
+                    with open(s, "rb") as f:
+                        pic_data = f.read()
+                        pic_data_int = int.from_bytes(pic_data, "little")
+                        pic_data_len = len(pic_data)
+                        pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
+                        logger.debug(
+                            self._create_message(
+                                f"Reading loc: 0x{pic_data_mem_loc:x}, len: 0x{pic_data_len_rounded:x}"
+                            )
                         )
-                    )
-                    for dev_id in range(self._device_count):
                         await self.store(
                             pic_data_mem_loc,
                             pic_data_len_rounded,
                             pic_data_int,
                         )
-                    for dev_id in range(self._device_count):
-                        # Remember to configure the device when starting the app
-                        # Should make sure to_device_addr returns correct mmio for that dev_id
-                        # In fact, we can use a fixed host memory addr
-                        # and we only need to write the length to the device
-                        event = asyncio.Event()
-                        self._irq_handler.register_interrupt_handler(
-                            Irq.ACCEL_VALIDATION_FINISHED,
-                            self._save_validation_result_type1(pic_id, event),
-                            dev_id,
-                        )
-                        await self.write_mmio(
-                            self.to_device_mmio_addr(dev_id, 0x1810), 8, pic_data_mem_loc
-                        )
-                        await self.write_mmio(
-                            self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
-                        )
-
-                        while True:
-                            pic_data_mem_loc_rb = await self.read_mmio(
-                                self.to_device_mmio_addr(dev_id, 0x1810), 8
+                        pic_events: list[asyncio.Event] = []
+                        for dev_id in tqdm(
+                            range(self._device_count),
+                            desc="Device Progress",
+                            position=1,
+                            leave=False,
+                        ):
+                            event = asyncio.Event()
+                            pic_events.append(event)
+                            self._irq_handler.register_interrupt_handler(
+                                Irq.ACCEL_VALIDATION_FINISHED,
+                                self._save_validation_result_type1(pic_id, event),
+                                dev_id,
                             )
-                            pic_data_len_rb = await self.read_mmio(
-                                self.to_device_mmio_addr(dev_id, 0x1818), 8
+                            await self.write_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1810), 8, pic_data_mem_loc
                             )
+                            await self.write_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
+                            )
+                            while True:
+                                pic_data_mem_loc_rb = await self.read_mmio(
+                                    self.to_device_mmio_addr(dev_id, 0x1810), 8
+                                )
+                                pic_data_len_rb = await self.read_mmio(
+                                    self.to_device_mmio_addr(dev_id, 0x1818), 8
+                                )
 
-                            if (
-                                pic_data_mem_loc_rb == pic_data_mem_loc
-                                and pic_data_len_rb == pic_data_len
-                            ):
-                                break
-                            await asyncio.sleep(0.2)
-
-                        await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
-                        await event.wait()
-                        # Currently we don't send the picture information
-                        # (e.g., pic_id) to the device
-                        # and to prevent race condition, we need to send pics synchronously
-                    pic_data_mem_loc += pic_data_len
-                    pic_data_mem_loc = (((pic_data_mem_loc - 1) // 64) + 1) * 64
-                    pic_id += 1
+                                if (
+                                    pic_data_mem_loc_rb == pic_data_mem_loc
+                                    and pic_data_len_rb == pic_data_len
+                                ):
+                                    break
+                                await asyncio.sleep(0.2)
+                            await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
+                            await event.wait()
+                        pic_data_mem_loc += pic_data_len
+                        pic_data_mem_loc = (((pic_data_mem_loc - 1) // 64) + 1) * 64
+                        pic_id += 1
+                        pbar_cat.update(1)
         self._merge_validation_results()
 
     def _save_validation_result_type1(self, pic_id: int, event: asyncio.Event):
         async def _func(dev_id: int):
-            print(f"saving validation results pic: {pic_id}, dev: {dev_id}")
-            # We can use a fixed host_result_addr, say 0x0A000000
-            # Only length is needed
+            logger.debug(f"Saving validation results pic: {pic_id}, dev: {dev_id}")
             host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1820), 8)
             host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
             data_bytes = await self.load(host_result_addr, host_result_len)
@@ -258,11 +279,17 @@ class HostTrainIoGen(RunnableComponent):
         )
         self._stop_signal.set()
 
-    async def _host_process_validation_type2(self):
+    async def _host_check_start_validation_type2(self, dev_id: int):
+        self._train_finished_count += 1
+        if self._train_finished_count == self._device_count:
+            await self._host_process_validation_type2(dev_id)
+
+    async def _host_process_validation_type2(self, _):
         categories = glob.glob(self._train_data_path + "/val/*")
         self._total_samples = len(categories) * self._sample_from_each_category
-        self._validation_results: List[List[Dict[str, float]]] = [[] for _ in self._total_samples]
+        self._validation_results = [[] for i in range(self._total_samples)]
         pic_id = 0
+        IMAGE_WRITE_ADDR = 0x8000
         for c in categories:
             category_pics = glob.glob(f"{c}/*.JPEG")
             sample_pics = sample(category_pics, self._sample_from_each_category)
@@ -276,62 +303,120 @@ class HostTrainIoGen(RunnableComponent):
                     pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
                     for dev_id in range(self._device_count):
                         event = asyncio.Event()
+                        write_addr = self.to_device_mem_addr(dev_id, IMAGE_WRITE_ADDR)
                         await self.store(
-                            self.to_device_mem_addr(dev_id, 0x00008000),
+                            write_addr,
                             pic_data_len_rounded,
                             pic_data_int,
                         )
+                        await self.write_mmio(
+                            self.to_device_mmio_addr(dev_id, 0x1810), 8, IMAGE_WRITE_ADDR
+                        )
+                        await self.write_mmio(
+                            self.to_device_mmio_addr(dev_id, 0x1818), 8, pic_data_len
+                        )
+                        while True:
+                            pic_data_mem_loc_rb = await self.read_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1810), 8
+                            )
+                            pic_data_len_rb = await self.read_mmio(
+                                self.to_device_mmio_addr(dev_id, 0x1818), 8
+                            )
+
+                            if (
+                                pic_data_mem_loc_rb == IMAGE_WRITE_ADDR
+                                and pic_data_len_rb == pic_data_len
+                            ):
+                                break
+                            await asyncio.sleep(0.2)
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
                             self._save_validation_result_type2(dev_id, pic_id, event),
+                            dev_id,
                         )
                         await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
-                        event.wait()
+                        await event.wait()
                         # Currently we don't send the picture information to the device
                         # and to prevent race condition, we need to send pics synchronously
                     pic_id += 1
         self._merge_validation_results()
 
     def _save_validation_result_type2(self, dev_id: int, pic_id: int, event: asyncio.Event):
-        pass
+        async def _func(dev_id: int):
+            logger.debug(
+                self._create_message(
+                    f"Saving validation results for pic: {pic_id} from dev: {dev_id}"
+                )
+            )
+            host_result_addr = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1820), 8)
+            host_result_len = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1828), 8)
+            host_result_addr = self.to_device_mem_addr(dev_id, host_result_addr)
+            data_bytes = await self.load(host_result_addr, host_result_len)
+            validate_result = json.loads(data_bytes.decode())
+            self._validation_results[pic_id].append(validate_result)
+            event.set()
+
+        return _func
 
     async def _host_process_llc_iogen(self):
         # Pass init-info mem location to the remote using MMIO
         csv_data_mem_loc = 0x00004000
         csv_data = b""
-        logger.debug(self._create_message("Host main process waiting..."))
+        logger.info(self._create_message("Host main process waiting..."))
         await self._start_signal.wait()
-        logger.debug(self._create_message("Host main process running!"))
+        logger.info(self._create_message("Host main process running!"))
         with open(f"{self._train_data_path}/noisy_imagenette.csv", "rb") as f:
             csv_data = f.read()
         csv_data_int = int.from_bytes(csv_data, "little")
         csv_data_len = len(csv_data)
         csv_data_len_rounded = (((csv_data_len - 1) // 64) + 1) * 64
-        logger.debug(self._create_message("Storing metadata..."))
-        await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int)
-        logger.debug(self._create_message("Finished storing metadata!"))
 
-        for dev_id in range(self._device_count):
-            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, csv_data_mem_loc)
-            await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
-
-        while True:
-            csv_data_mem_loc_rb = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8)
-            csv_data_len_rb = await self.read_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8)
-
-            if csv_data_mem_loc_rb == csv_data_mem_loc and csv_data_len_rb == csv_data_len:
-                break
-            await asyncio.sleep(0.2)
-
+        logger.info(self._create_message("Storing metadata..."))
         if self._dev_type == CXL_COMPONENT_TYPE.T1:
-            for i in range(self._device_count):
+            await self.store(csv_data_mem_loc, csv_data_len_rounded, csv_data_int, prog_bar=True)
+            for dev_id in range(self._device_count):
+                await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, csv_data_mem_loc)
+                await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
+                logger.info(
+                    self._create_message(f"Checking T1 metadata integrity for dev {dev_id}!")
+                )
+                while True:
+                    csv_data_mem_loc_rb = await self.read_mmio(
+                        self.to_device_mmio_addr(dev_id, 0x1800), 8
+                    )
+                    csv_data_len_rb = await self.read_mmio(
+                        self.to_device_mmio_addr(dev_id, 0x1808), 8
+                    )
+
+                    if csv_data_mem_loc_rb == csv_data_mem_loc and csv_data_len_rb == csv_data_len:
+                        break
+                    await asyncio.sleep(0.2)
                 self._irq_handler.register_interrupt_handler(
-                    Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type1, i
+                    Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type1, dev_id
                 )
         elif self._dev_type == CXL_COMPONENT_TYPE.T2:
-            self._irq_handler.register_interrupt_handler(
-                Irq.ACCEL_TRAINING_FINISHED, self._host_process_validation_type2
-            )
+            for dev_id in range(self._device_count):
+                write_addr = csv_data_mem_loc + self.to_device_mem_addr(dev_id, csv_data_mem_loc)
+                await self.store(write_addr, csv_data_len_rounded, csv_data_int, prog_bar=True)
+                await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1800), 8, write_addr)
+                await self.write_mmio(self.to_device_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
+                logger.info(
+                    self._create_message(f"Checking T2 metadata integrity for dev {dev_id}!")
+                )
+                while True:
+                    csv_data_mem_loc_rb = await self.read_mmio(
+                        self.to_device_mmio_addr(dev_id, 0x1800), 8
+                    )
+                    csv_data_len_rb = await self.read_mmio(
+                        self.to_device_mmio_addr(dev_id, 0x1808), 8
+                    )
+
+                    if csv_data_mem_loc_rb == write_addr and csv_data_len_rb == csv_data_len:
+                        break
+                    await asyncio.sleep(0.2)
+                self._irq_handler.register_interrupt_handler(
+                    Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type2, dev_id
+                )
         else:
             raise Exception("Only T1 and T2 devices are allowed!")
 
@@ -368,6 +453,8 @@ class CxlImageClassificationHostConfig:
     memory_ranges: List[MemoryRange] = field(default_factory=list)
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
     coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.DotMemBI
+    device_type: Optional[CXL_COMPONENT_TYPE] = None
+    base_addr: int = 0x0
 
 
 class CxlImageClassificationHost(RunnableComponent):
@@ -411,13 +498,14 @@ class CxlImageClassificationHost(RunnableComponent):
             memory_controller=config.memory_controller,
             memory_ranges=config.memory_ranges,
             root_ports=root_complex_root_ports,
+            coh_type=config.coh_type,
         )
         self._root_complex = RootComplex(root_complex_config)
 
         if config.coh_type == COH_POLICY_TYPE.DotCache:
             cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
             coh_agent_to_cache_fifo = coh_bridge_to_cache_fifo
-        elif config.coh_type == COH_POLICY_TYPE.DotMemBI:
+        elif config.coh_type in (COH_POLICY_TYPE.NonCache, COH_POLICY_TYPE.DotMemBI):
             cache_to_coh_agent_fifo = cache_to_home_agent_fifo
             coh_agent_to_cache_fifo = home_agent_to_cache_fifo
 
@@ -426,20 +514,25 @@ class CxlImageClassificationHost(RunnableComponent):
             processor_to_cache_fifo=processor_to_cache_fifo,
             cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
-            cache_num_assoc=4,
+            cache_num_assoc=4,  ### used to be 4
             cache_num_set=8,
         )
         self._cache_controller = CacheController(cache_controller_config)
+
+        if config.device_type is None:
+            dev_type = CXL_COMPONENT_TYPE.T1
+        else:
+            dev_type = config.device_type
 
         host_processor_config = HostTrainIoGenConfig(
             host_name=config.host_name,
             processor_to_cache_fifo=processor_to_cache_fifo,
             root_complex=self._root_complex,
             irq_handler=self._irq_handler,
-            base_addr=0x290000000,
+            base_addr=config.base_addr,
             device_count=1,
             interleave_gran=0x100,
-            device_type=CXL_COMPONENT_TYPE.T1,
+            device_type=dev_type,
             cache_controller=self._cache_controller,
             train_data_path=config.train_data_path,
         )
