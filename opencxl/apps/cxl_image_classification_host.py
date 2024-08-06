@@ -436,6 +436,7 @@ class CxlImageClassificationHostConfig:
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
     coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.DotMemBI
     device_type: Optional[CXL_COMPONENT_TYPE] = None
+    base_addr: int = 0x28000000
 
 
 class CxlImageClassificationHost(RunnableComponent):
@@ -510,7 +511,7 @@ class CxlImageClassificationHost(RunnableComponent):
             processor_to_cache_fifo=processor_to_cache_fifo,
             root_complex=self._root_complex,
             irq_handler=self._irq_handler,
-            base_addr=0x290000000,
+            base_addr=config.base_addr,
             device_count=1,
             interleave_gran=0x100,
             device_type=dev_type,
