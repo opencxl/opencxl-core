@@ -230,7 +230,7 @@ class HostTrainIoGen(RunnableComponent):
                                     and pic_data_len_rb == pic_data_len
                                 ):
                                     break
-                                await asyncio.sleep(0)
+                                await asyncio.sleep(0.2)
                             await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
                             await event.wait()
                         pic_data_mem_loc += pic_data_len

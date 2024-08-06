@@ -7,6 +7,9 @@
 
 # pylint: disable=unused-import, duplicate-code
 import asyncio
+import os
+from pathlib import Path
+from PIL import Image
 import pytest
 
 from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
@@ -55,11 +58,21 @@ BASE_TEST_PORT = 9500
 #         switch_configs=switch_configs, physical_port_manager=physical_port_manager
 #     )
 
+#     # This is a placeholder path, change if needed
+#     tmp_path = "/tmp/opencxlpytesttmp/"
+#     Path(tmp_path).mkdir(parents=True, exist_ok=True)
+#     Path(f"{tmp_path}{os.path.sep}train{os.path.sep}class1").mkdir(parents=True, exist_ok=True)
+#     Path(f"{tmp_path}{os.path.sep}val{os.path.sep}class1").mkdir(parents=True, exist_ok=True)
+#     image = Image.new("RGB", (100, 100))
+#     image.save(f"{tmp_path}{os.path.sep}train{os.path.sep}class1{os.path.sep}image.png", "PNG")
+#     image.save(f"{tmp_path}{os.path.sep}val{os.path.sep}class1{os.path.sep}image.png", "PNG")
+
 #     dev1 = MyType2Accelerator(
 #         port_index=1,
 #         memory_size=1024 * MB,  # min 256MB, or will cause error for DVSEC
 #         memory_file=f"mem{switch_port}.bin",
 #         port=switch_port,
+#         train_data_path=tmp_path,
 #     )
 
 #     dev2 = MyType2Accelerator(
@@ -67,6 +80,7 @@ BASE_TEST_PORT = 9500
 #         memory_size=1024 * MB,  # min 256MB, or will cause error for DVSEC
 #         memory_file=f"mem{switch_port+1}.bin",
 #         port=switch_port,
+#         train_data_path=tmp_path,
 #     )
 
 #     host_mem_size = 0x8000  # Needs to be big enough to test cache eviction
@@ -133,8 +147,12 @@ BASE_TEST_PORT = 9500
 #                 next_available_hpa_base += size
 
 #         # TODO: Not working right now. Make it work in the future.
-#         # await host._host_simple_processor.store(hpa_base, 0x40, 0xAAAAAAAA)
-#         # await dev1._cxl_type2_device.cxl_cache_readline(0x00000000)
+#         write_data = 0xAAAAAAAA
+#         await host._host_simple_processor.store(hpa_base, 0x40, write_data)
+#         readback_host = await host._host_simple_processor.load(hpa_base, 0x40)
+#         readback_dev = await dev1._cxl_type2_device.cxl_cache_readline(0x00000000)
+#         assert write_data == readback_host
+#         assert write_data == readback_dev
 #         # await dev1._cxl_type2_device._cxl_cache_manager.send_d2h_req_test()
 
 #     test_tasks = [asyncio.create_task(test_configs()), asyncio.create_task(asyncio.sleep(4))]
