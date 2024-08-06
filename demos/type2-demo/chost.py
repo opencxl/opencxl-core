@@ -26,6 +26,7 @@ host = None
 start_tasks = []
 
 train_data_path = None
+hpa_base = 0x28000000
 
 
 async def shutdown(signame=None):
@@ -59,7 +60,6 @@ async def run_demo(signame=None):
     await cxl_bus_driver.init()
     await cxl_mem_driver.init()
 
-    hpa_base = 0x0
     next_available_hpa_base = hpa_base
 
     # hack for demo purposes
@@ -98,6 +98,7 @@ async def main():
 
     global host
     global start_tasks
+    global hpa_base
 
     host_mem_size = 0x8000  # Needs to be big enough to test cache eviction
 
@@ -117,6 +118,7 @@ async def main():
         root_ports,
         coh_type=COH_POLICY_TYPE.DotMemBI,
         device_type=CXL_COMPONENT_TYPE.T2,
+        hpa_base=hpa_base,
     )
     host = CxlImageClassificationHost(config)
 

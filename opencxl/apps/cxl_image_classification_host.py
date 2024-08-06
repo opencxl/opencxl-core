@@ -170,6 +170,7 @@ class HostTrainIoGen(RunnableComponent):
         self._validation_results = [[] for _ in range(self._total_samples)]
         pic_id = 0
         pic_data_mem_loc = 0x00008000
+        logger.info("")
         logger.info(
             f"Validation process started. Total pictures: {self._total_samples}, "
             f"Num. of Accelerators: {self._device_count}"
@@ -433,6 +434,7 @@ class CxlImageClassificationHostConfig:
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
     coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.DotMemBI
     device_type: Optional[CXL_COMPONENT_TYPE] = None
+    base_addr: int = 0x28000000
 
 
 class CxlImageClassificationHost(RunnableComponent):
@@ -506,7 +508,7 @@ class CxlImageClassificationHost(RunnableComponent):
             processor_to_cache_fifo=processor_to_cache_fifo,
             root_complex=self._root_complex,
             irq_handler=self._irq_handler,
-            base_addr=0x290000000,
+            base_addr=config.base_addr,
             device_count=1,
             interleave_gran=0x100,
             device_type=dev_type,
