@@ -22,20 +22,16 @@ interrupted = False
 stop_signal = asyncio.Event()
 
 
-async def kill(prog, pid):
-    print(f"[RUNNER] Killing {prog} (PID {pid})")
-    os.kill(pid, SIGINT)
-    os.waitpid(pid, 0)
-    print(f"[RUNNER] Killed {prog} (PID {pid})")
-
-
 def clean_shutdown(signum=None, frame=None):
     global interrupted, stop_signal
     interrupted = True
     stop_signal.set()
     pthread_sigmask(SIG_BLOCK, [SIGINT])
-    for prog, pid in jobs.items():
-        asyncio.create_task(kill(prog, pid))
+    for prog, pid in reversed(jobs.items()):
+        print(f"[RUNNER] Killing {prog} (PID {pid})")
+        os.kill(pid, SIGINT)
+        os.waitpid(pid, 0)
+        print(f"[RUNNER] Killed {prog} (PID {pid})")
 
     logger.debug(f"[RUNNER] exiting...")
     quit()
