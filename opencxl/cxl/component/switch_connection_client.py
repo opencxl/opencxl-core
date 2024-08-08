@@ -8,6 +8,7 @@
 import asyncio
 from typing import cast, Tuple, Optional
 from enum import Enum, auto
+from typing import List
 
 from opencxl.util.logger import logger
 from opencxl.cxl.transport.transaction import (
@@ -34,6 +35,7 @@ class SwitchConnectionClient(RunnableComponent):
         self,
         port_index: int,
         component_type: CXL_COMPONENT_TYPE,
+        num_ld: int = 0,
         host: str = "0.0.0.0",
         port: int = 8000,
         retry: bool = True,
@@ -45,7 +47,10 @@ class SwitchConnectionClient(RunnableComponent):
         self._port = port
         self._port_index = port_index
         self._component_type = component_type
-        self._cxl_connection = CxlConnection()
+        if num_ld != 0:
+            self._cxl_connection = [CxlConnection() for _ in range(num_ld)]
+        else:
+            self._cxl_connection = CxlConnection()
         self._packet_processor = None
         self._injected_error = None
         self._retry = retry

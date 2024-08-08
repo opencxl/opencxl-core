@@ -147,6 +147,9 @@ class MmioRouter(CxlRouter):
             if target_port >= len(self._downstream_connections):
                 raise Exception("target_port is out of bound")
 
+            # MLD
+            cxl_io_base_packet.tlp_prefix.ld_id = target_port
+
             downstream_connection = self._downstream_connections[target_port]
             await downstream_connection.host_to_target.put(packet)
 
@@ -218,6 +221,9 @@ class ConfigSpaceRouter(CxlRouter):
                 await self._send_unsupported_request(req_id, tag)
                 continue
 
+            # MLD
+            cxl_io_packet.tlp_prefix.ld_id = target_port
+
             logger.debug(self._create_message(f"Target port is {target_port}"))
 
             downstream_connection = self._downstream_connections[target_port]
@@ -259,13 +265,18 @@ class CxlMemRouter(CxlRouter):
             if cxl_mem_base_packet.is_m2sreq():
                 cxl_mem_packet = cast(CxlMemM2SReqPacket, packet)
                 addr = cxl_mem_packet.get_address()
+                target_port = self._routing_table.get_cxl_mem_target_port(addr)
+                # MLD
+                cxl_mem_packet.m2sreq_header.ld_id = target_port
             elif cxl_mem_base_packet.is_m2srwd():
                 cxl_mem_packet = cast(CxlMemM2SRwDPacket, packet)
                 addr = cxl_mem_packet.get_address()
+                target_port = self._routing_table.get_cxl_mem_target_port(addr)
+                # MLD
+                cxl_mem_packet.m2srwd_header.ld_id = target_port
             else:
                 raise Exception("Received unexpected packet")
 
-            target_port = self._routing_table.get_cxl_mem_target_port(addr)
             if target_port is None:
                 logger.warning(self._create_message("Received unroutable CXL.mem packet"))
                 continue

@@ -59,6 +59,7 @@ class CxlType3Device(RunnableComponent):
         dev_type: CXL_T3_DEV_TYPE,
         decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_4,
         label: Optional[str] = None,
+        ld_id: Optional[int] = None,
     ):
         # pylint: disable=unused-argument
         super().__init__(label)
@@ -67,6 +68,7 @@ class CxlType3Device(RunnableComponent):
         self._decoder_count = decoder_count
         self._cxl_memory_device_component = None
         self._upstream_connection = transport_connection
+        self._ld_id = ld_id
 
         self._cxl_io_manager = CxlIoManager(
             self._upstream_connection.mmio_fifo,
@@ -76,10 +78,12 @@ class CxlType3Device(RunnableComponent):
             device_type=PCI_DEVICE_TYPE.ENDPOINT,
             init_callback=self._init_device,
             label=self._label,
+            ld_id=self._ld_id,
         )
         self._cxl_mem_manager = CxlMemManager(
             upstream_fifo=self._upstream_connection.cxl_mem_fifo,
             label=self._label,
+            ld_id=self._ld_id,
         )
 
         # Update CxlMemManager with a CxlMemoryDeviceComponent

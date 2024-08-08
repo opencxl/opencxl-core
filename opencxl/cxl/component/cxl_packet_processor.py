@@ -5,10 +5,19 @@
  See LICENSE for details.
 """
 
-from asyncio import StreamReader, StreamWriter, create_task, gather, Queue
+from asyncio import (
+    StreamReader,
+    StreamWriter,
+    create_task,
+    gather,
+    Queue,
+    sleep,
+    wait,
+    FIRST_COMPLETED,
+)
 from dataclasses import dataclass
 from enum import StrEnum, IntEnum
-from typing import cast, Optional, Dict
+from typing import cast, Optional, Dict, Union, List
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
@@ -50,14 +59,16 @@ class CxlPacketProcessor(RunnableComponent):
         self,
         reader: StreamReader,
         writer: StreamWriter,
-        cxl_connection: CxlConnection,
+        # cxl_connection for SLD & MLD
+        cxl_connection: Union[CxlConnection, List[CxlConnection]],
         component_type: CXL_COMPONENT_TYPE,
         label: Optional[str] = None,
     ):
         super().__init__(label)
         self._reader = PacketReader(reader, label=label)
         self._writer = writer
-        self._tlp_table: Dict[int, CXL_IO_FIFO_TYPE] = {}
+        # tlp_table for SLD & MLD
+        self._tlp_table: Dict[(int, int), CXL_IO_FIFO_TYPE] = {}
         self._cxl_connection = cxl_connection
         self._component_type = component_type
         logger.debug(self._create_message(f"Configured for {component_type.name}"))
@@ -116,6 +127,26 @@ class CxlPacketProcessor(RunnableComponent):
             ):
                 self._incoming.cxl_mem = self._cxl_connection.cxl_mem_fifo.host_to_target
                 self._outgoing.cxl_mem = self._cxl_connection.cxl_mem_fifo.target_to_host
+        # Add MLD
+        elif component_type == CXL_COMPONENT_TYPE.LD:
+            self._incoming_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
+            self._outgoing_dir = PROCESSOR_DIRECTION.TARGET_TO_HOST
+            self._incoming = [
+                FifoGroup(
+                    cfg_space=cxl_conn.cfg_fifo.host_to_target,
+                    mmio=cxl_conn.mmio_fifo.host_to_target,
+                    cxl_mem=cxl_conn.cxl_mem_fifo.host_to_target,
+                    cxl_cache=None,
+                )
+                for cxl_conn in self._cxl_connection
+            ]
+
+            self._outgoing = FifoGroup(
+                    cfg_space=self._cxl_connection[0].cfg_fifo.target_to_host,
+                    mmio=self._cxl_connection[0].mmio_fifo.target_to_host,
+                    cxl_mem=self._cxl_connection[0].cxl_mem_fifo.target_to_host,
+                    cxl_cache=None,
+                )
         else:
             raise Exception(f"Unsupported component type {component_type.name}")
 
@@ -129,7 +160,13 @@ class CxlPacketProcessor(RunnableComponent):
 
     def _push_tlp_table_entry(self, cxl_io_packet: CxlIoBasePacket):
         tid = cxl_io_packet.get_transaction_id()
-        if tid in self._tlp_table:
+        # Add MLD
+        if self._component_type == CXL_COMPONENT_TYPE.LD:
+            ld_id = cxl_io_packet.tlp_prefix.ld_id
+        else:
+            ld_id = -1
+
+        if (tid, ld_id) in self._tlp_table:
             raise Exception(f"tid ({tid:02x}) already exists in the TLP table")
         if cxl_io_packet.is_cfg():
             fifo_type = CXL_IO_FIFO_TYPE.CFG
@@ -138,14 +175,20 @@ class CxlPacketProcessor(RunnableComponent):
         else:
             fmt_type_str = CXL_IO_FMT_TYPE(cxl_io_packet.cxl_io_header.fmt_type)
             raise Exception(f"pushing tid of {fmt_type_str} type is not allowed")
-        self._tlp_table[tid] = fifo_type
+        self._tlp_table[(tid, ld_id)] = fifo_type
 
     def _pop_tlp_table_entry(self, cxl_io_packet: CxlIoBasePacket) -> CXL_IO_FIFO_TYPE:
         tid = cxl_io_packet.get_transaction_id()
-        if tid not in self._tlp_table:
-            raise Exception(f"tid ({tid:02x}) is not found in the TLP table")
-        fifo_type = self._tlp_table[tid]
-        del self._tlp_table[tid]
+        # Add MLD
+        if self._component_type == CXL_COMPONENT_TYPE.LD:
+            ld_id = cxl_io_packet.tlp_prefix.ld_id
+        else:
+            ld_id = -1
+        if (tid, ld_id) not in self._tlp_table:
+            raise Exception(f"tid ({tid:02x}-{ld_id}) is not found in the TLP table")
+        fifo_type = self._tlp_table[(tid, ld_id)]
+
+        del self._tlp_table[(tid, ld_id)]
         return fifo_type
 
     async def _process_incoming_packets(self):
@@ -162,10 +205,18 @@ class CxlPacketProcessor(RunnableComponent):
                             )
                         )
                         fifo_type = self._pop_tlp_table_entry(cxl_io_packet)
-                        if fifo_type == CXL_IO_FIFO_TYPE.CFG:
-                            await self._incoming.cfg_space.put(cxl_io_packet)
+                        # Add MLD
+                        if self._component_type == CXL_COMPONENT_TYPE.LD:
+                            ld_id = cxl_io_packet.tlp_prefix.ld_id
+                            if fifo_type == CXL_IO_FIFO_TYPE.CFG:
+                                await self._incoming[ld_id].cfg_space.put(cxl_io_packet)
+                            else:
+                                await self._incoming[ld_id].mmio.put(cxl_io_packet)
                         else:
-                            await self._incoming.mmio.put(cxl_io_packet)
+                            if fifo_type == CXL_IO_FIFO_TYPE.CFG:
+                                await self._incoming.cfg_space.put(cxl_io_packet)
+                            else:
+                                await self._incoming.mmio.put(cxl_io_packet)
                     elif cxl_io_packet.is_cfg():
                         logger.debug(
                             self._create_message(
@@ -173,7 +224,12 @@ class CxlPacketProcessor(RunnableComponent):
                             )
                         )
                         self._push_tlp_table_entry(cxl_io_packet)
-                        await self._incoming.cfg_space.put(cxl_io_packet)
+                        # Add MLD
+                        if self._component_type == CXL_COMPONENT_TYPE.LD:
+                            ld_id = cxl_io_packet.tlp_prefix.ld_id
+                            await self._incoming[ld_id].cfg_space.put(cxl_io_packet)
+                        else:
+                            await self._incoming.cfg_space.put(cxl_io_packet)
                     elif cxl_io_packet.is_mmio():
                         logger.debug(
                             self._create_message(
@@ -182,20 +238,44 @@ class CxlPacketProcessor(RunnableComponent):
                         )
                         if cxl_io_packet.is_mem_write() is False:
                             self._push_tlp_table_entry(cxl_io_packet)
-                        await self._incoming.mmio.put(cxl_io_packet)
+                        # Add MLD
+                        if self._component_type == CXL_COMPONENT_TYPE.LD:
+                            ld_id = cxl_io_packet.tlp_prefix.ld_id
+                            await self._incoming[ld_id].mmio.put(cxl_io_packet)
+                        else:
+                            await self._incoming.mmio.put(cxl_io_packet)
                     else:
                         logger.warning(self._create_message("Unexpected CXL.io packet"))
                         logger.debug(self._create_message(packet.get_pretty_string()))
                         raise Exception("Received unexpected CXL.io packet")
                 elif packet.is_cxl_mem():
-                    if self._incoming.cxl_mem is None:
+                    if (
+                        self._component_type != CXL_COMPONENT_TYPE.LD
+                        and self._incoming.cxl_mem is None
+                    ):
                         logger.error(self._create_message("Got CXL.mem packet on no CXL.mem FIFO"))
                         continue
                     logger.debug(
                         self._create_message(f"Received {self._incoming_dir} CXL.mem packet")
                     )
                     cxl_mem_packet = cast(CxlMemBasePacket, packet)
-                    await self._incoming.cxl_mem.put(cxl_mem_packet)
+                    if self._component_type == CXL_COMPONENT_TYPE.LD:
+                        # Add LD routing code
+                        if cxl_mem_packet.is_m2sreq():
+                            ld_id = cxl_mem_packet.m2sreq_header.ld_id
+                        elif cxl_mem_packet.is_m2srwd():
+                            ld_id = cxl_mem_packet.m2srwd_header.ld_id
+                        elif cxl_mem_packet.is_s2mndr():
+                            ld_id = cxl_mem_packet.s2mndr_header.ld_id
+                        elif cxl_mem_packet.is_s2mdrs():
+                            ld_id = cxl_mem_packet.s2mdrs_header.ld_id
+                        else:
+                            logger.warning(self._create_message("Unexpected CXL.mem packet"))
+
+                        await self._incoming[ld_id].cxl_mem.put(cxl_mem_packet)
+                    else:
+                        await self._incoming.cxl_mem.put(cxl_mem_packet)
+
                 elif packet.is_cxl_cache():
                     if self._incoming.cxl_cache is None:
                         logger.error(

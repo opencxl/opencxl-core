@@ -1,0 +1,29 @@
+port_configs:
+  - type: USP
+  - type: DSP
+  - type: USP
+  - type: DSP
+virtual_switch_configs:
+  - upstream_port_index: 0
+    vppb_counts: 2
+    initial_bounds: [1,1]
+  - upstream_port_index: 2
+    vppb_counts: 2
+    initial_bounds: [3,3]
+multi_devices:
+  - mld_port_index: 1
+    lds:
+    - ld_id: 0
+      memory_size: 256M
+      serial_number: 4E9FF1671694A385
+    - ld_id: 1
+      memory_size: 256M
+      serial_number: 2200B90031B3ABD8
+  - mld_port_index: 3
+    lds:
+    - ld_id: 0
+      memory_size: 256M
+      serial_number: 4E9FF1671694A315
+    - ld_id: 1
+      memory_size: 256M
+      serial_number: 2200B90031B23512
