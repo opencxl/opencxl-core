@@ -109,7 +109,7 @@ class PacketReader(LabeledComponent):
 
     def _get_cxl_io_packet(self, payload: bytes) -> CxlIoBasePacket:
         cxl_io_base_packet = CxlIoBasePacket()
-        header_size = len(cxl_io_base_packet.cxl_io_header) + BasePacket.get_size()
+        header_size = len(cxl_io_base_packet.tlp_prefix) + len(cxl_io_base_packet.cxl_io_header) + BasePacket.get_size()
         cxl_io_base_packet.reset(payload[:header_size])
         if cxl_io_base_packet.is_cfg_read():
             cxl_io_packet = CxlIoCfgRdPacket()

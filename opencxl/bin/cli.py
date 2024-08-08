@@ -14,7 +14,7 @@ import logging
 from opencxl.util.logger import logger
 from opencxl.bin import fabric_manager
 from opencxl.bin import cxl_switch
-from opencxl.bin import single_logical_device as sld
+from opencxl.bin import logical_device as ld
 from opencxl.bin import cxl_host
 from opencxl.bin import mem
 
@@ -25,9 +25,9 @@ def cli():
 
 
 def validate_component(ctx, param, components):
-    valid_components = ["fm", "switch", "host", "host-group", "sld", "sld-group"]
+    valid_components = ["fm", "switch","host", "host-group", "ld", "ld-group"]
     if "all" in components:
-        return ("fm", "switch", "host-group", "sld-group")
+        return ("fm", "switch", "host-group", "ld-group")
     for c in components:
         if not c in valid_components:
             raise click.BadParameter(f"Please select from {list(valid_components)}")
@@ -76,7 +76,7 @@ def start(
     """Start components"""
 
     # config file mandatory
-    config_components = ["switch", "sld-group", "host-group"]
+    config_components = ["switch", "ld-group", "host-group"]
     for c in comp:
         if c in config_components and not config_file:
             raise click.BadParameter(f"Must specify <config file> for {config_components}")
@@ -115,12 +115,12 @@ def start(
         threads.append(t_switch)
         t_switch.start()
 
-    if "sld" in comp:
-        t_sld = threading.Thread(target=start_sld, args=(ctx,))
-        threads.append(t_sld)
+    if "ld" in comp:
+        t_ld = threading.Thread(target=start_ld, args=(ctx,))
+        threads.append(t_ld)
         t_host.start()
-    if "sld-group" in comp:
-        t_sgroup = threading.Thread(target=start_sld_group, args=(ctx, config_file))
+    if "ld-group" in comp:
+        t_sgroup = threading.Thread(target=start_ld_group, args=(ctx, config_file))
         threads.append(t_sgroup)
         t_sgroup.start()
 
@@ -186,6 +186,8 @@ def start_fabric_manager(ctx):
 def start_switch(ctx, config_file):
     ctx.invoke(cxl_switch.start, config_file=config_file)
 
+# def start_mld_switch(ctx, config_file):
+#     ctx.invoke(mld_cxl_switch.start, config_file=config_file)
 
 def start_host(ctx):
     ctx.invoke(cxl_host.start)
@@ -195,12 +197,12 @@ def start_host_group(ctx, config_file, hm_mode):
     ctx.invoke(cxl_host.start_group, config_file=config_file, hm_mode=hm_mode)
 
 
-def start_sld(ctx, config_file):
-    ctx.invoke(sld.start, config_file=config_file)
+def start_ld(ctx, config_file):
+    ctx.invoke(ld.start, config_file=config_file)
 
 
-def start_sld_group(ctx, config_file):
-    ctx.invoke(sld.start_group, config_file=config_file)
+def start_ld_group(ctx, config_file):
+    ctx.invoke(ld.start_group, config_file=config_file)
 
 
 @cli.command(name="stop")

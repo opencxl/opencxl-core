@@ -155,6 +155,18 @@ class CXL_IO_FMT_TYPE(IntEnum):
     CAS_64B = 0b01101110
 
 
+class TLP_Prefix(UnalignedBitStructure):
+    pcie_base_spec_defined: int
+    ld_id: int
+    reserved: int
+
+    _fields = [
+        BitField("pcie_base_spec_defined", 0, 7),  # 8 bits: PCIe Base Specification Defined
+        BitField("ld_id", 8, 23),  # 16 bits: LD-ID[15:0]
+        BitField("reserved", 24, 31),  # 8 bits: Reserved
+    ]
+
+
 class CxlIoHeader(UnalignedBitStructure):
     fmt_type: CXL_IO_FMT_TYPE
     t9: int
@@ -186,14 +198,19 @@ class CxlIoHeader(UnalignedBitStructure):
     ]
 
 
-CXL_IO_BASE_HEADER_START = SYSTEM_HEADER_END + 1
+TLP_Prefix_START = SYSTEM_HEADER_END + 1
+TLP_Prefix_END = TLP_Prefix_START + TLP_Prefix.get_size() - 1
+
+CXL_IO_BASE_HEADER_START = TLP_Prefix_END + 1
 CXL_IO_BASE_HEADER_END = CXL_IO_BASE_HEADER_START + CxlIoHeader.get_size() - 1
 CXL_IO_BASE_FIELD_START = CXL_IO_BASE_HEADER_END + 1
 
 
 class CxlIoBasePacket(BasePacket):
+    tlp_prefix: TLP_Prefix
     cxl_io_header: CxlIoHeader
     _fields = BasePacket._fields + [
+        StructureField("tlp_prefix", TLP_Prefix_START, TLP_Prefix_END, TLP_Prefix),
         StructureField(
             "cxl_io_header",
             CXL_IO_BASE_HEADER_START,

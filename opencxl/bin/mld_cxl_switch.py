@@ -13,7 +13,7 @@ from opencxl.cxl.environment import parse_cxl_environment, CxlEnvironment
 
 
 # Switch command group
-@click.group(name="switch")
+@click.group(name="mld-switch")
 def switch_group():
     """Command group for CXL Switch."""
     pass
@@ -30,5 +30,5 @@ def start(config_file):
         logger.error(f"Configuration error: {e}")
         return
 
-    switch = CxlSwitch(environment.switch_config, environment.single_logical_device_configs, environment.multi_logical_device_configs)
+    switch = CxlSwitch(environment.switch_config, environment.multi_logical_device_configs)
     asyncio.run(switch.run())

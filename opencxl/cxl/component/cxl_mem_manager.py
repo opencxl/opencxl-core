@@ -29,9 +29,11 @@ class CxlMemManager(PacketProcessor):
         upstream_fifo: FifoPair,
         downstream_fifo: Optional[FifoPair] = None,
         label: Optional[str] = None,
+        ld_id: Optional[int] = None,
     ):
         self._downstream_fifo: Optional[FifoPair]
         self._upstream_fifo: FifoPair
+        self._ld_id = ld_id
 
         super().__init__(upstream_fifo, downstream_fifo, label)
         self._memory_device_component: Optional[CxlMemoryDeviceComponent] = None

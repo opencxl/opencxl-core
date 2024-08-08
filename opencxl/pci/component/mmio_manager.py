@@ -50,6 +50,7 @@ class MmioManager(PacketProcessor):
         upstream_fifo: FifoPair,
         downstream_fifo: Optional[FifoPair] = None,
         label: Optional[str] = None,
+        ld_id: Optional[int] = None,
     ):
         self._downstream_fifo: Optional[FifoPair]
         self._upstream_fifo: FifoPair
@@ -60,6 +61,7 @@ class MmioManager(PacketProcessor):
         self._prefetchable_memory_base = 0
         self._prefetchable_memory_limit = 0
         self._bar_entries: List[BarEntry] = []
+        self._ld_id = ld_id
 
     # NOTE: Setting memory ranges is only used for bridge devices
 
@@ -140,6 +142,11 @@ class MmioManager(PacketProcessor):
             packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_len=data_len)
         else:
             packet = CxlIoCompletionPacket.create(req_id, tag)
+        # Add MLD
+        if self._ld_id is not None:
+            packet.tlp_prefix.ld_id = self._ld_id
+        else:
+            packet.tlp_prefix.ld_id = -1
         await self._upstream_fifo.target_to_host.put(packet)
 
     async def _forward_request(self, packet: CxlIoBasePacket):

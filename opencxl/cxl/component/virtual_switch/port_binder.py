@@ -117,12 +117,12 @@ class PortBinder(RunnableComponent):
         # TODO: Get config space from dummy and store in PPB
         if bind_slot.processor is not None:
             await bind_slot.processor.stop()
-            info = bind_slot.dsp.backup_enumeration_info()
-            dsp_device.restore_enumeration_info(info)
+            info = bind_slot.dsp.backup_enumeration_info(vppb_index)
+            dsp_device.restore_enumeration_info(info, vppb_index)
 
         bind_slot.dsp = dsp_device
         downstream_connection = bind_slot.vppb_connection
-        upstream_connection = dsp_device.get_upstream_connection()
+        upstream_connection = dsp_device.get_upstream_connection(vppb_index)
         bind_slot.processor = BindProcessor(
             self._vcs_id, vppb_index, downstream_connection, upstream_connection
         )
@@ -130,6 +130,7 @@ class PortBinder(RunnableComponent):
         bind_slot.status = BIND_STATUS.BOUND
 
     async def unbind_vppb(self, dsp_device: DownstreamPortDevice, vppb_index: int):
+
         if vppb_index >= len(self._bind_slots) or vppb_index < 0:
             raise Exception("vppb_index is out of bound")
 
@@ -140,12 +141,13 @@ class PortBinder(RunnableComponent):
         # TODO: Get config space from PPB and store in dummy
         if bind_slot.processor is not None:
             await bind_slot.processor.stop()
-            info = bind_slot.dsp.backup_enumeration_info()
-            dsp_device.restore_enumeration_info(info)
+            info = bind_slot.dsp.backup_enumeration_info(vppb_index)
+            bind_slot.dsp.unregister_vppb(vppb_index)
+            dsp_device.restore_enumeration_info(info, vppb_index)
 
         bind_slot.dsp = dsp_device
         downstream_connection = bind_slot.vppb_connection
-        upstream_connection = dsp_device.get_upstream_connection()
+        upstream_connection = dsp_device.get_upstream_connection(vppb_index)
         bind_slot.processor = BindProcessor(
             self._vcs_id, vppb_index, downstream_connection, upstream_connection
         )
