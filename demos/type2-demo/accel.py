@@ -47,13 +47,13 @@ async def main():
     global device
     global start_tasks
 
-    mempath = f"../mem{portidx}.bin"
+    mempath = f"mem{portidx}.bin"
     with open(mempath, "a") as _:
         pass
     device = MyType2Accelerator(
         port_index=portidx,
         memory_size=256 * MB,  # min 256MB, or will cause error for DVSEC
-        memory_file=f"../../mem{portidx}.bin",
+        memory_file=f"mem{portidx}.bin",
         host="localhost",
         port=sw_portno,
         train_data_path=train_data_path,

@@ -83,15 +83,25 @@ class MyType1Accelerator(RunnableComponent):
         if os.path.exists(self.accel_dirname) and os.path.isdir(self.accel_dirname):
             shutil.rmtree(self.accel_dirname)
         Path(self.accel_dirname).mkdir(parents=True, exist_ok=True)
-        self._train_folder = f"{self.accel_dirname}{os.path.sep}train"
-        self._val_folder = f"{self.accel_dirname}{os.path.sep}val"
+        self._train_folder = os.path.abspath(
+            os.path.join(self.accel_dirname, "train")
+        )
+        self._val_folder = os.path.abspath(
+            os.path.join(self.accel_dirname, "val")
+        )
+        symlink_train_src = os.path.abspath(
+            os.path.join(self.original_base_folder, "train")
+        )
+        symlink_val_src = os.path.abspath(
+            os.path.join(self.original_base_folder, "val")
+        )
         os.symlink(
-            src=f"{self.original_base_folder}{os.path.sep}train",
+            src=symlink_train_src,
             dst=self._train_folder,
             target_is_directory=True,
         )
         os.symlink(
-            src=f"{self.original_base_folder}{os.path.sep}val",
+            src=symlink_val_src,
             dst=self._val_folder,
             target_is_directory=True,
         )
@@ -432,17 +442,16 @@ class MyType2Accelerator(RunnableComponent):
         )
 
         self._device_id = device_id
-        logger.info(f"self._device_id:{self._device_id}")
-        device_config = CxlType2DeviceConfig(
+        self.accel_dirname = f"/tmp/T2Accel@{port_index}"
+        self.train_data_path = train_data_path
+        self._torch_device = None
+
+        self._device_config = CxlType2DeviceConfig(
             device_name=label,
             transport_connection=self._sw_conn_client.get_cxl_connection(),
             memory_size=memory_size,
             memory_file=memory_file,
         )
-        self._cxl_type2_device = CxlType2Device(device_config)
-        self.accel_dirname = f"T2Accel@{port_index}"
-        self.train_data_path = train_data_path
-        self._torch_device = None
 
         self._irq_manager = IrqManager(
             addr="localhost",
@@ -470,8 +479,6 @@ class MyType2Accelerator(RunnableComponent):
 
         train_dir = os.path.join(self.train_data_path, "train")
         val_dir = os.path.join(self.train_data_path, "val")
-        assert os.path.exists(train_dir)
-        assert os.path.exists(val_dir)
 
         train_dir = os.path.abspath(train_dir)
         val_dir = os.path.abspath(val_dir)
@@ -481,6 +488,8 @@ class MyType2Accelerator(RunnableComponent):
         )
 
         os.chdir(self.accel_dirname)
+
+        self._cxl_type2_device = CxlType2Device(self._device_config)
 
         # Model setup
         self._model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
@@ -515,6 +524,7 @@ class MyType2Accelerator(RunnableComponent):
         optimizer,
         loss_fn,
     ):
+        return
         # pylint: disable=unused-variable
         self._model.train()
         correct_count = 0
@@ -646,9 +656,9 @@ class MyType2Accelerator(RunnableComponent):
 
     async def _validate_model(self, _):
         # pylint: disable=no-member
-        logger.info(f"Getting test image for dev {self._device_id}")
+        logger.debug(f"Getting test image for dev {self._device_id}")
         im = await self._get_test_image()
-        logger.info(f"Got test image for dev {self._device_id}")
+        logger.debug(f"Got test image for dev {self._device_id}")
         tens = cast(torch.Tensor, self._transform(im))
 
         # Model expects a 4-dimensional tensor
