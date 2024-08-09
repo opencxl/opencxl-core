@@ -63,6 +63,7 @@ class CxlSwitchConfig:
     mctp_port: int = 8100
     run_as_child: bool = False
 
+
 class CxlSwitch(RunnableComponent):
     # TODO: CE-35, device enumeration from DSP is not supported yet.
     # Passing device configs from an environment file to PhysicalPortManager
