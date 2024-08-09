@@ -113,4 +113,4 @@ TRACE = logging.DEBUG - 5
 logger.add_log_level("TRACE", TRACE)
 
 now = datetime.datetime.now()
-logger.info(f"Starting Timestamp: {now}")
+logger.debug(f"Starting Timestamp: {now}")
