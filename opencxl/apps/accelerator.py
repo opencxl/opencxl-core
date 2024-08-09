@@ -230,6 +230,7 @@ class MyType1Accelerator(RunnableComponent):
         metadata_addr = await self._cxl_type1_device.read_mmio(metadata_addr_mmio_addr, 8)
         metadata_size = await self._cxl_type1_device.read_mmio(metadata_size_mmio_addr, 8)
 
+        metadata_rounded_size = ((metadata_size - 1) // 64 + 1) * 64
         metadata_end = metadata_addr + metadata_size
 
         logger.debug(self._create_message("Writing metadata"))
@@ -238,7 +239,7 @@ class MyType1Accelerator(RunnableComponent):
             logger.debug(self._create_message(f"end: 0x{metadata_end:x}"))
 
             start = metadata_addr
-            end = metadata_addr + metadata_size
+            end = metadata_addr + metadata_rounded_size
             data = b""
             with tqdm(
                 total=metadata_size,
@@ -250,13 +251,13 @@ class MyType1Accelerator(RunnableComponent):
             ) as pbar:
                 for cacheline_offset in range(start, end, 64):
                     cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
-                    chunk_size = min(64, (end - cacheline_offset))
+                    chunk_size = min(64, (metadata_end - cacheline_offset))
                     chunk_data = cacheline.to_bytes(64, "little")
-                    data += chunk_data[:chunk_size]
+                    data = chunk_data[:chunk_size]
+                    md_file.write(data)
                     pbar.update(chunk_size)
-            md_file.write(data)
 
-        logger.debug(self._create_message("Finished writing file"))
+        logger.info(self._create_message(f"Dev {self._device_id} Finished writing file"))
 
     async def _get_test_image(self) -> Image.Image:
 
@@ -598,17 +599,6 @@ class MyType2Accelerator(RunnableComponent):
             logger.debug(self._create_message(f"addr: 0x{metadata_addr:x}"))
             logger.debug(self._create_message(f"end: 0x{metadata_end:x}"))
             curr_written = 0
-            """
-            for offset in tqdm(
-                range(0, metadata_size, 64),
-                total=(metadata_size // 64),
-                desc=f"Dev {self._device_id} Reading Metadata",
-                unit="iB",
-                unit_scale=True,
-                unit_divisor=1024,
-                position=self._device_id,
-            ):
-            """
             with tqdm(
                 total=metadata_size,
                 desc=f"Dev {self._device_id} Reading Metadata",
