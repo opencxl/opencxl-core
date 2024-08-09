@@ -12,8 +12,11 @@ from opencxl.pci.component.fifo_pair import FifoPair
 from opencxl.cxl.transport.transaction import (
     BasePacket,
     CxlMemBasePacket,
+    CxlMemM2SBIRspPacket,
     CxlMemM2SReqPacket,
     CxlMemM2SRwDPacket,
+    CxlMemBIRspPacket,
+    CxlMemBISnpPacket,
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
     CxlMemMemDataPacket,
@@ -70,6 +73,24 @@ class CxlMemManager(PacketProcessor):
         packet = CxlMemCmpPacket.create()
         await self._upstream_fifo.target_to_host.put(packet)
 
+    async def process_cxl_mem_bisnp_packet(self, mem_bisnp_packet: CxlMemBISnpPacket):
+        await self._process_cxl_mem_bisnp_packet(mem_bisnp_packet)
+
+    async def _process_cxl_mem_bisnp_packet(self, mem_bisnp_packet: CxlMemBISnpPacket):
+        if self._upstream_fifo is not None:
+            logger.debug(self._create_message("Forwarding CXL.mem MEM_BISNP packet"))
+            await self._upstream_fifo.target_to_host.put(mem_bisnp_packet)
+            return
+
+    async def _process_cxl_mem_birsp_packet(self, mem_birsp_packet: CxlMemBIRspPacket):
+        if self._downstream_fifo is not None:
+            logger.debug(self._create_message("Forwarding CXL.mem MEM_BIRSP packet"))
+            await self._downstream_fifo.host_to_target.put(mem_birsp_packet)
+            return
+        # TODO: add logics for handling BIRsp packets
+        logger.debug(self._create_message("Reached _process_cxl_mem_birsp_packet"))
+        return
+
     async def _process_host_to_target(self):
         logger.debug(self._create_message("Started processing incoming fifo"))
         while True:
@@ -87,11 +108,11 @@ class CxlMemManager(PacketProcessor):
 
             if cxl_mem_packet.is_m2sreq():
                 m2sreq_packet = cast(CxlMemM2SReqPacket, packet)
-                if m2sreq_packet.is_mem_rd():
+                if m2sreq_packet.is_mem_rd() or m2sreq_packet.is_mem_inv():
                     await self._process_cxl_mem_rd_packet(cast(CxlMemMemRdPacket, m2sreq_packet))
                 else:
                     raise Exception(
-                        f"Unsupported MEM Opcode: {m2sreq_packet.m2sreq_header.mem_opcode}"
+                        f"Unsupported MEM Opcode for Req: {m2sreq_packet.m2sreq_header.mem_opcode}"
                     )
             elif cxl_mem_packet.is_m2srwd():
                 m2srwd_packet = cast(CxlMemM2SRwDPacket, packet)
@@ -99,7 +120,17 @@ class CxlMemManager(PacketProcessor):
                     await self._process_cxl_mem_wr_packet(cast(CxlMemMemWrPacket, m2srwd_packet))
                 else:
                     raise Exception(
-                        f"Unsupported MEM Opcode: {m2srwd_packet.m2srwd_header.mem_opcode}"
+                        f"Unsupported MEM Opcode for RwD: {m2srwd_packet.m2srwd_header.mem_opcode}"
+                    )
+            elif cxl_mem_packet.is_m2sbirsp():
+                m2sbirsp_packet = cast(CxlMemM2SBIRspPacket, packet)
+                if m2sbirsp_packet.is_m2sbirsp():
+                    await self._process_cxl_mem_birsp_packet(
+                        cast(CxlMemBIRspPacket, m2sbirsp_packet)
+                    )
+                else:
+                    raise Exception(
+                        f"Unsupported BIRsp packet, tag: {m2sbirsp_packet.m2sbirsp_header.bi_tag}"
                     )
             else:
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")

@@ -6,12 +6,26 @@
 """
 
 from typing import TypedDict, Optional, Dict
+from opencxl.cxl.component.cache_route_table import (
+    CxlCacheIdRTCapabilityStructure,
+    CacheRouteTableCapabilityStructureOptions,
+)
+from opencxl.cxl.component.cache_id_decoder_capability import (
+    CxlCacheIdDecoderCapabilityStructure,
+    CxlCacheIdDecoderCapabilityStructureOptions,
+)
 from opencxl.util.unaligned_bit_structure import (
     ShareableByteArray,
     BitMaskedBitStructure,
     StructureField,
     ByteField,
     FIELD_ATTR,
+)
+from opencxl.cxl.component.bi_decoder import (
+    CxlBIDecoderCapabilityStructure,
+    CxlBIDecoderCapabilityStructureOptions,
+    CxlBIRTCapabilityStructure,
+    CxlBIRTCapabilityStructureOptions,
 )
 from .capability import (
     CxlCapabilityHeaderStructure,
@@ -29,12 +43,20 @@ class CxlCacheMemRegisterOptions(TypedDict):
     ras: Optional[bool]
     link: Optional[bool]
     hdm_decoder: Optional[CxlHdmDecoderCapabilityStructureOptions]
+    bi_route_table: Optional[CxlBIRTCapabilityStructureOptions]
+    bi_decoder: Optional[CxlBIDecoderCapabilityStructureOptions]
+    cache_route_table: Optional[CacheRouteTableCapabilityStructureOptions]
+    cache_id_decoder: Optional[CxlCacheIdDecoderCapabilityStructureOptions]
 
 
 STRUCTURE_MAP: Dict[str, BitMaskedBitStructure] = {
     "ras": CxlRasCapabilityStructure,
     "link": CxlLinkCapabilityStructure,
     "hdm_decoder": CxlHdmDecoderCapabilityStructure,
+    "bi_route_table": CxlBIRTCapabilityStructure,
+    "bi_decoder": CxlBIDecoderCapabilityStructure,
+    "cache_route_table": CxlCacheIdRTCapabilityStructure,  # just hardcode 4N for now
+    "cache_id_decoder": CxlCacheIdDecoderCapabilityStructure,
 }
 
 CXL_CACHE_MEM_REGISTER_SIZE = 0x1000
@@ -95,7 +117,6 @@ class CxlCacheMemRegister(BitMaskedBitStructure):
                 structure_size = structure_class.get_size_from_options(value)
             else:
                 raise Exception(f'Unexpected type for options["{key}"]')
-
             self._fields += [
                 StructureField(
                     key,

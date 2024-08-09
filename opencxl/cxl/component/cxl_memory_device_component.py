@@ -5,11 +5,14 @@
  See LICENSE for details.
 """
 
+from dataclasses import dataclass
 from enum import IntEnum
 import os
+import time
 from typing import TypedDict, List, Optional
 
 from opencxl.util.logger import logger
+from opencxl.util.number_const import KB
 from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
     ByteField,
@@ -33,11 +36,18 @@ from opencxl.cxl.cci.generic.logs import GetLog, GetSupportedLogs
 from opencxl.cxl.cci.memory_device.identify_memory_device import (
     IdentifyMemoryDevice,
 )
+from opencxl.cxl.component.bi_decoder import (
+    CxlBIDecoderCapabilityStructureOptions,
+    CxlBIDecoderCapabilityRegisterOptions,
+    CxlBIDecoderControlRegisterOptions,
+    CxlBIDecoderStatusRegisterOptions,
+    CxlBITimeoutScale,
+)
 from opencxl.cxl.component.cxl_component import (
     CxlDeviceComponent,
-    CXL_COMPONENT_TYPE,
     CXL_DEVICE_CAPABILITY_TYPE,
 )
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.hdm_decoder import (
     DeviceHdmDecoderManager,
     HdmDecoderManagerBase,
@@ -168,6 +178,21 @@ class MemoryDeviceStatus(TypedDict):
     reset_needed: RESET_REQUEST
 
 
+@dataclass
+class CXLCacheCacheLineInfo:
+    cache_id: int
+    last_access_time: float
+    state: int = 0
+    dirty: bool = False
+    data: int = 0
+
+    def write(self, data: int):
+        self.data = data
+
+    def read(self) -> int:
+        return self.data
+
+
 class CxlMemoryDeviceComponent(CxlDeviceComponent):
     def __init__(
         self,
@@ -175,6 +200,8 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_1,
         memory_file: str = "mem.bin",
         label: Optional[str] = None,
+        cache_lines: int = 0,
+        cache_line_size: int = 64 * KB,
     ):
         super().__init__(label)
         self._event_manager = EventManager()
@@ -212,20 +239,51 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             uio_capable=0,
             uio_capable_decoder_count=0,
             mem_data_nxm_capable=0,
+            bi_capable=True,
         )
         self._hdm_decoder_manager = DeviceHdmDecoderManager(hdm_decoder_capabilities, label=label)
         if "/dev" in memory_file:
             self._memory_accessor = CharDriverAccessor(
                 memory_file, self._identity.get_total_capacity()
             )
+        elif memory_file == "":
+            self._memory_accessor = None
         else:
             self._memory_accessor = FileAccessor(memory_file, self._identity.get_total_capacity())
+
+        self._cache_info: List[CXLCacheCacheLineInfo] = []
+        self._cache_lines = cache_lines
+        self._cache_line_size = cache_line_size
+        for i in range(self._cache_lines):
+            self._cache_info.append(
+                CXLCacheCacheLineInfo(
+                    cache_id=i,
+                    last_access_time=time.time(),
+                )
+            )
 
     def get_primary_mailbox(self) -> Optional[CxlMailbox]:
         return self._primary_mailbox
 
     def get_hdm_decoder_manager(self) -> Optional[HdmDecoderManagerBase]:
         return self._hdm_decoder_manager
+
+    def get_bi_decoder_options(self) -> Optional[CxlBIDecoderCapabilityStructureOptions]:
+        # pylint: disable=duplicate-code
+        options = CxlBIDecoderCapabilityStructureOptions()
+        options["capability_options"] = CxlBIDecoderCapabilityRegisterOptions(hdm_d_compatible=0)
+        options["control_options"] = CxlBIDecoderControlRegisterOptions(
+            bi_enable=1,
+            bi_decoder_commit=0,
+        )
+        options["status_options"] = CxlBIDecoderStatusRegisterOptions(
+            bi_decoder_committed=0,
+            bi_decoder_error_not_committed=0,
+            bi_decoder_commit_timeout_base=CxlBITimeoutScale.hundred_ms,
+            bi_decoder_commit_timeout_scale=1,
+        )
+        options["device_type"] = self.get_component_type()
+        return options
 
     def get_cdat_entries(self) -> List[CDAT_ENTRY]:
         dsmas = DeviceScopedMemoryAffinity()
@@ -286,16 +344,43 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
     def get_identity(self) -> MemoryDeviceIdentity:
         return self._identity
 
+    def get_dpa(self, hpa: int) -> int:
+        dpa = self._hdm_decoder_manager.get_dpa(hpa)
+        if dpa is None:
+            logger.warning(self._create_message(f"[get_dpa] HPA 0x{hex(hpa)} is not decodable"))
+            return None
+        return dpa
+
+    def get_hpa(self, dpa: int) -> int:
+        hpa = self._hdm_decoder_manager.get_hpa(dpa)
+        if hpa is None:
+            logger.warning(self._create_message(f"[get_hpa] DPA 0x{hex(dpa)} is not decodable"))
+            return None
+        return hpa
+
     async def write_mem(self, hpa: int, data: int, size: int = 64):
         dpa = self._hdm_decoder_manager.get_dpa(hpa)
         if dpa is None:
-            logger.warning(self._create_message("HPA 0x{hpa} is not decodable"))
+            logger.warning(self._create_message(f"[write_mem] HPA 0x{hex(hpa)} is not decodable"))
             return
         await self._memory_accessor.write(dpa, data, size)
 
     async def read_mem(self, hpa: int, size: int = 64) -> int:
         dpa = self._hdm_decoder_manager.get_dpa(hpa)
         if dpa is None:
-            logger.warning(self._create_message("HPA 0x{hpa} is not decodable"))
+            logger.warning(self._create_message(f"[read_mem] HPA 0x{hex(hpa)} is not decodable"))
             return 0
         return await self._memory_accessor.read(dpa, size)
+
+    async def read_mem_dpa(self, dpa: int, size: int = 64) -> int:
+        return await self._memory_accessor.read(dpa, size)
+
+    async def write_mem_dpa(self, dpa: int, data: int, size: int = 64):
+        await self._memory_accessor.write(dpa, data, size)
+
+    # TODO: check OOB write for cache (should <= self._cache_line_size)
+    async def write_cache(self, cache_id: int, data: int):
+        self._cache_info[cache_id].write(data)
+
+    async def read_cache(self, cache_id: int) -> int:
+        return self._cache_info[cache_id].read()

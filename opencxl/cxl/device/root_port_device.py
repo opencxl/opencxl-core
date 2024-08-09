@@ -9,6 +9,9 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Optional, List, cast
 
+from opencxl.cxl.mmio.component_register.memcache_register.capability import (
+    CxlCapabilityIDToName,
+)
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
@@ -30,6 +33,7 @@ from opencxl.util.pci import (
     generate_bdfs_for_bus,
 )
 from opencxl.cxl.transport.transaction import (
+    CXL_MEM_M2SBIRSP_OPCODE,
     BasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
@@ -37,6 +41,7 @@ from opencxl.cxl.transport.transaction import (
     CxlIoCompletionWithDataPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
+    CxlMemBIRspPacket,
     CxlMemMemWrPacket,
     CxlMemMemRdPacket,
     CxlMemMemDataPacket,
@@ -91,8 +96,28 @@ class PciCapabilities:
 
 
 @dataclass
-class ComponentRegisters:
+# Should be merged with CxlCapabilityHeaderStructureOptions
+class CxlCapabilities:
+    ras: int = 0
+    security: int = 0
+    link: int = 0
     hdm_decoder: int = 0
+    extended_security: int = 0
+    ide: int = 0
+    snoop_filter: int = 0
+    timeout_isolation: int = 0
+    cache_mem_extended_register: int = 0
+    bi_route_table: int = 0
+    bi_decoder: int = 0
+    cache_id_route_table: int = 0
+    cache_id_decoder: int = 0
+    extended_hdm_decoder: int = 0
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 
 @dataclass
@@ -103,7 +128,7 @@ class DeviceEnumerationInfo:
     bars: List[int] = field(default_factory=list)
     mmio_range: MemoryEnumerationInfo = field(default_factory=MemoryEnumerationInfo)
     capabilities: PciCapabilities = field(default_factory=PciCapabilities)
-    component_registers: ComponentRegisters = field(default_factory=ComponentRegisters)
+    component_registers: CxlCapabilities = field(default_factory=CxlCapabilities)
     is_bridge: bool = False
     parent: Optional["DeviceEnumerationInfo"] = None
     children: List["DeviceEnumerationInfo"] = field(default_factory=list)
@@ -321,6 +346,14 @@ class CxlRootPortDevice(RunnableComponent):
         except asyncio.exceptions.TimeoutError:
             logger.error(self._create_message("CXL.mem Write: Timed-out"))
             return None
+
+    async def cxl_mem_birsp(
+        self, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
+    ) -> int:
+        logger.info(self._create_message(f"CXL.mem BIRsp: opcode:0x{opcode:x}"))
+        packet = CxlMemBIRspPacket.create(opcode, bi_id, bi_tag)
+        await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
+        return 0
 
     """
     Helper functions for PCI Config Space access
@@ -581,6 +614,7 @@ class CxlRootPortDevice(RunnableComponent):
         await self.scan_pcie_cap_helper(bdf, PCIE_CONFIG_BASE, capabilities)
 
     async def scan_component_registers(self, info: DeviceEnumerationInfo):
+        # pylint: disable=duplicate-code
         component_registers = info.capabilities.dvsec.register_locators.component_registers
         if not component_registers:
             return
@@ -594,7 +628,7 @@ class CxlRootPortDevice(RunnableComponent):
             self._create_message(f"Scanning Component Registers at 0x{cxl_cachemem_offset:x}")
         )
 
-        cxl_capability_header = await self.read_mmio(cxl_cachemem_offset, 4, verbose=False)
+        cxl_capability_header = await self.read_mmio(cxl_cachemem_offset, 4)
         cxl_capability_id = cxl_capability_header & 0xFFFF
         cxl_capability_version = (cxl_capability_header >> 16) & 0xF
         cxl_cachemem_version = (cxl_capability_header >> 20) & 0xF
@@ -612,23 +646,18 @@ class CxlRootPortDevice(RunnableComponent):
 
         for header_index in range(array_size):
             header_offset = header_index * 4 + 4 + cxl_cachemem_offset
-            header_info = await self.read_mmio(header_offset, 4, verbose=False)
+            header_info = await self.read_mmio(header_offset, 4)
             cxl_capability_id = header_info & 0xFFFF
             cxl_capability_version = (header_info >> 16) & 0xF
             offset = (header_info >> 20) & 0xFFF
-            if cxl_capability_id == 0x0002:
-                logger.info(self._create_message("Found RAS Capability Header"))
-            elif cxl_capability_id == 0x0004:
-                logger.info(self._create_message("Found Link Capability Header"))
-            elif cxl_capability_id == 0x0005:
-                logger.info(self._create_message("Found HDM Decoder Capability Header"))
-                hdm_decoder_offset = cxl_cachemem_offset + offset
-                info.component_registers.hdm_decoder = hdm_decoder_offset
-                logger.info(
-                    self._create_message(
-                        f"HDM Decoder Capability Offset: 0x{hdm_decoder_offset:08x}"
-                    )
+            logger.info(
+                self._create_message(
+                    f"Found {CxlCapabilityIDToName.get(cxl_capability_id)} Capability Header"
                 )
+            )
+            info.component_registers[CxlCapabilityIDToName.get_original_name(cxl_capability_id)] = (
+                cxl_cachemem_offset + offset
+            )
 
     async def scan_bus(
         self, bus: int, parent: Optional[DeviceEnumerationInfo] = None
@@ -1055,6 +1084,7 @@ class CxlRootPortDevice(RunnableComponent):
     async def init(self, hpa_base: int):
         if self._test_mode:
             return
+        logger.debug(self._create_message("Starting CXL initialization"))
         memory_base_address = 0xFE000000
         self._cxl_hpa_base = hpa_base
         await self.enumerate(memory_base_address)
@@ -1062,6 +1092,7 @@ class CxlRootPortDevice(RunnableComponent):
         usp = enum_info.devices[0]
         await self.enable_hdm_decoder(usp)
         await self.configure_hdm_decoder_single_device(usp, hpa_base)
+        logger.debug(self._create_message("Completed CXL initialization"))
 
     def get_hpa_base(self) -> int:
         return self._cxl_hpa_base

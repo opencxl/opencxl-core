@@ -7,8 +7,9 @@
 
 import re
 
+from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 from opencxl.util.logger import logger
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.device.port_device import CxlPortDevice
 from opencxl.cxl.config_space.doe.doe import CxlDoeExtendedCapabilityOptions
 from opencxl.cxl.config_space.dvsec import (
@@ -74,6 +75,11 @@ class UpstreamPortDevice(CxlPortDevice):
             self._downstream_connection.cxl_mem_fifo,
             label=label,
         )
+        self._cxl_cache_manager = CxlCacheManager(
+            self._transport_connection.cxl_cache_fifo,
+            self._downstream_connection.cxl_cache_fifo,
+            label=label,
+        )
 
     def _init_device(
         self,
@@ -131,3 +137,6 @@ class UpstreamPortDevice(CxlPortDevice):
     def get_hdm_decoder_count(self) -> int:
         name = HDM_DECODER_COUNT(self._decoder_count).name
         return int(re.search(r"\d+", name).group())
+
+    def get_cxl_component(self) -> CxlUpstreamPortComponent:
+        return self._cxl_component

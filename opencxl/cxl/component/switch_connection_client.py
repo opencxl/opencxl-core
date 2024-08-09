@@ -16,7 +16,7 @@ from opencxl.cxl.transport.transaction import (
     BaseSidebandPacket,
     CxlIoCfgRdPacket,
 )
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.packet_reader import PacketReader
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.cxl_packet_processor import CxlPacketProcessor
@@ -49,6 +49,7 @@ class SwitchConnectionClient(RunnableComponent):
         self._packet_processor = None
         self._injected_error = None
         self._retry = retry
+        self._stop_signal = False
 
     async def _connect(self) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         reader, writer = await asyncio.open_connection(self._host, self._port)
@@ -101,6 +102,8 @@ class SwitchConnectionClient(RunnableComponent):
             print_time = loop.time() + 5
             elapsed = 0
             while True:
+                if self._stop_signal:
+                    break
                 try:
                     (reader, writer) = await self._connect()
                     break
@@ -130,4 +133,5 @@ class SwitchConnectionClient(RunnableComponent):
         await self._packet_processor.run()
 
     async def _stop(self):
+        self._stop_signal = True
         await self._packet_processor.stop()

@@ -8,7 +8,7 @@
 from dataclasses import dataclass
 from asyncio import create_task, gather
 from opencxl.util.component import RunnableComponent
-from opencxl.cxl.component.root_complex.memory_fifo import (
+from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
     MEMORY_REQUEST_TYPE,
     MemoryResponse,
@@ -38,14 +38,14 @@ class MemoryController(RunnableComponent):
             if packet is None:
                 logger.debug(self._create_message("Stopped processing memory access requests"))
                 break
+
             if packet.type == MEMORY_REQUEST_TYPE.WRITE:
                 await self._file_accessor.write(packet.address, packet.data, packet.size)
                 response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
-                await self._memory_consumer_fifos.response.put(response)
             elif packet.type == MEMORY_REQUEST_TYPE.READ:
                 data = await self._file_accessor.read(packet.address, packet.size)
                 response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
-                await self._memory_consumer_fifos.response.put(response)
+            await self._memory_consumer_fifos.response.put(response)
 
     async def _run(self):
         tasks = [create_task(self._process_memory_requests())]
@@ -53,4 +53,5 @@ class MemoryController(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
-        await self._memory_consumer_fifos.put(None)
+        await self._memory_consumer_fifos.request.put(None)
+        await self._memory_consumer_fifos.response.put(None)

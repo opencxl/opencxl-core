@@ -11,12 +11,14 @@ import asyncio
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.root_complex.io_bridge import IoBridge, IoBridgeConfig
-from opencxl.cxl.component.root_complex.memory_fifo import MemoryFifoPair
+from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
+from opencxl.cxl.transport.cache_fifo import CacheFifoPair
 from opencxl.cxl.component.root_complex.root_port_switch import (
     SimpleRootPortSwitch,
     RootPortSwitchConfig,
     RootPortSwitchPortConfig,
     ROOT_PORT_SWITCH_TYPE,
+    COH_POLICY_TYPE,
 )
 from opencxl.cxl.component.root_complex.home_agent import HomeAgent, HomeAgentConfig, MemoryRange
 from opencxl.cxl.component.root_complex.memory_controller import (
@@ -43,19 +45,28 @@ class RootComplexMemoryControllerConfig:
 
 @dataclass
 class RootComplexConfig:
-    root_port_switch_type: ROOT_PORT_SWITCH_TYPE
     host_name: str
     root_bus: int
+    root_port_switch_type: ROOT_PORT_SWITCH_TYPE
+    cache_to_home_agent_fifo: CacheFifoPair
+    home_agent_to_cache_fifo: CacheFifoPair
+    cache_to_coh_bridge_fifo: CacheFifoPair
+    coh_bridge_to_cache_fifo: CacheFifoPair
     memory_controller: RootComplexMemoryControllerConfig
-    root_ports: List[RootPortSwitchPortConfig] = field(default_factory=list)
     memory_ranges: List[MemoryRange] = field(default_factory=list)
+    root_ports: List[RootPortSwitchPortConfig] = field(default_factory=list)
+    coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.NonCache
 
 
 class RootComplex(RunnableComponent):
     def __init__(self, config: RootComplexConfig, label: Optional[str] = None):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
 
-        root_complex_upstream_connection = CxlConnection()
+        cache_to_home_agent_fifo = config.cache_to_home_agent_fifo
+        home_agent_to_cache_fifo = config.home_agent_to_cache_fifo
+        cache_to_coh_bridge_fifo = config.cache_to_coh_bridge_fifo
+        coh_bridge_to_cache_fifo = config.coh_bridge_to_cache_fifo
+
         root_port_switch_upstream_connection = CxlConnection()
         io_bridge_to_home_agent_memory_fifo = MemoryFifoPair()
         coh_bridge_to_home_agent_memory_fifo = MemoryFifoPair()
@@ -87,22 +98,25 @@ class RootComplex(RunnableComponent):
 
         # Create Cache Coherency Bridge
         cache_coherency_bridge_config = CacheCoherencyBridgeConfig(
-            upstream_cxl_cache_fifos=root_complex_upstream_connection.cxl_cache_fifo,
-            downstream_cxl_cache_fifos=root_port_switch_upstream_connection.cxl_cache_fifo,
-            memory_producer_fifos=coh_bridge_to_home_agent_memory_fifo,
             host_name=config.host_name,
+            memory_producer_fifos=coh_bridge_to_home_agent_memory_fifo,
+            upstream_cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
+            upstream_coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
+            downstream_cxl_cache_fifos=root_port_switch_upstream_connection.cxl_cache_fifo,
         )
         self._cache_coherency_bridge = CacheCoherencyBridge(cache_coherency_bridge_config)
 
         # Create Home Agent
         home_agent_config = HomeAgentConfig(
-            upstream_cxl_mem_fifos=root_complex_upstream_connection.cxl_mem_fifo,
-            downstream_cxl_mem_fifos=root_port_switch_upstream_connection.cxl_mem_fifo,
+            host_name=config.host_name,
+            memory_ranges=config.memory_ranges,
             memory_consumer_io_fifos=io_bridge_to_home_agent_memory_fifo,
             memory_consumer_coh_fifos=coh_bridge_to_home_agent_memory_fifo,
             memory_producer_fifos=home_agent_to_memory_controller_fifo,
-            host_name=config.host_name,
-            memory_ranges=config.memory_ranges,
+            upstream_cache_to_home_agent_fifo=cache_to_home_agent_fifo,
+            upstream_home_agent_to_cache_fifo=home_agent_to_cache_fifo,
+            downstream_cxl_mem_fifos=root_port_switch_upstream_connection.cxl_mem_fifo,
+            coh_type=config.coh_type,
         )
         self._home_agent = HomeAgent(home_agent_config)
 
@@ -132,6 +146,15 @@ class RootComplex(RunnableComponent):
 
     async def read_mmio(self, address: int, size: int) -> int:
         return await self._io_bridge.read_mmio(address, size)
+
+    async def write_cxl_mem(self, address: int, size: int, value: int) -> int:
+        return await self._home_agent.write_cxl_mem(address, size, value)
+
+    async def read_cxl_mem(self, address: int, size: int) -> int:
+        return await self._home_agent.read_cxl_mem(address, size)
+
+    def set_cache_coh_dev_count(self, count: int):
+        self._cache_coherency_bridge.set_cache_coh_dev_count(count)
 
     async def _run(self):
         run_tasks = [

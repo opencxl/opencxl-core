@@ -12,7 +12,7 @@ from typing import cast, Optional, Dict
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.packet_reader import PacketReader
 from opencxl.cxl.transport.transaction import (
@@ -77,6 +77,7 @@ class CxlPacketProcessor(RunnableComponent):
             )
             self._outgoing_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
         elif component_type in (
+            CXL_COMPONENT_TYPE.P,
             CXL_COMPONENT_TYPE.T1,
             CXL_COMPONENT_TYPE.T2,
             CXL_COMPONENT_TYPE.D2,

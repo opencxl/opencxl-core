@@ -8,13 +8,13 @@
 from asyncio import gather, create_task
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import List, cast, Callable, Coroutine, Any
+from typing import List, Optional, cast, Callable, Coroutine, Any
 
 from opencxl.util.logger import logger
 from opencxl.cxl.component.cxl_connection import CxlConnection
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BIND_STATUS
-from opencxl.cxl.component.virtual_switch.routers import CxlMemRouter, CxlIoRouter
+from opencxl.cxl.component.virtual_switch.routers import CxlMemRouter, CxlIoRouter, CxlCacheRouter
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.device.port_device import CxlPortDevice
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
@@ -54,6 +54,8 @@ class CxlVirtualSwitch(RunnableComponent):
         vppb_counts: int,
         initial_bounds: List[int],
         physical_ports: List[CxlPortDevice],
+        bi_enable_override_for_test: Optional[int] = None,
+        bi_forward_override_for_test: Optional[int] = None,
     ):
         super().__init__()
         self._id = id
@@ -62,6 +64,8 @@ class CxlVirtualSwitch(RunnableComponent):
         self._physical_ports = physical_ports
         self._routing_table = RoutingTable(vppb_counts, label=f"VCS{id}")
         self._event_handler = None
+        self._bi_enable_override_for_test = bi_enable_override_for_test
+        self._bi_forward_override_for_test = bi_forward_override_for_test
 
         if len(initial_bounds) != self._vppb_counts:
             raise Exception("length of initial_bounds and vppb_count must be the same")
@@ -98,16 +102,25 @@ class CxlVirtualSwitch(RunnableComponent):
             label = f"VCS{self._id}:vPPB{vppb_index}(EP)"
             dummy_ep_device = PciDevice(cxl_connection, bar_size=4096, label=label)
             self._dummy_ep_devices.append(dummy_ep_device)
+            self._usp_device.get_cxl_component().add_cache_route_target(vppb_index)
 
         # NOTE: Make PortBinder
         self._port_binder = PortBinder(self._id, self._vppb_connections)
 
         # NOTE: Make Routers
         self._cxl_io_router = CxlIoRouter(
-            self._id, self._routing_table, self._usp_connection, self._vppb_connections
+            self._id, self._routing_table, self._usp_device, self._port_binder
         )
         self._cxl_mem_router = CxlMemRouter(
-            self._id, self._routing_table, self._usp_connection, self._vppb_connections
+            self._id,
+            self._routing_table,
+            self._usp_device,
+            self._port_binder,
+            self._bi_enable_override_for_test,
+            self._bi_forward_override_for_test,
+        )
+        self._cxl_cache_router = CxlCacheRouter(
+            self._id, self._routing_table, self._usp_device, self._port_binder
         )
 
     def _create_message(self, message: str):
@@ -143,11 +156,13 @@ class CxlVirtualSwitch(RunnableComponent):
             create_task(self._start_dummy_devices()),
             create_task(self._cxl_io_router.run()),
             create_task(self._cxl_mem_router.run()),
+            create_task(self._cxl_cache_router.run()),
             create_task(self._port_binder.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_router.wait_for_ready()),
             create_task(self._cxl_mem_router.wait_for_ready()),
+            create_task(self._cxl_cache_router.wait_for_ready()),
             create_task(self._port_binder.wait_for_ready()),
         ]
         await gather(*wait_tasks)
@@ -159,6 +174,7 @@ class CxlVirtualSwitch(RunnableComponent):
             create_task(self._stop_dummy_devices()),
             create_task(self._cxl_io_router.stop()),
             create_task(self._cxl_mem_router.stop()),
+            create_task(self._cxl_cache_router.stop()),
             create_task(self._port_binder.stop()),
         ]
         await gather(*tasks)

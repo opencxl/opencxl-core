@@ -84,7 +84,7 @@ class CxlCapabilityHeaderStructureOptions(TypedDict):
     ras: Optional[int]
     security: Optional[int]
     link: Optional[int]
-    hdm_decoder: Optional[int]
+    hdm_decoder: int = 0
     extended_security: Optional[int]
     ide: Optional[int]
     snoop_filter: Optional[int]
@@ -118,6 +118,24 @@ CAPABILITY_NAME_TO_CAPABILITY_INFO_MAP = {
     "cache_id_decoder": CapabilityInfo(id=0x000E, version=0x1),
     "extended_hdm_decoder": CapabilityInfo(id=0x000F, version=0x3),
 }
+
+
+class CxlCapabilityIDToName:
+    map: dict[int, str] = {
+        v["id"]: k.replace("_", " ").title()
+        for k, v in CAPABILITY_NAME_TO_CAPABILITY_INFO_MAP.items()
+    }
+    original_key_map: dict[int, str] = {
+        v["id"]: k for k, v in CAPABILITY_NAME_TO_CAPABILITY_INFO_MAP.items()
+    }
+
+    @staticmethod
+    def get(v: int) -> str:
+        return CxlCapabilityIDToName.map[v]
+
+    @staticmethod
+    def get_original_name(v: int) -> str:
+        return CxlCapabilityIDToName.original_key_map[v]
 
 
 class CxlCapabilityHeaderStructure(BitMaskedBitStructure):

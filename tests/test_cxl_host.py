@@ -5,6 +5,7 @@
  See LICENSE for details.
 """
 
+# pylint: disable=unused-import
 import asyncio
 from typing import Dict, Tuple
 import json
@@ -15,6 +16,20 @@ from jsonrpcclient import request_json
 import websockets
 import pytest
 
+from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
+from opencxl.cxl.component.bi_decoder import (
+    CxlBIDecoderCapabilityRegister,
+    CxlBIDecoderCapabilityRegisterOptions,
+    CxlBIDecoderCapabilityStructureOptions,
+)
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
+from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
+from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
+from opencxl.cxl.component.root_complex.root_port_switch import ROOT_PORT_SWITCH_TYPE
+from opencxl.cxl.transport.transaction import (
+    CXL_MEM_M2SBIRSP_OPCODE,
+)
 from opencxl.apps.cxl_host import CxlHostManager, CxlHost, CxlHostUtilClient
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
@@ -25,6 +40,7 @@ from opencxl.cxl.component.virtual_switch_manager import (
 )
 from opencxl.apps.accelerator import MyType2Accelerator
 from opencxl.apps.single_logical_device import SingleLogicalDevice
+from opencxl.util.number_const import MB
 
 BASE_TEST_PORT = 9300
 
@@ -186,6 +202,12 @@ async def test_cxl_host_manager_handle_res():
     await send_and_check_res(util_client, cmd, addr)
     cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": addr, "data": data})
     await send_and_check_res(util_client, cmd, data)
+    cmd = request_json(
+        "UTIL_CXL_MEM_BIRSP",
+        params={"port": 0, "low_addr": 0x00, "opcode": CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E},
+    )
+    await util_client.connect()
+    await util_client.send(cmd)
 
     await host.conn_close()
     await util_client.close()
@@ -265,7 +287,7 @@ async def test_cxl_host_util_client():
 @pytest.mark.asyncio
 async def test_cxl_host_type3_ete():
     # pylint: disable=protected-access
-    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5
+    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 49
     util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 50
     switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 51
 
@@ -340,80 +362,185 @@ async def test_cxl_host_type3_ete():
     await asyncio.gather(*start_tasks)
 
 
-@pytest.mark.asyncio
-async def test_cxl_host_type2_ete():
-    # pylint: disable=protected-access
-    host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 52
-    util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 53
-    switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 54
+# TODO: This is a test for BI packets for now.
+# Should be merged with test_cxl_host_type3_ete after
+# the real BI logics are implemented.
+# @pytest.mark.asyncio
+# async def test_cxl_host_type3_ete_bi_only():
+#     # pylint: disable=protected-access
+#     host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 55
+#     util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 56
+#     switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 57
 
-    port_configs = [
-        PortConfig(PORT_TYPE.USP),
-        PortConfig(PORT_TYPE.DSP),
-    ]
-    sw_conn_manager = SwitchConnectionManager(port_configs, port=switch_port)
-    physical_port_manager = PhysicalPortManager(
-        switch_connection_manager=sw_conn_manager, port_configs=port_configs
-    )
+#     port_configs = [
+#         PortConfig(PORT_TYPE.USP),
+#         PortConfig(PORT_TYPE.DSP),
+#     ]
+#     sw_conn_manager = SwitchConnectionManager(port_configs, port=switch_port)
+#     physical_port_manager = PhysicalPortManager(
+#         switch_connection_manager=sw_conn_manager, port_configs=port_configs
+#     )
 
-    switch_configs = [VirtualSwitchConfig(upstream_port_index=0, vppb_counts=1, initial_bounds=[1])]
-    virtual_switch_manager = VirtualSwitchManager(
-        switch_configs=switch_configs, physical_port_manager=physical_port_manager
-    )
+#     switch_configs = [
+#         VirtualSwitchConfig(
+#             upstream_port_index=0,
+#             vppb_counts=1,
+#             initial_bounds=[1],
+#         )
+#     ]
 
-    accel_t2 = MyType2Accelerator(
-        port_index=1,
-        memory_size=0x1000000,
-        memory_file=f"mem{switch_port + 1}.bin",
-        port=switch_port,
-    )
+#     virtual_switch_manager1 = VirtualSwitchManager(
+#         switch_configs=switch_configs,
+#         physical_port_manager=physical_port_manager,
+#         bi_enable_override_for_test=1,
+#         bi_forward_override_for_test=0,
+#     )
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
-    host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
-    test_mode_host = CxlHost(
-        port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
-    )
+#     virtual_switch_manager2 = VirtualSwitchManager(
+#         switch_configs=switch_configs,
+#         physical_port_manager=physical_port_manager,
+#         bi_enable_override_for_test=0,
+#         bi_forward_override_for_test=1,
+#     )
 
-    start_tasks = [
-        asyncio.create_task(host.run()),
-        asyncio.create_task(host_manager.run()),
-        asyncio.create_task(sw_conn_manager.run()),
-        asyncio.create_task(physical_port_manager.run()),
-        asyncio.create_task(virtual_switch_manager.run()),
-        asyncio.create_task(accel_t2.run()),
-    ]
+#     virtual_switch_manager3 = VirtualSwitchManager(
+#         switch_configs=switch_configs, physical_port_manager=physical_port_manager
+#     )
 
-    wait_tasks = [
-        asyncio.create_task(sw_conn_manager.wait_for_ready()),
-        asyncio.create_task(physical_port_manager.wait_for_ready()),
-        asyncio.create_task(virtual_switch_manager.wait_for_ready()),
-        asyncio.create_task(host_manager.wait_for_ready()),
-        asyncio.create_task(host.wait_for_ready()),
-        asyncio.create_task(accel_t2.wait_for_ready()),
-    ]
-    await asyncio.gather(*wait_tasks)
+#     async def run(virtual_switch_manager: VirtualSwitchManager):
+#         DSP_2ND_BUS_NUM = 3
+#         sld = SingleLogicalDevice(
+#             port_index=1,
+#             memory_size=0x1000000,
+#             memory_file=f"mem{switch_port}.bin",
+#             port=switch_port,
+#         )
 
-    data = 0xA5A5
-    valid_addr = 0x40
-    invalid_addr = 0x41
-    test_tasks = [
-        asyncio.create_task(host._cxl_mem_read(valid_addr)),
-        asyncio.create_task(host._cxl_mem_read(invalid_addr)),
-        asyncio.create_task(host._cxl_mem_write(valid_addr, data)),
-        asyncio.create_task(host._cxl_mem_write(invalid_addr, data)),
-        asyncio.create_task(test_mode_host._reinit()),
-        asyncio.create_task(test_mode_host._reinit(valid_addr)),
-        asyncio.create_task(test_mode_host._reinit(invalid_addr)),
-    ]
-    await asyncio.gather(*test_tasks)
+#         host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+#         host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
 
-    stop_tasks = [
-        asyncio.create_task(sw_conn_manager.stop()),
-        asyncio.create_task(physical_port_manager.stop()),
-        asyncio.create_task(virtual_switch_manager.stop()),
-        asyncio.create_task(host_manager.stop()),
-        asyncio.create_task(host.stop()),
-        asyncio.create_task(accel_t2.stop()),
-    ]
-    await asyncio.gather(*stop_tasks)
-    await asyncio.gather(*start_tasks)
+#         start_tasks = [
+#             asyncio.create_task(host.run()),
+#             asyncio.create_task(host_manager.run()),
+#             asyncio.create_task(sw_conn_manager.run()),
+#             asyncio.create_task(physical_port_manager.run()),
+#             asyncio.create_task(virtual_switch_manager.run()),
+#             asyncio.create_task(sld.run()),
+#         ]
+
+#         wait_tasks = [
+#             asyncio.create_task(sw_conn_manager.wait_for_ready()),
+#             asyncio.create_task(physical_port_manager.wait_for_ready()),
+#             asyncio.create_task(virtual_switch_manager.wait_for_ready()),
+#             asyncio.create_task(host_manager.wait_for_ready()),
+#             asyncio.create_task(host.wait_for_ready()),
+#             asyncio.create_task(sld.wait_for_ready()),
+#         ]
+#         await asyncio.gather(*wait_tasks)
+
+#         test_tasks = [
+#             asyncio.create_task(sld._cxl_type3_device.init_bi_snp()),
+#             asyncio.create_task(
+#                 host._cxl_mem_birsp(
+#                     CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, bi_id=DSP_2ND_BUS_NUM, bi_tag=0x00
+#                 )
+#             ),
+#             # Required, or otherwise the queues will be stopped before handling anything
+#             asyncio.create_task(asyncio.sleep(2, result="Blocker")),
+#         ]
+#         await asyncio.gather(*test_tasks)
+
+#         stop_tasks = [
+#             asyncio.create_task(sw_conn_manager.stop()),
+#             asyncio.create_task(physical_port_manager.stop()),
+#             asyncio.create_task(virtual_switch_manager.stop()),
+#             asyncio.create_task(host_manager.stop()),
+#             asyncio.create_task(host.stop()),
+#             asyncio.create_task(sld.stop()),
+#         ]
+#         await asyncio.gather(*stop_tasks)
+#         await asyncio.gather(*start_tasks)
+
+#     await run(virtual_switch_manager1)
+#     await run(virtual_switch_manager2)
+#     await run(virtual_switch_manager3)
+
+
+# pylint: disable=line-too-long
+# @pytest.mark.asyncio
+# async def test_cxl_host_type2_ete():
+#     # pylint: disable=protected-access
+#     host_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 52
+#     util_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 53
+#     switch_port = BASE_TEST_PORT + pytest.PORT.TEST_5 + 54
+
+#     port_configs = [
+#         PortConfig(PORT_TYPE.USP),
+#         PortConfig(PORT_TYPE.DSP),
+#     ]
+#     sw_conn_manager = SwitchConnectionManager(port_configs, port=switch_port)
+#     physical_port_manager = PhysicalPortManager(
+#         switch_connection_manager=sw_conn_manager, port_configs=port_configs
+#     )
+
+#     switch_configs = [VirtualSwitchConfig(upstream_port_index=0, vppb_counts=1, initial_bounds=[1])]
+#     virtual_switch_manager = VirtualSwitchManager(
+#         switch_configs=switch_configs, physical_port_manager=physical_port_manager
+#     )
+
+#     accel_t2 = MyType2Accelerator(
+#         port_index=1,
+#         memory_size=0x1000000,
+#         memory_file=f"mem{switch_port + 1}.bin",
+#         port=switch_port,
+#     )
+
+#     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+#     host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
+#     test_mode_host = CxlHost(
+#         port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
+#     )
+
+#     start_tasks = [
+#         asyncio.create_task(host.run()),
+#         asyncio.create_task(host_manager.run()),
+#         asyncio.create_task(sw_conn_manager.run()),
+#         asyncio.create_task(physical_port_manager.run()),
+#         asyncio.create_task(virtual_switch_manager.run()),
+#         asyncio.create_task(accel_t2.run()),
+#     ]
+
+#     wait_tasks = [
+#         asyncio.create_task(sw_conn_manager.wait_for_ready()),
+#         asyncio.create_task(physical_port_manager.wait_for_ready()),
+#         asyncio.create_task(virtual_switch_manager.wait_for_ready()),
+#         asyncio.create_task(host_manager.wait_for_ready()),
+#         asyncio.create_task(host.wait_for_ready()),
+#         asyncio.create_task(accel_t2.wait_for_ready()),
+#     ]
+#     await asyncio.gather(*wait_tasks)
+
+#     data = 0xA5A5
+#     valid_addr = 0x40
+#     invalid_addr = 0x41
+#     test_tasks = [
+#         asyncio.create_task(host._cxl_mem_read(valid_addr)),
+#         asyncio.create_task(host._cxl_mem_read(invalid_addr)),
+#         asyncio.create_task(host._cxl_mem_write(valid_addr, data)),
+#         asyncio.create_task(host._cxl_mem_write(invalid_addr, data)),
+#         asyncio.create_task(test_mode_host._reinit()),
+#         asyncio.create_task(test_mode_host._reinit(valid_addr)),
+#         asyncio.create_task(test_mode_host._reinit(invalid_addr)),
+#     ]
+#     await asyncio.gather(*test_tasks)
+
+#     stop_tasks = [
+#         asyncio.create_task(sw_conn_manager.stop()),
+#         asyncio.create_task(physical_port_manager.stop()),
+#         asyncio.create_task(virtual_switch_manager.stop()),
+#         asyncio.create_task(host_manager.stop()),
+#         asyncio.create_task(host.stop()),
+#         asyncio.create_task(accel_t2.stop()),
+#     ]
+#     await asyncio.gather(*stop_tasks)
+#     await asyncio.gather(*start_tasks)

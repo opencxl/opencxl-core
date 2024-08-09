@@ -49,6 +49,14 @@ class BindProcessor(RunnableComponent):
                 self._usc.cxl_mem_fifo.target_to_host,
                 self._dsc.cxl_mem_fifo.target_to_host,
             ),
+            BindPair(
+                self._dsc.cxl_cache_fifo.host_to_target,
+                self._usc.cxl_cache_fifo.host_to_target,
+            ),
+            BindPair(
+                self._usc.cxl_cache_fifo.target_to_host,
+                self._dsc.cxl_cache_fifo.target_to_host,
+            ),
         ]
 
     def _create_message(self, message):
@@ -170,6 +178,12 @@ class PortBinder(RunnableComponent):
         if self._bind_slots[vppb_index].status != BIND_STATUS.BOUND:
             raise Exception(f"vPPB{vppb_index} is not bound")
         return self._bind_slots[vppb_index].dsp.get_port_index()
+
+    def get_bind_slots(self):
+        return self._bind_slots
+
+    def get_vppb_connections(self):
+        return self._vppb_connections
 
     async def _run(self):
         await self._change_status_to_running()

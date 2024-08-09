@@ -8,6 +8,7 @@
 import sys
 import os
 import random
+from typing import Generator
 
 
 def round_up_to_power_of_2(number: int) -> int:
@@ -106,6 +107,14 @@ def tlptoh64(n):
     if sys.byteorder == "big":
         return n
     return bswap64(n)
+
+
+def split_int(cacheline: int, line_length: int = 64, stride: int = 8) -> Generator[int, int, None]:
+    for unit in range(line_length - stride, -1, -stride):
+        bmask = ~((1 << unit) - 1)
+        masked = cacheline & bmask
+        yield masked >> unit
+        cacheline -= masked
 
 
 def extract_upper(from_what: int, how_much: int, how_long: int):

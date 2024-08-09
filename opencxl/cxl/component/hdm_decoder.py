@@ -30,6 +30,39 @@ class HDM_DECODER_COUNT(IntEnum):
     DECODER_32 = 0xC
 
 
+class INTERLEAVE_GRANULARITY(IntEnum):
+    SIZE_256B = 0x0
+    SIZE_512B = 0x1
+    SIZE_1KB = 0x2
+    SIZE_2KB = 0x3
+    SIZE_4KB = 0x4
+    SIZE_8KB = 0x5
+    SIZE_16KB = 0x6
+
+
+class INTERLEAVE_WAYS(IntEnum):
+    WAY_1 = 0x0
+    WAY_2 = 0x1
+    WAY_4 = 0x2
+    WAY_8 = 0x3
+    WAY_16 = 0x4
+    WAY_3 = 0x8
+    WAY_6 = 0x9
+    WAY_12 = 0xA
+
+
+class IW_TO_WAYS:
+    @staticmethod
+    def calc(value: INTERLEAVE_WAYS) -> int:
+        return int((value.name).split("_")[-1])
+
+
+class HDM_COUNT_TO_NUM:
+    @staticmethod
+    def calc(value: HDM_DECODER_COUNT) -> int:
+        return int((value.name).split("_")[-1])
+
+
 class HdmDecoderCapabilities(TypedDict):
     # pylint: disable=duplicate-code
     decoder_count: HDM_DECODER_COUNT
@@ -42,6 +75,7 @@ class HdmDecoderCapabilities(TypedDict):
     uio_capable: int
     uio_capable_decoder_count: int
     mem_data_nxm_capable: int
+    bi_capable: bool
 
 
 @dataclass
@@ -49,8 +83,8 @@ class HdmDecoderBase:
     index: int = 0
     size: int = 0
     base: int = 0
-    ig: int = 0  # interleave granularity
-    iw: int = 0  # interleave ways
+    ig: INTERLEAVE_GRANULARITY = INTERLEAVE_GRANULARITY.SIZE_256B  # interleave granularity
+    iw: INTERLEAVE_WAYS = INTERLEAVE_WAYS.WAY_1  # interleave ways
 
     def is_hpa_in_range(self, hpa: int) -> bool:
         return self.base <= hpa < (self.base + self.size)
@@ -79,6 +113,9 @@ class DeviceHdmDecoder(HdmDecoderBase):
         dpa = dpa_offset + self.dpa_base
         return dpa
 
+    def get_hpa(self, dpa: int) -> int:
+        return dpa + self.base
+
 
 @dataclass
 class SwitchHdmDecoder(HdmDecoderBase):
@@ -96,8 +133,8 @@ class DecoderInfo:
     size: int = 0
     base: int = 0
     dpa_skip: int = 0
-    ig: int = 0
-    iw: int = 0
+    ig: INTERLEAVE_GRANULARITY = INTERLEAVE_GRANULARITY.SIZE_256B
+    iw: INTERLEAVE_WAYS = INTERLEAVE_WAYS.WAY_1
     target_ports: List[int] = field(default_factory=list)
 
 
@@ -144,6 +181,12 @@ class HdmDecoderManagerBase(LabeledComponent):
     def is_hpa_in_range(self, hpa: int) -> bool:
         return self.get_decoder_from_hpa(hpa) is not None
 
+    def get_decoder_for_dpa(self) -> Optional[HdmDecoderBase]:
+        for decoder in self._decoders:
+            if decoder is not None:
+                return decoder
+        return None
+
     @staticmethod
     def get_decoder_count(decode_register_value: int):
         if decode_register_value == 0:
@@ -166,8 +209,7 @@ class DeviceHdmDecoderManager(HdmDecoderManagerBase):
         return CXL_DEVICE_TYPE.MEM_DEVICE
 
     def is_bi_capable(self) -> bool:
-        # TODO: Support Back-Invalidate
-        return False
+        return self._capabilities["bi_capable"]
 
     def decoder_enable(self, enabled: bool):
         pass
@@ -182,23 +224,34 @@ class DeviceHdmDecoderManager(HdmDecoderManagerBase):
         decoder.dpa_skip = info.dpa_skip
         decoder.base = info.base
         decoder.size = info.size
-        decoder.ig = info.ig
-        decoder.iw = info.iw
+        decoder.ig = INTERLEAVE_GRANULARITY(info.ig)
+        decoder.iw = INTERLEAVE_WAYS(info.iw)
 
         decoder_commit_info = (
             f"[Decoder Commit] index: {index}, base: 0x{decoder.base:x}, size: 0x{decoder.size:x}, "
-            + f"ig: {decoder.ig}, iw: {decoder.iw}, dpa skip: {str(decoder.dpa_skip)}"
+            + f"ig: {decoder.ig.name}, iw: {decoder.iw.name}, dpa skip: {str(decoder.dpa_skip)}"
         )
-        logger.info(self._create_message(decoder_commit_info))
+        logger.debug(self._create_message(decoder_commit_info))
 
         return True
 
     def get_dpa(self, hpa: int) -> Optional[int]:
         decoder = self.get_decoder_from_hpa(hpa)
+        # print(decoder)
+        # print("")
         if not decoder:
             return None
         device_decoder = cast(DeviceHdmDecoder, decoder)
         return device_decoder.get_dpa(hpa)
+
+    def get_hpa(self, dpa: int) -> Optional[int]:
+        decoder = self.get_decoder_for_dpa()
+        if not decoder:
+            return None
+        device_decoder = cast(DeviceHdmDecoder, decoder)
+        if device_decoder.iw != INTERLEAVE_WAYS.WAY_1:
+            return None
+        return device_decoder.get_hpa(dpa)
 
 
 class SwitchHdmDecoderManager(HdmDecoderManagerBase):
@@ -213,8 +266,7 @@ class SwitchHdmDecoderManager(HdmDecoderManagerBase):
         return CXL_DEVICE_TYPE.SWITCH
 
     def is_bi_capable(self) -> bool:
-        # TODO: Support Back-Invalidate
-        return False
+        return self._capabilities["bi_capable"]
 
     def decoder_enable(self, enabled: bool):
         pass
@@ -231,15 +283,16 @@ class SwitchHdmDecoderManager(HdmDecoderManagerBase):
         decoder = cast(SwitchHdmDecoder, self._decoders[index])
         decoder.base = info.base
         decoder.size = info.size
-        decoder.ig = info.ig
-        decoder.iw = info.iw
+        decoder.ig = INTERLEAVE_GRANULARITY(info.ig)
+        decoder.iw = INTERLEAVE_WAYS(info.iw)
         decoder.target_ports = info.target_ports
 
         decoder_commit_info = (
             f"[Decoder Commit] index: {index}, base: 0x{decoder.base:x}, size: 0x{decoder.size:x}, "
-            + f"ig: {decoder.ig}, iw: {decoder.iw}, target ports: {str(decoder.target_ports)}"
+            + f"ig: {decoder.ig.name}, iw: {decoder.iw.name}, "
+            + f"target ports: {str(decoder.target_ports)}"
         )
-        logger.info(self._create_message(decoder_commit_info))
+        logger.debug(self._create_message(decoder_commit_info))
         return True
 
     def get_target(self, hpa: int) -> Optional[int]:

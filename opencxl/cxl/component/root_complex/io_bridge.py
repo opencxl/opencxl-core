@@ -7,10 +7,10 @@
 
 from dataclasses import dataclass
 from typing import cast
-from asyncio import create_task, gather
+from asyncio import Queue, create_task, gather, timeout, exceptions
 from opencxl.util.component import RunnableComponent
 from opencxl.pci.component.fifo_pair import FifoPair
-from opencxl.cxl.component.root_complex.memory_fifo import MemoryFifoPair
+from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.util.logger import logger
 from opencxl.util.pci import (
     extract_bus_from_bdf,
@@ -46,8 +46,15 @@ class IoBridge(RunnableComponent):
         self._memory_producer_fifos = config.memory_producer_fifos
         self._next_tag = 0
 
+        self._internal_io_fifo = Queue()
+
+    # pylint: disable=unused-argument
     async def _get_mmio_response(self, tag: int):
-        pass
+        # TODO: get packet based on tag
+        packet = await self._internal_io_fifo.get()
+
+        assert is_cxl_io_completion_status_sc(packet)
+        return packet
 
     def _get_secondary_bus(self) -> int:
         return self._root_bus + 1
@@ -156,14 +163,20 @@ class IoBridge(RunnableComponent):
         packet = CxlIoMemWrPacket.create(address, size, value)
         await self._cxl_io_mmio_fifos.host_to_target.put(packet)
 
-    async def read_mmio(self, address: int, size: int) -> CxlIoCompletionWithDataPacket:
+    async def read_mmio(self, address: int, size: int) -> int:
         message = self._create_message(f"MMIO: Reading data from 0x{address:08x}")
         logger.debug(message)
         packet = CxlIoMemRdPacket.create(address, size)
         await self._cxl_io_mmio_fifos.host_to_target.put(packet)
 
-        packet = await self._get_mmio_response(packet.mreq_header.tag)
-        assert is_cxl_io_completion_status_sc(packet)
+        try:
+            async with timeout(10):
+                packet = await self._get_mmio_response(packet.mreq_header.tag)
+
+        except exceptions.TimeoutError:
+            logger.error(self._create_message("CXL.io mmio RD: Timed-out"))
+            return None
+
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
         return cpld_packet.data
 
@@ -175,7 +188,7 @@ class IoBridge(RunnableComponent):
             if packet is None:
                 logger.debug(self._create_message("Stopped processing target to host MMIO packets"))
                 break
-            # TODO: Process target to host packets
+            await self._internal_io_fifo.put(packet)
 
     async def _run(self):
         tasks = [create_task(self.process_target_to_host_mmio_packets())]
@@ -183,4 +196,5 @@ class IoBridge(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
-        await self._cxl_io_mmio_fifos.put(None)
+        await self._cxl_io_mmio_fifos.host_to_target.put(None)
+        await self._cxl_io_mmio_fifos.target_to_host.put(None)

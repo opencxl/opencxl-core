@@ -9,6 +9,15 @@ from asyncio import create_task, gather
 from enum import Enum, auto
 from typing import Optional
 
+
+from opencxl.cxl.config_space.dvsec.cxl_devices import (
+    DvsecCxlCacheableRangeOptions,
+    DvsecCxlCapabilityOptions,
+)
+from opencxl.cxl.transport.transaction import (
+    CXL_MEM_S2MBISNP_OPCODE,
+    CxlMemBISnpPacket,
+)
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_connection import CxlConnection
@@ -106,6 +115,8 @@ class CxlType3Device(RunnableComponent):
         identity.fw_revision = MemoryDeviceIdentity.ascii_str_to_int("EEUM EMU 1.0", 16)
         identity.set_total_capacity(self._memory_size)
         identity.set_volatile_only_capacity(self._memory_size)
+
+        logger.debug(f"Initialized size at device level: 0x{identity.volatile_only_capacity:08x}")
         self._cxl_memory_device_component = CxlMemoryDeviceComponent(
             identity,
             decoder_count=self._decoder_count,
@@ -128,6 +139,15 @@ class CxlType3Device(RunnableComponent):
                 ),
                 device_type=CXL_DEVICE_TYPE.LD,
                 memory_device_component=self._cxl_memory_device_component,
+                capability_options=DvsecCxlCapabilityOptions(
+                    cache_capable=0,
+                    mem_capable=1,
+                    hdm_count=1,
+                    cache_writeback_and_invalidate_capable=0,
+                    cache_size_unit=0b0,
+                    cache_size=0,
+                ),
+                cacheable_address_range=DvsecCxlCacheableRangeOptions(0x0, 0x0),
             ),
             doe=CxlDoeExtendedCapabilityOptions(
                 cdat_entries=self._cxl_memory_device_component.get_cdat_entries()
@@ -146,6 +166,12 @@ class CxlType3Device(RunnableComponent):
 
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
+
+    async def init_bi_snp(self):
+        # TODO: implement real BISnp logic
+        # This is only a placeholder for tests
+        packet = CxlMemBISnpPacket.create(0x00, CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA)
+        await self._cxl_mem_manager.process_cxl_mem_bisnp_packet(packet)
 
     async def _run(self):
         # pylint: disable=duplicate-code

@@ -9,6 +9,7 @@ from abc import abstractmethod
 from asyncio import create_task, gather
 from enum import IntEnum
 
+from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 from opencxl.util.logger import logger
 from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
@@ -17,7 +18,7 @@ from opencxl.util.unaligned_bit_structure import (
 )
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.component.cxl_connection import CxlConnection
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.cxl_io_manager import CxlIoManager
 from opencxl.cxl.component.cxl_mem_manager import CxlMemManager
@@ -67,6 +68,7 @@ class CxlPortDevice(RunnableComponent):
     def __init__(self, transport_connection: CxlConnection, port_index: int):
         self._cxl_mem_manager: CxlMemManager
         self._cxl_io_manager: CxlIoManager
+        self._cxl_cache_manager: CxlCacheManager
 
         super().__init__()
         self._port_index = port_index
@@ -91,10 +93,12 @@ class CxlPortDevice(RunnableComponent):
         run_tasks = [
             create_task(self._cxl_io_manager.run()),
             create_task(self._cxl_mem_manager.run()),
+            create_task(self._cxl_cache_manager.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
             create_task(self._cxl_mem_manager.wait_for_ready()),
+            create_task(self._cxl_cache_manager.wait_for_ready()),
         ]
         await gather(*wait_tasks)
         await self._change_status_to_running()
@@ -106,5 +110,6 @@ class CxlPortDevice(RunnableComponent):
         tasks = [
             create_task(self._cxl_io_manager.stop()),
             create_task(self._cxl_mem_manager.stop()),
+            create_task(self._cxl_cache_manager.stop()),
         ]
         await gather(*tasks)
