@@ -471,6 +471,7 @@ class MyType2Accelerator(RunnableComponent):
         self._wait_tasks = None
         self._train_dataloader = None
         self._test_dataset = None
+        self._val_folder = None
 
     def _setup_test_env(self):
         if not os.path.isdir(self.accel_dirname):
