@@ -7,6 +7,8 @@
 
 from asyncio import gather, create_task
 from dataclasses import dataclass, field
+import os
+import signal
 from typing import List
 
 from opencxl.cxl.component.physical_port_manager import (
@@ -59,6 +61,7 @@ class CxlSwitchConfig:
     port: int = 8000
     mctp_host: str = "0.0.0.0"
     mctp_port: int = 8100
+    run_as_child: bool = False
 
 
 class CxlSwitch(RunnableComponent):
@@ -87,6 +90,8 @@ class CxlSwitch(RunnableComponent):
             self._mctp_connection_client.get_mctp_connection()
         )
         self._initialize_mctp_endpoint()
+
+        self._run_as_child = switch_config.run_as_child
 
     def _initialize_mctp_endpoint(self):
         commands = [
@@ -137,6 +142,8 @@ class CxlSwitch(RunnableComponent):
         ]
         await gather(*wait_tasks)
         await self._change_status_to_running()
+        if self._run_as_child:
+            os.kill(os.getppid(), signal.SIGCONT)
         await gather(*run_tasks)
 
     async def _stop(self):
