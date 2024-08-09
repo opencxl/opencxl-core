@@ -156,7 +156,9 @@ class MyType1Accelerator(RunnableComponent):
         for _, (inputs, labels) in tqdm(
             enumerate(train_dataloader),
             total=len(train_dataloader),
-            desc="Progress",
+            desc=f"Dev {self._device_id} Training Progress",
+            position=self._device_id,
+            leave=False,
         ):
             if self._stop_flag:
                 return
@@ -193,7 +195,9 @@ class MyType1Accelerator(RunnableComponent):
             for _, (inputs, labels) in tqdm(
                 enumerate(test_dataloader),
                 total=len(test_dataloader),
-                desc="Progress",
+                desc=f"Dev {self._device_id} Cross-validation Progress",
+                position=self._device_id,
+                leave=False,
             ):
                 if self._stop_flag:
                     return
@@ -248,6 +252,7 @@ class MyType1Accelerator(RunnableComponent):
                 unit_scale=True,
                 unit_divisor=1024,
                 position=self._device_id,
+                leave=False,
             ) as pbar:
                 for cacheline_offset in range(start, end, 64):
                     cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
@@ -476,6 +481,7 @@ class MyType2Accelerator(RunnableComponent):
 
         train_dir = os.path.abspath(train_dir)
         val_dir = os.path.abspath(val_dir)
+        self._val_folder = val_dir
 
         logger.debug(
             self._create_message(f"Changing into accelerator directory: {self.accel_dirname}")
@@ -527,7 +533,9 @@ class MyType2Accelerator(RunnableComponent):
         for _, (inputs, labels) in tqdm(
             enumerate(train_dataloader),
             total=len(train_dataloader),
-            desc="Progress",
+            desc=f"Dev {self._device_id} Training Progress",
+            position=self._device_id,
+            leave=False,
         ):
             inputs = inputs.to(device)
             labels = labels.to(device)
@@ -562,7 +570,9 @@ class MyType2Accelerator(RunnableComponent):
             for _, (inputs, labels) in tqdm(
                 enumerate(test_dataloader),
                 total=len(test_dataloader),
-                desc="Progress",
+                desc=f"Dev {self._device_id} Cross-validation Progress",
+                position=self._device_id,
+                leave=False,
             ):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
@@ -606,6 +616,7 @@ class MyType2Accelerator(RunnableComponent):
                 unit_scale=True,
                 unit_divisor=1024,
                 position=self._device_id,
+                leave=False,
             ) as pbar:
                 for offset in range(0, metadata_size, 64):
                     data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + offset, 64)
@@ -650,9 +661,10 @@ class MyType2Accelerator(RunnableComponent):
         pred_logit = self._model(tens)
         predicted_probs = torch.softmax(pred_logit, dim=1)[0]
 
-        # 10 predicted classes
-        # TODO: avoid magic number usage
-        pred_kv = {self._test_dataset.classes[i]: predicted_probs[i].item() for i in range(0, 10)}
+        categories = glob.glob(f"{self._val_folder}{os.path.sep}*")
+        pred_kv = {
+            self._test_dataset.classes[i]: predicted_probs[i].item() for i in range(len(categories))
+        }
 
         json_asenc = str.encode(json.dumps(pred_kv))
         bytes_size = len(json_asenc)
