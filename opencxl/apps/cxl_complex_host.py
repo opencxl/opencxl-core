@@ -6,156 +6,177 @@
 """
 
 import asyncio
-from dataclasses import dataclass, field
-from typing import Optional, List
+import jsonrpcclient
+from jsonrpcclient import parse_json, request_json
+import websockets
+from websockets import WebSocketClientProtocol
+
+from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
-from opencxl.cxl.component.root_complex.root_complex import (
-    RootComplex,
-    RootComplexConfig,
-    RootComplexMemoryControllerConfig,
-)
-from opencxl.cxl.component.cache_controller import (
-    CacheController,
-    CacheControllerConfig,
-)
-from opencxl.cxl.component.root_complex.root_port_client_manager import (
-    RootPortClientManager,
-    RootPortClientManagerConfig,
-    RootPortClientConfig,
-)
-from opencxl.cxl.component.root_complex.root_port_switch import (
-    RootPortSwitchPortConfig,
-    COH_POLICY_TYPE,
-    ROOT_PORT_SWITCH_TYPE,
-)
-from opencxl.cxl.component.root_complex.home_agent import MemoryRange
-from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
-from opencxl.cxl.transport.cache_fifo import CacheFifoPair
-from opencxl.cxl.component.host_llc_iogen import (
-    HostLlcIoGen,
-    HostLlcIoGenConfig,
-)
-
-
-@dataclass
-class CxlComplexHostConfig:
-    host_name: str
-    root_bus: int
-    root_port_switch_type: ROOT_PORT_SWITCH_TYPE
-    memory_controller: RootComplexMemoryControllerConfig
-    memory_ranges: List[MemoryRange] = field(default_factory=list)
-    root_ports: List[RootPortClientConfig] = field(default_factory=list)
-    coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.NonCache
+from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
+from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
+from opencxl.cpu import CPU
+from opencxl.drivers.cxl_bus_driver import CxlBusDriver
+from opencxl.drivers.cxl_mem_driver import CxlMemDriver
+from opencxl.drivers.pci_bus_driver import PciBusDriver
+from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, MEMORY_RANGE_TYPE
 
 
 class CxlComplexHost(RunnableComponent):
-    def __init__(self, config: CxlComplexHostConfig):
-        super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
-
-        processor_to_cache_fifo = MemoryFifoPair()
-        cache_to_home_agent_fifo = CacheFifoPair()
-        home_agent_to_cache_fifo = CacheFifoPair()
-        cache_to_coh_bridge_fifo = CacheFifoPair()
-        coh_bridge_to_cache_fifo = CacheFifoPair()
-
-        # Create Root Port Client Manager
-        root_port_client_manager_config = RootPortClientManagerConfig(
-            client_configs=config.root_ports, host_name=config.host_name
+    def __init__(
+        self,
+        port_index: int,
+        app,
+        switch_host: str = "0.0.0.0",
+        switch_port: int = 8000,
+    ):
+        label = f"Port{port_index}"
+        super().__init__(label)
+        self._port_index = port_index
+        self._switch_conn_client = SwitchConnectionClient(
+            port_index, CXL_COMPONENT_TYPE.R, host=switch_host, port=switch_port
         )
-        self._root_port_client_manager = RootPortClientManager(root_port_client_manager_config)
+        self._cpu = CPU()
+        self._cxl_memory_hub = CxlMemoryHub()
+        self._cxl_hpa_base_addr = 0x100000000000 | (port_index << 40)
+        self._system_memory_base_addr = 0xFFFF888000000000
+        self._pci_mmio_base_addr = 0xFE00000000
+        self._pci_cfg_base_addr = 0x10000000
 
-        # Create Root Complex
-        root_complex_root_ports = [
-            RootPortSwitchPortConfig(
-                port_index=connection.port_index, downstream_connection=connection.connection
+    async def _init_system(self, cxl_hpa_base_addr):
+        root_complex = self._cxl_memory_hub.get_root_complex()
+        pci_bus_driver = PciBusDriver(root_complex)
+        cxl_bus_driver = CxlBusDriver(pci_bus_driver, root_complex)
+        cxl_mem_driver = CxlMemDriver(cxl_bus_driver, root_complex)
+        await pci_bus_driver.init()
+        await cxl_bus_driver.init()
+        await cxl_mem_driver.init()
+
+        # System Memory
+        self._cxl_memory_hub.add_mem_range(
+            self._system_memory_base_addr, size, MEMORY_RANGE_TYPE.DRAM
+        )
+
+        # PCI Device
+        await pci_bus_driver.init(self._pci_mmio_base_addr)
+        pci_cfg_size = 0x10000000  # assume bus bits n = 8
+        for i, device in enumerate(pci_bus_driver.get_devices()):
+            self._cxl_memory_hub.add_mem_range(
+                self._pci_cfg_base_addr + (i * pci_cfg_size), pci_cfg_size, MEMORY_RANGE_TYPE.CFG
             )
-            for connection in self._root_port_client_manager.get_cxl_connections()
-        ]
-        root_complex_config = RootComplexConfig(
-            host_name=config.host_name,
-            root_bus=config.root_bus,
-            root_port_switch_type=config.root_port_switch_type,
-            cache_to_home_agent_fifo=cache_to_home_agent_fifo,
-            home_agent_to_cache_fifo=home_agent_to_cache_fifo,
-            cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
-            coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
-            memory_controller=config.memory_controller,
-            memory_ranges=config.memory_ranges,
-            root_ports=root_complex_root_ports,
-            coh_type=config.coh_type,
-        )
-        self._root_complex = RootComplex(root_complex_config)
+            for bar_info in device.bars:
+                self._cxl_memory_hub.add_mem_range(
+                    bar_info.base_address, bar_info.size, MEMORY_RANGE_TYPE.MMIO
+                )
 
-        if config.coh_type == COH_POLICY_TYPE.DotCache:
-            cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
-            coh_agent_to_cache_fifo = coh_bridge_to_cache_fifo
-        elif config.coh_type in (COH_POLICY_TYPE.NonCache, COH_POLICY_TYPE.DotMemBI):
-            cache_to_coh_agent_fifo = cache_to_home_agent_fifo
-            coh_agent_to_cache_fifo = home_agent_to_cache_fifo
+        # CXL Devices
+        dev_count = 0
+        hpa_base = cxl_hpa_base_addr
+        for device in cxl_mem_driver.get_devices():
+            size = device.get_memory_size()
+            successful = await cxl_mem_driver.attach_single_mem_device(device, hpa_base, size)
+            if successful:
+                self._cxl_memory_hub.add_mem_range(hpa_base, size, MEMORY_RANGE_TYPE.CXL)
+                hpa_base += size
+                dev_count += 1
 
-        cache_controller_config = CacheControllerConfig(
-            component_name=config.host_name,
-            processor_to_cache_fifo=processor_to_cache_fifo,
-            cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
-            coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
-            cache_num_assoc=4,
-            cache_num_set=8,
-        )
-        self._cache_controller = CacheController(cache_controller_config)
-
-        host_processor_config = HostLlcIoGenConfig(
-            host_name=config.host_name,
-            processor_to_cache_fifo=processor_to_cache_fifo,
-            memory_size=config.memory_controller.memory_size,
-        )
-        self._host_simple_processor = HostLlcIoGen(host_processor_config)
-
-        self._dev_mmio_ranges: list[tuple[int, int]] = []
-        self._dev_mem_ranges: list[tuple[int, int]] = []
-
-    def append_dev_mmio_range(self, base, size):
-        self._dev_mmio_ranges.append((base, size))
-
-    def append_dev_mem_range(self, base, size):
-        self._dev_mem_ranges.append((base, size))
-
-    def get_root_complex(self):
-        return self._root_complex
-
-    async def write_config(self, bdf: int, offset: int, size: int, value: int):
-        await self._root_complex.write_config(bdf, offset, size, value)
-
-    async def read_config(self, bdf: int, offset: int, size: int) -> int:
-        return await self._root_complex.read_config(bdf, offset, size)
-
-    async def write_mmio(self, address: int, size: int, value: int):
-        await self._root_complex.write_mmio(address, size, value)
-
-    async def read_mmio(self, address: int, size: int) -> int:
-        return await self._root_complex.read_mmio(address, size)
+    def _is_valid_addr(self, addr: int) -> bool:
+        return 0 <= addr <= self._root_port_device.get_used_hpa_size() and (addr % 0x40 == 0)
 
     async def _run(self):
-        run_tasks = [
-            asyncio.create_task(self._root_port_client_manager.run()),
-            asyncio.create_task(self._root_complex.run()),
-            asyncio.create_task(self._cache_controller.run()),
-            asyncio.create_task(self._host_simple_processor.run()),
+        tasks = [
+            asyncio.create_task(self._switch_conn_client.run()),
         ]
-        wait_tasks = [
-            asyncio.create_task(self._root_port_client_manager.wait_for_ready()),
-            asyncio.create_task(self._root_complex.wait_for_ready()),
-            asyncio.create_task(self._cache_controller.wait_for_ready()),
-            asyncio.create_task(self._host_simple_processor.wait_for_ready()),
-        ]
-        await asyncio.gather(*wait_tasks)
+        await self._switch_conn_client.wait_for_ready()
         await self._change_status_to_running()
-        await asyncio.gather(*run_tasks)
+        await asyncio.gather(*tasks)
 
     async def _stop(self):
         tasks = [
-            asyncio.create_task(self._root_port_client_manager.stop()),
-            asyncio.create_task(self._root_complex.stop()),
-            asyncio.create_task(self._cache_controller.stop()),
-            asyncio.create_task(self._host_simple_processor.stop()),
+            asyncio.create_task(self._switch_conn_client.stop()),
+            asyncio.create_task(self._root_port_device.stop()),
+        ]
+        if self._hm_mode:
+            tasks.append(asyncio.create_task(self._host_manager_conn_client.stop()))
+        await asyncio.gather(*tasks)
+
+
+class CxlHostManager(RunnableComponent):
+    def __init__(
+        self,
+        host_host: str = "0.0.0.0",
+        host_port: int = 8300,
+        util_host: str = "0.0.0.0",
+        util_port: int = 8400,
+    ):
+        super().__init__()
+        self._host_connections = {}
+        self._host_conn_server = HostConnServer(host_host, host_port, self._set_host_conn_callback)
+        self._util_conn_server = UtilConnServer(util_host, util_port, self._get_host_conn_callback)
+
+    async def _set_host_conn_callback(self, port: int, ws) -> WebSocketClientProtocol:
+        self._host_connections[port] = ws
+
+    async def _get_host_conn_callback(self, port: int) -> WebSocketClientProtocol:
+        return self._host_connections.get(port)
+
+    async def _run(self):
+        tasks = [
+            asyncio.create_task(self._host_conn_server.run()),
+            asyncio.create_task(self._util_conn_server.run()),
+        ]
+        await self._change_status_to_running()
+        await asyncio.gather(*tasks)
+
+    async def _stop(self):
+        tasks = [
+            asyncio.create_task(self._host_conn_server.stop()),
+            asyncio.create_task(self._util_conn_server.stop()),
         ]
         await asyncio.gather(*tasks)
+
+
+class CxlHostUtilClient:
+    def __init__(self, host: str = "0.0.0.0", port: int = 8400):
+        self._uri = f"ws://{host}:{port}"
+
+    async def _process_cmd(self, cmd: str) -> str:
+        async with websockets.connect(self._uri) as ws:
+            logger.debug(f"Issuing: {cmd}")
+            await ws.send(str(cmd))
+            resp = await ws.recv()
+            logger.debug(f"Received: {resp}")
+            resp = parse_json(resp)
+            match resp:
+                case jsonrpcclient.Ok(result, _):
+                    return result["result"]
+                case jsonrpcclient.Error(_, err, _, _):
+                    raise Exception(f"{err}")
+
+    async def cxl_mem_write(self, port: int, addr: int, data: int) -> str:
+        logger.info(f"CXL-Host[Port{port}]: Start CXL.mem Write: addr=0x{addr:x} data=0x{data:x}")
+        cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": port, "addr": addr, "data": data})
+        return await self._process_cmd(cmd)
+
+    async def cxl_mem_read(self, port: int, addr: int) -> str:
+        logger.info(f"CXL-Host[Port{port}]: Start CXL.mem Read: addr=0x{addr:x}")
+        cmd = request_json("UTIL_CXL_MEM_READ", params={"port": port, "addr": addr})
+        return await self._process_cmd(cmd)
+
+    async def cxl_mem_birsp(
+        self, port: int, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
+    ) -> str:
+        logger.info(
+            f"CXL-Host[Port{port}]: Start CXL.mem BIRsp: opcode: 0x{opcode:x}"
+            f" id: {bi_id}, tag: {bi_tag}"
+        )
+        cmd = request_json(
+            "UTIL_CXL_MEM_BIRSP",
+            params={"port": port, "opcode": opcode, "bi_id": bi_id, "bi_tag": bi_tag},
+        )
+        return await self._process_cmd(cmd)
+
+    async def reinit(self, port: int, hpa_base: int = None) -> str:
+        logger.info(f"CXL-Host[Port{port}]: Start CXL-Host Reinit")
+        cmd = request_json("UTIL_REINIT", params={"port": port, "hpa_base": hpa_base})
+        return await self._process_cmd(cmd)

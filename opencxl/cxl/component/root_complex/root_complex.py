@@ -53,7 +53,6 @@ class RootComplexConfig:
     cache_to_coh_bridge_fifo: CacheFifoPair
     coh_bridge_to_cache_fifo: CacheFifoPair
     memory_controller: RootComplexMemoryControllerConfig
-    memory_ranges: List[MemoryRange] = field(default_factory=list)
     root_ports: List[RootPortSwitchPortConfig] = field(default_factory=list)
     coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.NonCache
 
@@ -128,12 +127,16 @@ class RootComplex(RunnableComponent):
             memory_consumer_fifos=home_agent_to_memory_controller_fifo,
         )
         self._memory_controller = MemoryController(memory_controller_config)
+        self._mmio_base_address = 0
 
     def get_root_bus(self) -> int:
         return self._root_port_switch.get_root_bus()
 
+    def set_mmio_base_address(self, addr) -> int:
+        self._mmio_base_address = addr
+
     def get_mmio_base_address(self) -> int:
-        return 0x80000000
+        return self._mmio_base_address
 
     async def write_config(self, bdf: int, offset: int, size: int, value: int):
         await self._io_bridge.write_config(bdf, offset, size, value)

@@ -16,6 +16,13 @@ virtual_switch_configs:
   - upstream_port_index: 5
     vppb_counts: 4
     initial_bounds: [6,7,8,9]
+hosts:
+  - port_index: 0
+    memory_size: 256M
+    coh_type: NonCache
+  - port_index: 5
+    memory_size: 256M
+    coh_type: NonCache
 devices:
   - port_index: 1
     memory_size: 256M

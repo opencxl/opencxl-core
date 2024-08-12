@@ -62,9 +62,9 @@ class MEMORY_RANGE_TYPE(Enum):
 
 @dataclass
 class MemoryRange:
-    type: MEMORY_RANGE_TYPE
-    base_address: int
+    base_addr: int
     size: int
+    type: MEMORY_RANGE_TYPE
 
 
 @dataclass
