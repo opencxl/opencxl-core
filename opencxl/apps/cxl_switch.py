@@ -7,6 +7,8 @@
 
 from asyncio import gather, create_task
 from dataclasses import dataclass, field
+import os
+import signal
 from typing import List
 
 from opencxl.cxl.component.physical_port_manager import (
@@ -59,6 +61,7 @@ class CxlSwitchConfig:
     port: int = 8000
     mctp_host: str = "0.0.0.0"
     mctp_port: int = 8100
+    run_as_child: bool = False
 
 
 class CxlSwitch(RunnableComponent):
@@ -69,6 +72,7 @@ class CxlSwitch(RunnableComponent):
         self,
         switch_config: CxlSwitchConfig,
         device_configs: List[SingleLogicalDeviceConfig],
+        start_mctp: bool = True,
     ):
         super().__init__()
         self._switch_connection_manager = SwitchConnectionManager(
@@ -87,6 +91,9 @@ class CxlSwitch(RunnableComponent):
             self._mctp_connection_client.get_mctp_connection()
         )
         self._initialize_mctp_endpoint()
+
+        self._start_mctp = start_mctp
+        self._run_as_child = switch_config.run_as_child
 
     def _initialize_mctp_endpoint(self):
         commands = [
@@ -121,21 +128,21 @@ class CxlSwitch(RunnableComponent):
         self._virtual_switch_manager.register_event_handler(handle_switch_event)
 
     async def _run(self):
-        run_tasks = [
-            create_task(self._switch_connection_manager.run()),
-            create_task(self._physical_port_manager.run()),
-            create_task(self._virtual_switch_manager.run()),
-            create_task(self._mctp_connection_client.run()),
-            create_task(self._mctp_cci_executor.run()),
+        components = [
+            self._switch_connection_manager,
+            self._physical_port_manager,
+            self._virtual_switch_manager,
         ]
-        wait_tasks = [
-            create_task(self._switch_connection_manager.wait_for_ready()),
-            create_task(self._physical_port_manager.wait_for_ready()),
-            create_task(self._virtual_switch_manager.wait_for_ready()),
-            create_task(self._mctp_connection_client.wait_for_ready()),
-            create_task(self._mctp_cci_executor.wait_for_ready()),
-        ]
+        if self._start_mctp:
+            components.extend([self._mctp_cci_executor, self._mctp_connection_client])
+
+        run_tasks = [create_task(comp.run()) for comp in components]
+
+        wait_tasks = [create_task(comp.wait_for_ready()) for comp in components]
+
         await gather(*wait_tasks)
+        if self._run_as_child:
+            os.kill(os.getppid(), signal.SIGCONT)
         await self._change_status_to_running()
         await gather(*run_tasks)
 
