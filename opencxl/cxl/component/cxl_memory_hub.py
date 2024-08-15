@@ -13,7 +13,7 @@ from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.root_complex.root_complex import (
     RootComplex,
     RootComplexConfig,
-    RootComplexMemoryControllerConfig,
+    SystemMemControllerConfig,
 )
 from opencxl.cxl.component.cache_controller import (
     CacheController,
@@ -32,10 +32,6 @@ from opencxl.cxl.component.root_complex.root_port_switch import (
 from opencxl.cxl.component.root_complex.home_agent import MemoryRange
 from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
-from opencxl.cxl.component.host_llc_iogen import (
-    HostLlcIoGen,
-    HostLlcIoGenConfig,
-)
 from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
     MemoryRequest,
@@ -55,18 +51,16 @@ class MEMORY_RANGE_TYPE(Enum):
 
 
 @dataclass
-class CxlComplexHostConfig:
+class CxlMemoryHubConfig:
     host_name: str
     root_bus: int
     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
-    memory_controller: RootComplexMemoryControllerConfig
-    memory_ranges: List[MemoryRange] = field(default_factory=list)
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
-    coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.NonCache
+    sys_mem_controller: SystemMemControllerConfig
 
 
 class CxlMemoryHub(RunnableComponent):
-    def __init__(self, config: CxlComplexHostConfig):
+    def __init__(self, config: CxlMemoryHubConfig):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
 
         self._processor_to_cache_fifo = MemoryFifoPair()
@@ -91,17 +85,14 @@ class CxlMemoryHub(RunnableComponent):
             for connection in self._root_port_client_manager.get_cxl_connections()
         ]
         root_complex_config = RootComplexConfig(
-            host_name=config.host_name,
             root_bus=config.root_bus,
             root_port_switch_type=config.root_port_switch_type,
             cache_to_home_agent_fifo=cache_to_home_agent_fifo,
             home_agent_to_cache_fifo=home_agent_to_cache_fifo,
             cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
             coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
-            memory_controller=config.memory_controller,
-            memory_ranges=config.memory_ranges,
+            sys_mem_controller=config.sys_mem_controller,
             root_ports=root_complex_root_ports,
-            coh_type=config.coh_type,
         )
         self._root_complex = RootComplex(root_complex_config)
 
@@ -132,8 +123,6 @@ class CxlMemoryHub(RunnableComponent):
         return MEMORY_RANGE_TYPE.OOB
 
     def _cfg_addr_to_bdf(self, cfg_addr):
-        if cfg_addr & ~(0xFF << 23):
-            raise Exception(f"CFG address 0x{cfg_addr:x} is not 256MB aligned")
         return create_bdf(
             (cfg_addr >> 20) & 0xFF,  # bus bits, n = 8
             (cfg_addr >> 15) & 0x1F,

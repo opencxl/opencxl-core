@@ -38,9 +38,9 @@ TODO: Add an internal PCIe switch for routing PCIe packets between root ports
 
 
 @dataclass
-class RootComplexMemoryControllerConfig:
-    memory_size: int
-    memory_filename: str
+class SystemMemControllerConfig:
+    mem_size: int
+    mem_filename: str
 
 
 @dataclass
@@ -52,7 +52,7 @@ class RootComplexConfig:
     home_agent_to_cache_fifo: CacheFifoPair
     cache_to_coh_bridge_fifo: CacheFifoPair
     coh_bridge_to_cache_fifo: CacheFifoPair
-    memory_controller: RootComplexMemoryControllerConfig
+    sys_mem_controller: SystemMemControllerConfig
     root_ports: List[RootPortSwitchPortConfig] = field(default_factory=list)
     coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.NonCache
 
