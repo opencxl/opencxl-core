@@ -70,7 +70,6 @@ class MemoryRange:
 @dataclass
 class HomeAgentConfig:
     host_name: str
-    memory_ranges: List[MemoryRange]
     memory_consumer_io_fifos: MemoryFifoPair
     memory_consumer_coh_fifos: MemoryFifoPair
     memory_producer_fifos: MemoryFifoPair
@@ -84,7 +83,7 @@ class HomeAgent(RunnableComponent):
     def __init__(self, config: HomeAgentConfig):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
 
-        self._memory_ranges = config.memory_ranges
+        self._memory_ranges = []
         self._memory_consumer_io_fifos = config.memory_consumer_io_fifos
         self._memory_consumer_coh_fifos = config.memory_consumer_coh_fifos
         self._memory_producer_fifos = config.memory_producer_fifos

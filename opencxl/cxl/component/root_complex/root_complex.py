@@ -108,7 +108,6 @@ class RootComplex(RunnableComponent):
         # Create Home Agent
         home_agent_config = HomeAgentConfig(
             host_name=config.host_name,
-            memory_ranges=config.memory_ranges,
             memory_consumer_io_fifos=io_bridge_to_home_agent_memory_fifo,
             memory_consumer_coh_fifos=coh_bridge_to_home_agent_memory_fifo,
             memory_producer_fifos=home_agent_to_memory_controller_fifo,
@@ -121,8 +120,8 @@ class RootComplex(RunnableComponent):
 
         # Create Memory Controller
         memory_controller_config = MemoryControllerConfig(
-            memory_size=config.memory_controller.memory_size,
-            memory_filename=config.memory_controller.memory_filename,
+            memory_size=config.sys_mem_controller.mem_size,
+            memory_filename=config.sys_mem_controller.mem_filename,
             host_name=config.host_name,
             memory_consumer_fifos=home_agent_to_memory_controller_fifo,
         )

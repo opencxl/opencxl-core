@@ -18,7 +18,8 @@ from opencxl.bin import cxl_switch
 from opencxl.bin import single_logical_device as sld
 from opencxl.bin import accelerator as accel
 from opencxl.bin import cxl_host
-from opencxl.bin import cxl_complex_host
+
+# from opencxl.bin import cxl_complex_host
 from opencxl.bin import mem
 
 
@@ -226,7 +227,8 @@ def start_host(ctx):
 
 
 def start_complex_host_group(ctx, config_file):
-    ctx.invoke(cxl_complex_host.start_group, config_file=config_file)
+    # ctx.invoke(cxl_complex_host.start_group, config_file=config_file)
+    pass
 
 
 def start_host_group(ctx, config_file, hm_mode):
@@ -255,18 +257,18 @@ cli.add_command(cxl_host.host_group)
 cli.add_command(mem.mem_group)
 
 if __name__ == "__main__":
-    start(
-        [
-            # "-c",
-            # "switch",
-            "-c",
-            "complex-host-group",
-            # "-c",
-            # "sld-group",
-            "--config-file",
-            "configs/1vcs_4sld.yaml",
-            "--log-level",
-            "debug",
-        ]
-    )
-    # cli()
+    # start(
+    #     [
+    #         # "-c",
+    #         # "switch",
+    #         "-c",
+    #         "complex-host-group",
+    #         # "-c",
+    #         # "sld-group",
+    #         "--config-file",
+    #         "configs/1vcs_4sld.yaml",
+    #         "--log-level",
+    #         "debug",
+    #     ]
+    # )
+    cli()

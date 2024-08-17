@@ -54,9 +54,9 @@ class MEMORY_RANGE_TYPE(Enum):
 class CxlMemoryHubConfig:
     host_name: str
     root_bus: int
+    sys_mem_controller: SystemMemControllerConfig
     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
-    sys_mem_controller: SystemMemControllerConfig
 
 
 class CxlMemoryHub(RunnableComponent):
@@ -85,6 +85,7 @@ class CxlMemoryHub(RunnableComponent):
             for connection in self._root_port_client_manager.get_cxl_connections()
         ]
         root_complex_config = RootComplexConfig(
+            host_name="rp",
             root_bus=config.root_bus,
             root_port_switch_type=config.root_port_switch_type,
             cache_to_home_agent_fifo=cache_to_home_agent_fifo,
@@ -96,12 +97,13 @@ class CxlMemoryHub(RunnableComponent):
         )
         self._root_complex = RootComplex(root_complex_config)
 
-        if config.coh_type == COH_POLICY_TYPE.DotCache:
+        # if config.coh_type == COH_POLICY_TYPE.DotCache:
+        if True:
             cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
             coh_agent_to_cache_fifo = coh_bridge_to_cache_fifo
-        elif config.coh_type in (COH_POLICY_TYPE.NonCache, COH_POLICY_TYPE.DotMemBI):
-            cache_to_coh_agent_fifo = cache_to_home_agent_fifo
-            coh_agent_to_cache_fifo = home_agent_to_cache_fifo
+        # elif config.coh_type in (COH_POLICY_TYPE.NonCache, COH_POLICY_TYPE.DotMemBI):
+        #     cache_to_coh_agent_fifo = cache_to_home_agent_fifo
+        #     coh_agent_to_cache_fifo = home_agent_to_cache_fifo
 
         cache_controller_config = CacheControllerConfig(
             component_name=config.host_name,
@@ -112,6 +114,9 @@ class CxlMemoryHub(RunnableComponent):
             cache_num_set=8,
         )
         self._cache_controller = CacheController(cache_controller_config)
+
+    def get_memory_ranges(self):
+        return self._memory_ranges
 
     def add_mem_range(self, addr, size, range_type: MEMORY_RANGE_TYPE):
         self._memory_ranges.append(MemoryRange(base_addr=addr, size=size, type=range_type))

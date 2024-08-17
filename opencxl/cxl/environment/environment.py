@@ -21,18 +21,20 @@ from opencxl.cxl.component.root_complex.root_port_switch import (
     COH_POLICY_TYPE,
     ROOT_PORT_SWITCH_TYPE,
 )
-from opencxl.apps.cxl_complex_host import CxlComplexHostConfig
-from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
+
+# from opencxl.apps.cxl_complex_host import CxlComplexHostConfig
+# from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
 from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
-from opencxl.apps.cxl_complex_host import (
-    CxlComplexHostConfig,
-    RootPortClientConfig,
-)
+
+# from opencxl.apps.cxl_complex_host import (
+#     # CxlComplexHostConfig,
+#     RootPortClientConfig,
+# )
 
 
 @dataclass
 class CxlEnvironment:
-    host_configs: CxlComplexHostConfig
+    # host_configs: CxlComplexHostConfig
     switch_config: CxlSwitchConfig
     single_logical_device_configs: List[SingleLogicalDeviceConfig] = field(default_factory=list)
 
@@ -76,61 +78,61 @@ def parse_switch_config(config_data) -> CxlSwitchConfig:
     return switch_config
 
 
-def parse_host_configs(
-    config_data,
-) -> List[CxlComplexHostConfig]:
-    hosts = config_data["hosts"]
-    host_configs = []
-    for host in hosts:
-        try:
-            port_index = int(host["port_index"])
-        except KeyError as exc:
-            raise ValueError("Missing 'port_index' for 'device' entry.") from exc
+# def parse_host_configs(
+#     config_data,
+# ) -> List[CxlComplexHostConfig]:
+#     hosts = config_data["hosts"]
+#     host_configs = []
+#     for host in hosts:
+#         try:
+#             port_index = int(host["port_index"])
+#         except KeyError as exc:
+#             raise ValueError("Missing 'port_index' for 'device' entry.") from exc
 
-        memory_file = host.get("memory_file", f"host-mem{port_index}.bin")
+#         memory_file = host.get("memory_file", f"host-mem{port_index}.bin")
 
-        # TODO: Parse
-        coh_type = host.get("coh_type")
-        coh_type = COH_POLICY_TYPE.NonCache
+#         # TODO: Parse
+#         coh_type = host.get("coh_type")
+#         coh_type = COH_POLICY_TYPE.NonCache
 
-        try:
-            memory_size = humanfriendly.parse_size(host["memory_size"], binary=True)
-        except KeyError as exc:
-            raise ValueError("Missing 'memory_size' for 'device' entry.") from exc
-        except humanfriendly.InvalidSize as exc:
-            raise ValueError(f"Invalid 'memory_size' value: {host['memory_size']}") from exc
+#         try:
+#             memory_size = humanfriendly.parse_size(host["memory_size"], binary=True)
+#         except KeyError as exc:
+#             raise ValueError("Missing 'memory_size' for 'device' entry.") from exc
+#         except humanfriendly.InvalidSize as exc:
+#             raise ValueError(f"Invalid 'memory_size' value: {host['memory_size']}") from exc
 
-        memory_controller = RootComplexMemoryControllerConfig(memory_size, memory_file)
-        memory_ranges = [MemoryRange(MEMORY_RANGE_TYPE.DRAM, 0x0, memory_size)]
+#         memory_controller = RootComplexMemoryControllerConfig(memory_size, memory_file)
+#         memory_ranges = [MemoryRange(MEMORY_RANGE_TYPE.DRAM, 0x0, memory_size)]
 
-        # TODO: Make it configurable
-        root_ports = [RootPortClientConfig(0, "localhost", 8000)]
+#         # TODO: Make it configurable
+#         root_ports = [RootPortClientConfig(0, "localhost", 8000)]
 
-        # host_name: str
-        # root_bus: int
-        # root_port_switch_type: ROOT_PORT_SWITCH_TYPE
-        # memory_controller: RootComplexMemoryControllerConfig
-        # memory_ranges: List[MemoryRange] = field(default_factory=list)
-        # root_ports: List[RootPortClientConfig] = field(default_factory=list)
-        # coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.NonCache
+#         # host_name: str
+#         # root_bus: int
+#         # root_port_switch_type: ROOT_PORT_SWITCH_TYPE
+#         # memory_controller: RootComplexMemoryControllerConfig
+#         # memory_ranges: List[MemoryRange] = field(default_factory=list)
+#         # root_ports: List[RootPortClientConfig] = field(default_factory=list)
+#         # coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.NonCache
 
-        # class RootPortClientConfig:
-        #     port_index: int
-        #     switch_host: str
-        #     switch_port: int
+#         # class RootPortClientConfig:
+#         #     port_index: int
+#         #     switch_host: str
+#         #     switch_port: int
 
-        host_configs.append(
-            CxlComplexHostConfig(
-                host_name=f"CxlHost-{port_index}",
-                root_bus=0,
-                root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
-                memory_controller=memory_controller,
-                memory_ranges=memory_ranges,
-                root_ports=root_ports,
-                coh_type=coh_type,
-            )
-        )
-    return host_configs
+#         host_configs.append(
+#             CxlComplexHostConfig(
+#                 host_name=f"CxlHost-{port_index}",
+#                 root_bus=0,
+#                 root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
+#                 memory_controller=memory_controller,
+#                 memory_ranges=memory_ranges,
+#                 root_ports=root_ports,
+#                 coh_type=coh_type,
+#             )
+#         )
+#     return host_configs
 
 
 def parse_single_logical_device_configs(
@@ -178,14 +180,14 @@ def parse_cxl_environment(yaml_path: str) -> CxlEnvironment:
     if not config_data:
         raise ValueError("Configuration file is empty or has invalid content.")
 
-    host_configs = parse_host_configs(config_data)
+    # host_configs = parse_host_configs(config_data)
     switch_config = parse_switch_config(config_data)
     single_logical_device_configs = parse_single_logical_device_configs(
         config_data.get("devices", [])
     )
 
     return CxlEnvironment(
-        host_configs=host_configs,
+        # host_configs=host_configs,
         switch_config=switch_config,
         single_logical_device_configs=single_logical_device_configs,
     )

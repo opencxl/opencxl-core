@@ -33,29 +33,31 @@ class CxlComplexHost(RunnableComponent):
     def __init__(
         self,
         port_index: int,
-        app,
         sys_mem_size: int,
+        app,
         switch_host: str = "0.0.0.0",
         switch_port: int = 8000,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
         self._port_index = port_index
-        self._switch_conn_client = SwitchConnectionClient(
-            port_index, CXL_COMPONENT_TYPE.R, host=switch_host, port=switch_port
-        )
+        # self._switch_conn_client = SwitchConnectionClient(
+        #     port_index, CXL_COMPONENT_TYPE.R, host=switch_host, port=switch_port
+        # )
 
         root_ports = [RootPortClientConfig(port_index, switch_host, switch_port)]
         sys_mem_config = SystemMemControllerConfig(
             mem_size=sys_mem_size,
-            mem_filename=f"sys-mem{port_index}.bin",
+            # mem_filename=f"sys-mem{port_index}.bin",
+            mem_filename=f"testt.bin",
         )
 
         cxl_memory_hub_config = CxlMemoryHubConfig(
+            host_name="memhub",
             root_bus=port_index,
             root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
             root_ports=root_ports,
-            memory_controller=sys_mem_config,
+            sys_mem_controller=sys_mem_config,
         )
         self._cxl_memory_hub = CxlMemoryHub(cxl_memory_hub_config)
         self._cxl_hpa_base_addr = 0x100000000000 | (port_index << 40)
@@ -98,16 +100,17 @@ class CxlComplexHost(RunnableComponent):
 
     async def _run(self):
         tasks = [
-            asyncio.create_task(self._switch_conn_client.run()),
+            asyncio.create_task(self._cpu.run()),
             asyncio.create_task(self._cxl_memory_hub.run()),
         ]
-        await self._switch_conn_client.wait_for_ready()
+        # await self._switch_conn_client.wait_for_ready()
+        await self._cxl_memory_hub.wait_for_ready()
         await self._change_status_to_running()
         await asyncio.gather(*tasks)
 
     async def _stop(self):
         tasks = [
-            asyncio.create_task(self._switch_conn_client.stop()),
+            # asyncio.create_task(self._switch_conn_client.stop()),
             asyncio.create_task(self._cxl_memory_hub.stop()),
         ]
         await asyncio.gather(*tasks)

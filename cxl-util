@@ -1,2 +1,2 @@
 #!/bin/bash
-poetry run python opencxl/bin/clii.py "$@"
+poetry run python opencxl/bin/cli.py "$@"
