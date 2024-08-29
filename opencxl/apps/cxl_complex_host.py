@@ -6,25 +6,21 @@
 """
 
 import asyncio
-import jsonrpcclient
-from jsonrpcclient import parse_json, request_json
-import websockets
-from websockets import WebSocketClientProtocol
+from typing import Callable, Awaitable
+
+# import jsonrpcclient
+# from jsonrpcclient import parse_json, request_json
+# import websockets
+# from websockets import WebSocketClientProtocol
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
-from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
-from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cpu import CPU
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, MEMORY_RANGE_TYPE, CxlMemoryHubConfig
-from opencxl.cxl.component.root_complex.root_port_client_manager import (
-    RootPortClientManager,
-    RootPortClientManagerConfig,
-    RootPortClientConfig,
-)
+from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
 from opencxl.cxl.component.root_complex.root_port_switch import ROOT_PORT_SWITCH_TYPE
 from opencxl.cxl.component.root_complex.root_complex import SystemMemControllerConfig
 
@@ -34,42 +30,44 @@ class CxlComplexHost(RunnableComponent):
         self,
         port_index: int,
         sys_mem_size: int,
-        app,
+        app: Callable[[], Awaitable[None]],
         switch_host: str = "0.0.0.0",
         switch_port: int = 8000,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
         self._port_index = port_index
-        # self._switch_conn_client = SwitchConnectionClient(
-        #     port_index, CXL_COMPONENT_TYPE.R, host=switch_host, port=switch_port
-        # )
-
         root_ports = [RootPortClientConfig(port_index, switch_host, switch_port)]
-        sys_mem_config = SystemMemControllerConfig(
+
+        self._sys_mem_config = SystemMemControllerConfig(
             mem_size=sys_mem_size,
-            # mem_filename=f"sys-mem{port_index}.bin",
-            mem_filename=f"testt.bin",
+            mem_filename=f"sys-mem{port_index}.bin",
         )
 
-        cxl_memory_hub_config = CxlMemoryHubConfig(
+        self._cxl_memory_hub_config = CxlMemoryHubConfig(
             host_name="memhub",
             root_bus=port_index,
             root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
             root_ports=root_ports,
-            sys_mem_controller=sys_mem_config,
+            sys_mem_controller=self._sys_mem_config,
         )
-        self._cxl_memory_hub = CxlMemoryHub(cxl_memory_hub_config)
+        self._cxl_memory_hub = CxlMemoryHub(self._cxl_memory_hub_config)
+
         self._cxl_hpa_base_addr = 0x100000000000 | (port_index << 40)
         self._sys_mem_base_addr = 0xFFFF888000000000
-        self._pci_mmio_base_addr = 0xFE00000000
+
+        # Max addr for CFG for 0x9FFFFFFF, given max num bus = 8
+        # Therefore, 0xFE000000 for MMIO does not overlap
         self._pci_cfg_base_addr = 0x10000000
+        self._pci_mmio_base_addr = 0xFE000000
 
         self._cpu = CPU(self._cxl_memory_hub, app)
 
     async def _init_system(self):
         # System Memory
-        self._cxl_memory_hub.add_mem_range(self._sys_mem_base_addr, size, MEMORY_RANGE_TYPE.DRAM)
+        self._cxl_memory_hub.add_mem_range(
+            self._sys_mem_base_addr, self._sys_mem_config.mem_size, MEMORY_RANGE_TYPE.DRAM
+        )
 
         # PCI Device
         root_complex = self._cxl_memory_hub.get_root_complex()
@@ -98,13 +96,22 @@ class CxlComplexHost(RunnableComponent):
                 self._cxl_memory_hub.add_mem_range(hpa_base, size, MEMORY_RANGE_TYPE.CXL)
                 hpa_base += size
 
+        for range in self._cxl_memory_hub.get_memory_ranges():
+            logger.info(
+                self._create_message(
+                    f"base: 0x{range.base_addr:X}, size: 0x{range.size:X}, type: {str(range.type)}"
+                )
+            )
+
     async def _run(self):
         tasks = [
-            asyncio.create_task(self._cpu.run()),
             asyncio.create_task(self._cxl_memory_hub.run()),
         ]
         # await self._switch_conn_client.wait_for_ready()
         await self._cxl_memory_hub.wait_for_ready()
+        await self._init_system()
+        tasks.append(asyncio.create_task(self._cpu.run()))
+        await self._cpu.wait_for_ready()
         await self._change_status_to_running()
         await asyncio.gather(*tasks)
 

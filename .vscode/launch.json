@@ -2,26 +2,6 @@
     "version": "0.2.0",
     "configurations": [
       {
-        "name": "poetry install", 
-        "type": "debugpy",
-        "request": "launch",
-        "module": "poetry",
-        "args": [
-          "-vvv",
-          "install"
-        ]
-      },
-      {
-        "name": "poetry update",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "poetry",
-        "args": [
-          "-vvv", 
-          "update"
-        ]
-      },
-      {
         "name": "Run w/ QEMU Host", 
         "type": "debugpy",
         "request": "launch",
@@ -29,4 +9,4 @@
         "args": ["run", "python", "opencxl/bin/cli.py", "start", "-c", "switch", "-c", "sld-group", "--config-file", "configs/1vcs_4sld.yaml", "--log-file=log_name.log", "--log-level=debug"]
       }
     ]
-  }
+}

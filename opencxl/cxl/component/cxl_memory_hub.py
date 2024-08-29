@@ -7,7 +7,7 @@
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Optional, List, Tuple
+from typing import List
 from enum import Enum, auto
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.root_complex.root_complex import (
@@ -26,16 +26,13 @@ from opencxl.cxl.component.root_complex.root_port_client_manager import (
 )
 from opencxl.cxl.component.root_complex.root_port_switch import (
     RootPortSwitchPortConfig,
-    COH_POLICY_TYPE,
     ROOT_PORT_SWITCH_TYPE,
 )
 from opencxl.cxl.component.root_complex.home_agent import MemoryRange
-from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
 from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
     MemoryRequest,
-    MemoryResponse,
     MEMORY_REQUEST_TYPE,
     MEMORY_RESPONSE_STATUS,
 )
@@ -123,7 +120,7 @@ class CxlMemoryHub(RunnableComponent):
 
     def _get_mem_addr_type(self, addr) -> MEMORY_RANGE_TYPE:
         for range in self._memory_ranges:
-            if addr >= range.base_addr and addr < range.base_addr + range.size:
+            if range.base_addr <= addr < range.base_addr + range.size:
                 return range.type
         return MEMORY_RANGE_TYPE.OOB
 
@@ -202,6 +199,5 @@ class CxlMemoryHub(RunnableComponent):
             asyncio.create_task(self._root_port_client_manager.stop()),
             asyncio.create_task(self._root_complex.stop()),
             asyncio.create_task(self._cache_controller.stop()),
-            asyncio.create_task(self._host_simple_processor.stop()),
         ]
         await asyncio.gather(*tasks)

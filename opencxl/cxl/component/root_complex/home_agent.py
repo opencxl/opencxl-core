@@ -83,7 +83,7 @@ class HomeAgent(RunnableComponent):
     def __init__(self, config: HomeAgentConfig):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
 
-        self._memory_ranges = []
+        self._memory_ranges: List[MemoryRange] = []
         self._memory_consumer_io_fifos = config.memory_consumer_io_fifos
         self._memory_consumer_coh_fifos = config.memory_consumer_coh_fifos
         self._memory_producer_fifos = config.memory_producer_fifos
@@ -124,13 +124,13 @@ class HomeAgent(RunnableComponent):
     ) -> CxlMemMemWrPacket:
         return CxlMemMemWrPacket.create(addr, data, opcode, meta_field, meta_value, snp_type)
 
-    async def _get_memory_range(self, address: int, size: int) -> MemoryRange:
+    async def _get_memory_range(self, addr: int, size: int) -> MemoryRange:
         for memory_range in self._memory_ranges:
-            memory_range_end = memory_range.base_address + memory_range.size - 1
-            end_address = address + size - 1
-            if address >= memory_range.base_address and end_address <= memory_range_end:
+            memory_range_end_addr = memory_range.base_addr + memory_range.size - 1
+            end_addr = addr + size - 1
+            if addr >= memory_range.base_addr and end_addr <= memory_range_end_addr:
                 return memory_range
-        return MemoryRange(type=MEMORY_RANGE_TYPE.OOB, base_address=0, size=0)
+        return MemoryRange(type=MEMORY_RANGE_TYPE.OOB, base_addr=0, size=0)
 
     async def _write_memory(self, address: int, size: int, value: int):
         packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, address, size, value)

@@ -17,14 +17,15 @@ from opencxl.apps.cxl_switch import (
 )
 from opencxl.cxl.component.cxl_component import PORT_TYPE
 from opencxl.cxl.device.config.logical_device import SingleLogicalDeviceConfig
-from opencxl.cxl.component.root_complex.root_port_switch import (
-    COH_POLICY_TYPE,
-    ROOT_PORT_SWITCH_TYPE,
-)
+
+# from opencxl.cxl.component.root_complex.root_port_switch import (
+#     COH_POLICY_TYPE,
+#     ROOT_PORT_SWITCH_TYPE,
+# )
 
 # from opencxl.apps.cxl_complex_host import CxlComplexHostConfig
 # from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
-from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
+# from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
 
 # from opencxl.apps.cxl_complex_host import (
 #     # CxlComplexHostConfig,

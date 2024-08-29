@@ -20,7 +20,7 @@ from opencxl.cxl.component.root_complex.root_port_switch import (
     ROOT_PORT_SWITCH_TYPE,
     COH_POLICY_TYPE,
 )
-from opencxl.cxl.component.root_complex.home_agent import HomeAgent, HomeAgentConfig, MemoryRange
+from opencxl.cxl.component.root_complex.home_agent import HomeAgent, HomeAgentConfig
 from opencxl.cxl.component.root_complex.memory_controller import (
     MemoryController,
     MemoryControllerConfig,
