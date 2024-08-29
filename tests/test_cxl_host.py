@@ -16,17 +16,6 @@ from jsonrpcclient import request_json
 import websockets
 import pytest
 
-from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
-from opencxl.cxl.component.bi_decoder import (
-    CxlBIDecoderCapabilityRegister,
-    CxlBIDecoderCapabilityRegisterOptions,
-    CxlBIDecoderCapabilityStructureOptions,
-)
-from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
-from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
-from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
-from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
-from opencxl.cxl.component.root_complex.root_port_switch import ROOT_PORT_SWITCH_TYPE
 from opencxl.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
 )
@@ -38,7 +27,6 @@ from opencxl.cxl.component.virtual_switch_manager import (
     VirtualSwitchManager,
     VirtualSwitchConfig,
 )
-from opencxl.apps.accelerator import MyType2Accelerator
 from opencxl.apps.single_logical_device import SingleLogicalDevice
 from opencxl.util.number_const import MB
 
