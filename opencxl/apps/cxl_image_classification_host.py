@@ -26,7 +26,7 @@ from opencxl.cxl.component.irq_manager import Irq, IrqManager
 from opencxl.cxl.component.root_complex.root_complex import (
     RootComplex,
     RootComplexConfig,
-    RootComplexMemoryControllerConfig,
+    SystemMemControllerConfig,
 )
 from opencxl.cxl.component.cache_controller import (
     CacheController,
@@ -444,7 +444,7 @@ class CxlImageClassificationHostConfig:
     root_bus: int
     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
     train_data_path: str
-    memory_controller: RootComplexMemoryControllerConfig
+    memory_controller: SystemMemControllerConfig
     memory_ranges: List[MemoryRange] = field(default_factory=list)
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
     coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.DotMemBI
@@ -490,8 +490,7 @@ class CxlImageClassificationHost(RunnableComponent):
             home_agent_to_cache_fifo=home_agent_to_cache_fifo,
             cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
             coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
-            memory_controller=config.memory_controller,
-            memory_ranges=config.memory_ranges,
+            sys_mem_controller=config.memory_controller,
             root_ports=root_complex_root_ports,
             coh_type=config.coh_type,
         )
