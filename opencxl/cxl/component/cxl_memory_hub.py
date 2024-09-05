@@ -27,6 +27,7 @@ from opencxl.cxl.component.root_complex.root_port_client_manager import (
 from opencxl.cxl.component.root_complex.root_port_switch import (
     RootPortSwitchPortConfig,
     ROOT_PORT_SWITCH_TYPE,
+    COH_POLICY_TYPE,
 )
 from opencxl.cxl.component.root_complex.home_agent import MemoryRange
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
@@ -94,13 +95,12 @@ class CxlMemoryHub(RunnableComponent):
         )
         self._root_complex = RootComplex(root_complex_config)
 
-        # if config.coh_type == COH_POLICY_TYPE.DotCache:
-        if True:
+        if config.coh_type == COH_POLICY_TYPE.DotCache:
             cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
             coh_agent_to_cache_fifo = coh_bridge_to_cache_fifo
-        # elif config.coh_type in (COH_POLICY_TYPE.NonCache, COH_POLICY_TYPE.DotMemBI):
-        #     cache_to_coh_agent_fifo = cache_to_home_agent_fifo
-        #     coh_agent_to_cache_fifo = home_agent_to_cache_fifo
+        elif config.coh_type in (COH_POLICY_TYPE.NonCache, COH_POLICY_TYPE.DotMemBI):
+            cache_to_coh_agent_fifo = cache_to_home_agent_fifo
+            coh_agent_to_cache_fifo = home_agent_to_cache_fifo
 
         cache_controller_config = CacheControllerConfig(
             component_name=config.host_name,
