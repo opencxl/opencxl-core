@@ -79,6 +79,8 @@ class CxlComplexHost(RunnableComponent):
                 self._pci_cfg_base_addr + (i * pci_cfg_size), pci_cfg_size, MEMORY_RANGE_TYPE.CFG
             )
             for bar_info in device.bars:
+                if bar_info.base_address == 0:
+                    continue
                 self._cxl_memory_hub.add_mem_range(
                     bar_info.base_address, bar_info.size, MEMORY_RANGE_TYPE.MMIO
                 )
