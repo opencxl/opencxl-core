@@ -92,9 +92,14 @@ class CxlComplexHost(RunnableComponent):
         for device in cxl_mem_driver.get_devices():
             size = device.get_memory_size()
             successful = await cxl_mem_driver.attach_single_mem_device(device, hpa_base, size)
-            if successful:
+            if not successful:
+                logger.info(f"Failed to attach device {device}")
+                continue
+            if await device.get_bi_enable():
+                self._cxl_memory_hub.add_mem_range(hpa_base, size, MEMORY_RANGE_TYPE.CXL_BI)
+            else:
                 self._cxl_memory_hub.add_mem_range(hpa_base, size, MEMORY_RANGE_TYPE.CXL)
-                hpa_base += size
+            hpa_base += size
 
         for range in self._cxl_memory_hub.get_memory_ranges():
             logger.info(

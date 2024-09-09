@@ -334,6 +334,16 @@ class CxlDeviceInfo:
         )
         return True
 
+    async def get_bi_enable(self) -> bool:
+        bi_decoder_control_reg = self.get_cachemem_register_by_id(
+            CXL_CACHEMEM_REGISTER_CAPABILITY_ID.CXL_BI_DECODER
+        )
+        if bi_decoder_control_reg is None:
+            return False
+
+        reg_val = await self.root_complex.read_mmio(bi_decoder_control_reg.address, 4)
+        return reg_val & 0x2 != 0
+
     # pylint: enable=duplicate-code
 
     def get_memory_size(self) -> int:

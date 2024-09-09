@@ -45,6 +45,7 @@ class MEMORY_RANGE_TYPE(Enum):
     CFG = auto()
     MMIO = auto()
     CXL = auto()
+    CXL_BI = auto()
     OOB = auto()
 
 
@@ -120,7 +121,7 @@ class CxlMemoryHub(RunnableComponent):
 
     def _get_mem_addr_type(self, addr) -> MEMORY_RANGE_TYPE:
         for range in self._memory_ranges:
-            if range.base_addr <= addr < range.base_addr + range.size:
+            if range.base_addr <= addr < (range.base_addr + range.size):
                 return range.type
         return MEMORY_RANGE_TYPE.OOB
 
@@ -149,12 +150,16 @@ class CxlMemoryHub(RunnableComponent):
                 raise Exception(self._create_message(f"Address 0x{addr:x} is OOB."))
 
     async def store(self, addr: int, size: int, value: int):
-        match self._get_mem_addr_type(addr):
+        addr_type = self._get_mem_addr_type(addr)
+        match addr_type:
             case MEMORY_RANGE_TYPE.DRAM | MEMORY_RANGE_TYPE.CXL:
                 packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, size, value)
                 await self._processor_to_cache_fifo.request.put(packet)
                 packet = await self._processor_to_cache_fifo.response.get()
                 assert packet.status == MEMORY_RESPONSE_STATUS.OK
+            case MEMORY_RANGE_TYPE.CXL_BI:
+                # Do BI coh work
+                pass
             case MEMORY_RANGE_TYPE.MMIO:
                 await self._root_complex.write_mmio(addr, size, value)
             case MEMORY_RANGE_TYPE.CFG:
