@@ -96,10 +96,10 @@ class CxlMemoryHub(RunnableComponent):
         )
         self._root_complex = RootComplex(root_complex_config)
 
-        if config.coh_type == COH_POLICY_TYPE.DotCache:
-            cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
-            coh_agent_to_cache_fifo = coh_bridge_to_cache_fifo
-        elif config.coh_type in (COH_POLICY_TYPE.NonCache, COH_POLICY_TYPE.DotMemBI):
+        # if config.coh_type == COH_POLICY_TYPE.DotCache:
+        #     cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
+        #     coh_agent_to_cache_fifo = coh_bridge_to_cache_fifo
+        if True:
             cache_to_coh_agent_fifo = cache_to_home_agent_fifo
             coh_agent_to_cache_fifo = home_agent_to_cache_fifo
 

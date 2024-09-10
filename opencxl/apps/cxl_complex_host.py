@@ -16,9 +16,6 @@ from typing import Callable, Awaitable
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cpu import CPU
-from opencxl.drivers.cxl_bus_driver import CxlBusDriver
-from opencxl.drivers.cxl_mem_driver import CxlMemDriver
-from opencxl.drivers.pci_bus_driver import PciBusDriver
 from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, MEMORY_RANGE_TYPE, CxlMemoryHubConfig
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
 from opencxl.cxl.component.root_complex.root_port_switch import ROOT_PORT_SWITCH_TYPE
@@ -30,7 +27,8 @@ class CxlComplexHost(RunnableComponent):
         self,
         port_index: int,
         sys_mem_size: int,
-        app: Callable[[], Awaitable[None]],
+        sys_sw_app: Callable[[], Awaitable[None]],
+        user_app: Callable[[], Awaitable[None]],
         switch_host: str = "0.0.0.0",
         switch_port: int = 8000,
     ):
@@ -53,70 +51,20 @@ class CxlComplexHost(RunnableComponent):
         )
         self._cxl_memory_hub = CxlMemoryHub(self._cxl_memory_hub_config)
 
-        self._cxl_hpa_base_addr = 0x100000000000 | (port_index << 40)
-        self._sys_mem_base_addr = 0xFFFF888000000000
-
-        # Max addr for CFG for 0x9FFFFFFF, given max num bus = 8
-        # Therefore, 0xFE000000 for MMIO does not overlap
-        self._pci_cfg_base_addr = 0x10000000
-        self._pci_mmio_base_addr = 0xFE000000
-
-        self._cpu = CPU(self._cxl_memory_hub, app)
-
-    async def _init_system(self):
         # System Memory
+        self._sys_mem_base_addr = 0xFFFF888000000000
         self._cxl_memory_hub.add_mem_range(
             self._sys_mem_base_addr, self._sys_mem_config.mem_size, MEMORY_RANGE_TYPE.DRAM
         )
 
-        # PCI Device
-        root_complex = self._cxl_memory_hub.get_root_complex()
-        pci_bus_driver = PciBusDriver(root_complex)
-        await pci_bus_driver.init(self._pci_mmio_base_addr)
-        pci_cfg_size = 0x10000000  # assume bus bits n = 8
-        for i, device in enumerate(pci_bus_driver.get_devices()):
-            self._cxl_memory_hub.add_mem_range(
-                self._pci_cfg_base_addr + (i * pci_cfg_size), pci_cfg_size, MEMORY_RANGE_TYPE.CFG
-            )
-            for bar_info in device.bars:
-                if bar_info.base_address == 0:
-                    continue
-                self._cxl_memory_hub.add_mem_range(
-                    bar_info.base_address, bar_info.size, MEMORY_RANGE_TYPE.MMIO
-                )
-
-        # CXL Device
-        cxl_bus_driver = CxlBusDriver(pci_bus_driver, root_complex)
-        cxl_mem_driver = CxlMemDriver(cxl_bus_driver, root_complex)
-        await cxl_bus_driver.init()
-        await cxl_mem_driver.init()
-        hpa_base = self._cxl_hpa_base_addr
-        for device in cxl_mem_driver.get_devices():
-            size = device.get_memory_size()
-            successful = await cxl_mem_driver.attach_single_mem_device(device, hpa_base, size)
-            if not successful:
-                logger.info(f"Failed to attach device {device}")
-                continue
-            if await device.get_bi_enable():
-                self._cxl_memory_hub.add_mem_range(hpa_base, size, MEMORY_RANGE_TYPE.CXL_BI)
-            else:
-                self._cxl_memory_hub.add_mem_range(hpa_base, size, MEMORY_RANGE_TYPE.CXL)
-            hpa_base += size
-
-        for range in self._cxl_memory_hub.get_memory_ranges():
-            logger.info(
-                self._create_message(
-                    f"base: 0x{range.base_addr:X}, size: 0x{range.size:X}, type: {str(range.type)}"
-                )
-            )
+        self._cpu = CPU(self._cxl_memory_hub, sys_sw_app, user_app)
 
     async def _run(self):
         tasks = [
             asyncio.create_task(self._cxl_memory_hub.run()),
         ]
-        # await self._switch_conn_client.wait_for_ready()
+
         await self._cxl_memory_hub.wait_for_ready()
-        await self._init_system()
         tasks.append(asyncio.create_task(self._cpu.run()))
         await self._cpu.wait_for_ready()
         await self._change_status_to_running()
