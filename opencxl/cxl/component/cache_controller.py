@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from asyncio import create_task, gather
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -26,6 +26,7 @@ from opencxl.cxl.transport.cache_fifo import (
     CACHE_RESPONSE_STATUS,
 )
 from opencxl.util.logger import logger
+from opencxl.cxl.component.cxl_memory_hub import MemoryRange, ADDR_TYPE
 
 
 class COH_STATE_MACHINE(Enum):
@@ -73,8 +74,10 @@ class SetCounter:
 class CacheControllerConfig:
     component_name: str
     processor_to_cache_fifo: MemoryFifoPair
-    cache_to_coh_agent_fifo: CacheFifoPair
-    coh_agent_to_cache_fifo: CacheFifoPair
+    cache_to_home_agent_fifo: CacheFifoPair
+    home_agent_to_cache_fifo: CacheFifoPair
+    cache_to_coh_bridge_fifo: CacheFifoPair
+    coh_bridge_to_cache_fifo: CacheFifoPair
     cache_num_assoc: Optional[int] = 4
     cache_num_set: Optional[int] = 8
 
@@ -97,8 +100,12 @@ class CacheController(RunnableComponent):
 
         # cache controller connections within CXL complex host module
         self._processor_to_cache_fifo = config.processor_to_cache_fifo
-        self._cache_to_coh_agent_fifo = config.cache_to_coh_agent_fifo
-        self._coh_agent_to_cache_fifo = config.coh_agent_to_cache_fifo
+        self._cache_to_home_agent_fifo = config.cache_to_home_agent_fifo
+        self._home_agent_to_cache_fifo = config.home_agent_to_cache_fifo
+        self._cache_to_coh_bridge_fifo = config.cache_to_coh_bridge_fifo
+        self._coh_bridge_to_cache_fifo = config.coh_bridge_to_cache_fifo
+
+        self._memory_ranges: List[MemoryRange] = []
 
         self._init_cache()
         logger.debug(self._create_message(f"{config.component_name} LLC Generated"))
@@ -115,6 +122,19 @@ class CacheController(RunnableComponent):
         self._blk_mask = self._cache_blk_size - 1
         self._set_mask = (self._cache_set_size - 1) << self._cache_blk_bit
         self._tag_mask = ~(self._set_mask | self._blk_mask)
+
+    def get_memory_ranges(self):
+        return self._memory_ranges
+
+    def add_mem_range(self, addr, size, addr_type: ADDR_TYPE):
+        self._memory_ranges.append(MemoryRange(base_addr=addr, size=size, addr_type=addr_type))
+
+    def get_mem_addr_type(self, addr) -> ADDR_TYPE:
+        for range in self._memory_ranges:
+            if range.base_addr <= addr < (range.base_addr + range.size):
+                return range.addr_type
+        logger.warning(self._create_message(f"0x{addr:x} is OOB."))
+        return ADDR_TYPE.OOB
 
     def _cache_priority_update(self, set: int, blk: int) -> None:
         self._cache[set][blk].priority = self._setcnt[set].counter
@@ -189,23 +209,43 @@ class CacheController(RunnableComponent):
             cache_state = CacheState.CACHE_INVALID
         return cache_state
 
-    async def _memory_load(self, address: int, size: int) -> CacheResponse:
-        packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, address, size)
-        await self._cache_to_coh_agent_fifo.request.put(packet)
-        packet = await self._cache_to_coh_agent_fifo.response.get()
+    def _get_coh_agent_fifo(self, addr: int) -> CacheFifoPair:
+        addr_type = self.get_mem_addr_type(addr)
+        match addr_type:
+            case ADDR_TYPE.DRAM:
+                return self._cache_to_coh_bridge_fifo
+            case ADDR_TYPE.CXL | ADDR_TYPE.CXL_BI:
+                return self._cache_to_home_agent_fifo
+            case _:
+                return None
 
+    async def _memory_load(self, addr: int, size: int) -> CacheResponse:
+        cache_to_coh_agent_fifo = self._get_coh_agent_fifo(addr)
+        packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, addr, size)
+        await cache_to_coh_agent_fifo.request.put(packet)
+        packet = await cache_to_coh_agent_fifo.response.get()
         return packet
 
-    async def _memory_store(self, address: int, size: int, value: int) -> None:
-        packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, address, size, value)
-        await self._cache_to_coh_agent_fifo.request.put(packet)
-        await self._cache_to_coh_agent_fifo.response.get()
+    async def _memory_store(self, addr: int, size: int, value: int) -> None:
+        cache_to_coh_agent_fifo = self._get_coh_agent_fifo(addr)
+        packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, addr, size, value)
+        await cache_to_coh_agent_fifo.request.put(packet)
+        await cache_to_coh_agent_fifo.response.get()
 
     # For request: coherency tasks from cache controller to coh module
-    async def _cache_to_coh_state_lookup(self, address: int) -> None:
-        packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, address)
-        await self._cache_to_coh_agent_fifo.request.put(packet)
-        packet = await self._cache_to_coh_agent_fifo.response.get()
+    async def _cache_to_coh_state_lookup(self, addr: int) -> None:
+        addr_type = self.get_mem_addr_type(addr)
+        if addr_type == ADDR_TYPE.DRAM:
+            cache_to_coh_agent_fifo = self._cache_to_coh_bridge_fifo
+        elif addr_type == ADDR_TYPE.CXL_BI:
+            cache_to_coh_agent_fifo = self._cache_to_home_agent_fifo
+        else:
+            # no need to send SNP_INV
+            return
+
+        packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, addr)
+        await cache_to_coh_agent_fifo.request.put(packet)
+        packet = await cache_to_coh_agent_fifo.response.get()
         assert packet.status == CACHE_RESPONSE_STATUS.RSP_I
 
     # For response: coherency tasks from coh module to cache controller
@@ -239,12 +279,11 @@ class CacheController(RunnableComponent):
         set = self._cache_extract_set(addr)
 
         cache_blk = self._cache_find_valid_block(tag, set)
-
-        # cache hit
         if cache_blk is not None:
+            # cache hit
             data = self._cache_data_read(set, cache_blk)
-        # cache miss
         else:
+            # cache miss
             cache_blk = self._cache_find_invalid_block(set)
 
             # cache block full
@@ -326,11 +365,11 @@ class CacheController(RunnableComponent):
                 break
 
             if packet.type == MEMORY_REQUEST_TYPE.READ:
-                data = await self.cache_coherent_load(packet.address, packet.size)
+                data = await self.cache_coherent_load(packet.addr, packet.size)
                 packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
                 await self._processor_to_cache_fifo.response.put(packet)
             elif packet.type == MEMORY_REQUEST_TYPE.WRITE:
-                await self.cache_coherent_store(packet.address, packet.size, packet.data)
+                await self.cache_coherent_store(packet.addr, packet.size, packet.data)
                 packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
                 await self._processor_to_cache_fifo.response.put(packet)
             else:
@@ -344,7 +383,7 @@ class CacheController(RunnableComponent):
                 logger.debug(self._create_message("Stop processing coh request scheduler fifo"))
                 break
 
-            cache_blk, data = await self._coh_to_cache_state_lookup(packet.type, packet.address)
+            cache_blk, data = await self._coh_to_cache_state_lookup(packet.type, packet.addr)
             if cache_blk is None:
                 packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
             elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:

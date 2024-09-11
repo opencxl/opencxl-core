@@ -7,7 +7,7 @@ import asyncio
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from opencxl.drivers.pci_bus_driver import PciBusDriver
-from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, MEMORY_RANGE_TYPE
+from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, ADDR_TYPE
 
 
 async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
@@ -24,14 +24,12 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     pci_cfg_size = 0x10000000  # assume bus bits n = 8
     for i, device in enumerate(pci_bus_driver.get_devices()):
         cxl_memory_hub.add_mem_range(
-            pci_cfg_base_addr + (i * pci_cfg_size), pci_cfg_size, MEMORY_RANGE_TYPE.CFG
+            pci_cfg_base_addr + (i * pci_cfg_size), pci_cfg_size, ADDR_TYPE.CFG
         )
         for bar_info in device.bars:
             if bar_info.base_address == 0:
                 continue
-            cxl_memory_hub.add_mem_range(
-                bar_info.base_address, bar_info.size, MEMORY_RANGE_TYPE.MMIO
-            )
+            cxl_memory_hub.add_mem_range(bar_info.base_address, bar_info.size, ADDR_TYPE.MMIO)
 
     # CXL Device
     cxl_bus_driver = CxlBusDriver(pci_bus_driver, root_complex)
@@ -46,9 +44,9 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
             logger.info(f"[SYS-SW] Failed to attach device {device}")
             continue
         if await device.get_bi_enable():
-            cxl_memory_hub.add_mem_range(hpa_base, size, MEMORY_RANGE_TYPE.CXL_BI)
+            cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL_BI)
         else:
-            cxl_memory_hub.add_mem_range(hpa_base, size, MEMORY_RANGE_TYPE.CXL)
+            cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL)
         hpa_base += size
 
     for range in cxl_memory_hub.get_memory_ranges():

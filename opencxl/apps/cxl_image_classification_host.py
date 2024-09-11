@@ -42,7 +42,7 @@ from opencxl.cxl.component.root_complex.root_port_switch import (
     COH_POLICY_TYPE,
     ROOT_PORT_SWITCH_TYPE,
 )
-from opencxl.cxl.component.root_complex.home_agent import MemoryRange
+from opencxl.cxl.component.cxl_memory_hub import MemoryRange, ADDR_TYPE
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
 
 

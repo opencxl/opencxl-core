@@ -25,7 +25,7 @@ from opencxl.cxl.device.config.logical_device import SingleLogicalDeviceConfig
 
 # from opencxl.apps.cxl_complex_host import CxlComplexHostConfig
 # from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
-# from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
+# from opencxl.cxl.component.root_complex.home_agent import ADDR_TYPE, MemoryRange
 
 # from opencxl.apps.cxl_complex_host import (
 #     # CxlComplexHostConfig,
@@ -104,7 +104,7 @@ def parse_switch_config(config_data) -> CxlSwitchConfig:
 #             raise ValueError(f"Invalid 'memory_size' value: {host['memory_size']}") from exc
 
 #         memory_controller = RootComplexMemoryControllerConfig(memory_size, memory_file)
-#         memory_ranges = [MemoryRange(MEMORY_RANGE_TYPE.DRAM, 0x0, memory_size)]
+#         memory_ranges = [MemoryRange(ADDR_TYPE.DRAM, 0x0, memory_size)]
 
 #         # TODO: Make it configurable
 #         root_ports = [RootPortClientConfig(0, "localhost", 8000)]

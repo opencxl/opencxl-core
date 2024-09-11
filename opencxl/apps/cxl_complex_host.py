@@ -16,7 +16,7 @@ from typing import Callable, Awaitable
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cpu import CPU
-from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, MEMORY_RANGE_TYPE, CxlMemoryHubConfig
+from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, ADDR_TYPE, CxlMemoryHubConfig
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
 from opencxl.cxl.component.root_complex.root_port_switch import ROOT_PORT_SWITCH_TYPE
 from opencxl.cxl.component.root_complex.root_complex import SystemMemControllerConfig
@@ -54,7 +54,7 @@ class CxlComplexHost(RunnableComponent):
         # System Memory
         self._sys_mem_base_addr = 0xFFFF888000000000
         self._cxl_memory_hub.add_mem_range(
-            self._sys_mem_base_addr, self._sys_mem_config.mem_size, MEMORY_RANGE_TYPE.DRAM
+            self._sys_mem_base_addr, self._sys_mem_config.mem_size, ADDR_TYPE.DRAM
         )
 
         self._cpu = CPU(self._cxl_memory_hub, sys_sw_app, user_app)

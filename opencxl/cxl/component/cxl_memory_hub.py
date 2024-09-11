@@ -27,9 +27,7 @@ from opencxl.cxl.component.root_complex.root_port_client_manager import (
 from opencxl.cxl.component.root_complex.root_port_switch import (
     RootPortSwitchPortConfig,
     ROOT_PORT_SWITCH_TYPE,
-    COH_POLICY_TYPE,
 )
-from opencxl.cxl.component.root_complex.home_agent import MemoryRange
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
 from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
@@ -40,13 +38,20 @@ from opencxl.cxl.transport.memory_fifo import (
 from opencxl.util.pci import create_bdf
 
 
-class MEMORY_RANGE_TYPE(Enum):
+class ADDR_TYPE(Enum):
     DRAM = auto()
     CFG = auto()
     MMIO = auto()
     CXL = auto()
     CXL_BI = auto()
     OOB = auto()
+
+
+@dataclass
+class MemoryRange:
+    base_addr: int
+    size: int
+    addr_type: ADDR_TYPE
 
 
 @dataclass
@@ -67,8 +72,6 @@ class CxlMemoryHub(RunnableComponent):
         home_agent_to_cache_fifo = CacheFifoPair()
         cache_to_coh_bridge_fifo = CacheFifoPair()
         coh_bridge_to_cache_fifo = CacheFifoPair()
-
-        self._memory_ranges: List[MemoryRange] = []
 
         # Create Root Port Client Manager
         root_port_client_manager_config = RootPortClientManagerConfig(
@@ -96,34 +99,23 @@ class CxlMemoryHub(RunnableComponent):
         )
         self._root_complex = RootComplex(root_complex_config)
 
-        # if config.coh_type == COH_POLICY_TYPE.DotCache:
-        #     cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
-        #     coh_agent_to_cache_fifo = coh_bridge_to_cache_fifo
-        if True:
-            cache_to_coh_agent_fifo = cache_to_home_agent_fifo
-            coh_agent_to_cache_fifo = home_agent_to_cache_fifo
-
         cache_controller_config = CacheControllerConfig(
             component_name=config.host_name,
             processor_to_cache_fifo=self._processor_to_cache_fifo,
-            cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
-            coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
+            cache_to_home_agent_fifo=cache_to_home_agent_fifo,
+            home_agent_to_cache_fifo=home_agent_to_cache_fifo,
+            cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
+            coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
             cache_num_assoc=4,
             cache_num_set=8,
         )
         self._cache_controller = CacheController(cache_controller_config)
 
     def get_memory_ranges(self):
-        return self._memory_ranges
+        return self._cache_controller.get_memory_ranges()
 
-    def add_mem_range(self, addr, size, range_type: MEMORY_RANGE_TYPE):
-        self._memory_ranges.append(MemoryRange(base_addr=addr, size=size, type=range_type))
-
-    def _get_mem_addr_type(self, addr) -> MEMORY_RANGE_TYPE:
-        for range in self._memory_ranges:
-            if range.base_addr <= addr < (range.base_addr + range.size):
-                return range.type
-        return MEMORY_RANGE_TYPE.OOB
+    def add_mem_range(self, addr, size, addr_type: ADDR_TYPE):
+        self._cache_controller.add_mem_range(addr, size, addr_type)
 
     def _cfg_addr_to_bdf(self, cfg_addr):
         return create_bdf(
@@ -133,16 +125,17 @@ class CxlMemoryHub(RunnableComponent):
         )
 
     async def load(self, addr: int, size: int) -> int:
-        match self._get_mem_addr_type(addr):
-            case MEMORY_RANGE_TYPE.DRAM | MEMORY_RANGE_TYPE.CXL:
+        addr_type = self._cache_controller.get_mem_addr_type(addr)
+        match addr_type:
+            case ADDR_TYPE.DRAM | ADDR_TYPE.CXL | ADDR_TYPE.CXL_BI:
                 packet = MemoryRequest(MEMORY_REQUEST_TYPE.READ, addr, size)
                 await self._processor_to_cache_fifo.request.put(packet)
                 packet = await self._processor_to_cache_fifo.response.get()
                 assert packet.status == MEMORY_RESPONSE_STATUS.OK
                 return packet.data
-            case MEMORY_RANGE_TYPE.MMIO:
+            case ADDR_TYPE.MMIO:
                 return await self._root_complex.read_mmio(addr, size)
-            case MEMORY_RANGE_TYPE.CFG:
+            case ADDR_TYPE.CFG:
                 bdf = self._cfg_addr_to_bdf(addr)
                 offset = addr & 0xFFF
                 return await self._root_complex.read_config(bdf, offset, size)
@@ -150,19 +143,16 @@ class CxlMemoryHub(RunnableComponent):
                 raise Exception(self._create_message(f"Address 0x{addr:x} is OOB."))
 
     async def store(self, addr: int, size: int, value: int):
-        addr_type = self._get_mem_addr_type(addr)
+        addr_type = self._cache_controller.get_mem_addr_type(addr)
         match addr_type:
-            case MEMORY_RANGE_TYPE.DRAM | MEMORY_RANGE_TYPE.CXL:
+            case ADDR_TYPE.DRAM | ADDR_TYPE.CXL | ADDR_TYPE.CXL_BI:
                 packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, size, value)
                 await self._processor_to_cache_fifo.request.put(packet)
                 packet = await self._processor_to_cache_fifo.response.get()
                 assert packet.status == MEMORY_RESPONSE_STATUS.OK
-            case MEMORY_RANGE_TYPE.CXL_BI:
-                # Do BI coh work
-                pass
-            case MEMORY_RANGE_TYPE.MMIO:
+            case ADDR_TYPE.MMIO:
                 await self._root_complex.write_mmio(addr, size, value)
-            case MEMORY_RANGE_TYPE.CFG:
+            case ADDR_TYPE.CFG:
                 bdf = self._cfg_addr_to_bdf(addr)
                 offset = addr & 0xFFF
                 await self._root_complex.write_config(bdf, offset, size, value)

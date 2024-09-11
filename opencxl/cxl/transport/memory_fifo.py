@@ -8,6 +8,7 @@
 from asyncio import Queue
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from opencxl.cxl.component.cxl_memory_hub import ADDR_TYPE
 
 
 class MEMORY_REQUEST_TYPE(Enum):
@@ -18,7 +19,7 @@ class MEMORY_REQUEST_TYPE(Enum):
 @dataclass
 class MemoryRequest:
     type: MEMORY_REQUEST_TYPE
-    address: int
+    addr: int
     size: int
     data: int = 0
 

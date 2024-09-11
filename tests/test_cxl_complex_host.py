@@ -13,7 +13,7 @@
 # import pytest
 
 # from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
-# from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
+# from opencxl.cxl.component.root_complex.home_agent import ADDR_TYPE, MemoryRange
 # from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
 # from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
 # from opencxl.cxl.component.root_complex.root_port_switch import (
@@ -88,7 +88,7 @@
 #     root_port_switch_type = ROOT_PORT_SWITCH_TYPE.PASS_THROUGH
 #     memory_controller = RootComplexMemoryControllerConfig(host_mem_size, "foo.bin")
 #     root_ports = [RootPortClientConfig(0, "localhost", switch_port)]
-#     memory_ranges = [MemoryRange(MEMORY_RANGE_TYPE.DRAM, 0x0, host_mem_size)]
+#     memory_ranges = [MemoryRange(ADDR_TYPE.DRAM, 0x0, host_mem_size)]
 
 #     config = CxlComplexHostConfig(
 #         host_name,

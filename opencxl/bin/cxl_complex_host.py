@@ -17,7 +17,7 @@ from opencxl.cxl.component.root_complex.root_port_switch import (
     ROOT_PORT_SWITCH_TYPE,
 )
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
-from opencxl.cxl.component.root_complex.home_agent import MemoryRange, MEMORY_RANGE_TYPE
+from opencxl.cxl.component.cxl_memory_hub import MemoryRange, ADDR_TYPE
 from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver

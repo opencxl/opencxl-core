@@ -8,7 +8,6 @@
 from dataclasses import dataclass
 from asyncio import create_task, gather, sleep, Queue
 import asyncio
-from enum import Enum, auto
 from typing import List, cast
 
 from opencxl.util.logger import logger
@@ -52,19 +51,7 @@ from opencxl.cxl.component.cache_controller import (
     CohStateMachine,
     COH_STATE_MACHINE,
 )
-
-
-class MEMORY_RANGE_TYPE(Enum):
-    DRAM = auto()
-    CXL = auto()
-    OOB = auto()
-
-
-@dataclass
-class MemoryRange:
-    base_addr: int
-    size: int
-    type: MEMORY_RANGE_TYPE
+from opencxl.cxl.component.cxl_memory_hub import MemoryRange, ADDR_TYPE
 
 
 @dataclass
@@ -130,7 +117,7 @@ class HomeAgent(RunnableComponent):
             end_addr = addr + size - 1
             if addr >= memory_range.base_addr and end_addr <= memory_range_end_addr:
                 return memory_range
-        return MemoryRange(type=MEMORY_RANGE_TYPE.OOB, base_addr=0, size=0)
+        return MemoryRange(type=ADDR_TYPE.OOB, base_addr=0, size=0)
 
     async def _write_memory(self, address: int, size: int, value: int):
         packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, address, size, value)
