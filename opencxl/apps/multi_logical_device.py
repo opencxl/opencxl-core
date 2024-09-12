@@ -72,7 +72,6 @@ class MultiLogicalDevice(RunnableComponent):
                 memory_file=memory_files[ld],
                 dev_type=CXL_T3_DEV_TYPE.MLD,
                 label=label,
-                ld_id=ld,
             )
             self._cxl_type3_devices.append(cxl_type3_device)
 

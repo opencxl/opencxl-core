@@ -69,16 +69,15 @@ class CxlType3Device(RunnableComponent):
         dev_type: CXL_T3_DEV_TYPE,
         decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_4,
         label: Optional[str] = None,
-        ld_id: Optional[int] = None,
     ):
         # pylint: disable=unused-argument
         super().__init__(label)
         self._memory_size = memory_size
         self._memory_file = memory_file
+        self._dev_type = dev_type
         self._decoder_count = decoder_count
         self._cxl_memory_device_component = None
         self._upstream_connection = transport_connection
-        self._ld_id = ld_id
 
         self._cxl_io_manager = CxlIoManager(
             self._upstream_connection.mmio_fifo,
@@ -88,7 +87,6 @@ class CxlType3Device(RunnableComponent):
             device_type=PCI_DEVICE_TYPE.ENDPOINT,
             init_callback=self._init_device,
             label=self._label,
-            ld_id=self._ld_id,
         )
         self._cxl_mem_manager = CxlMemManager(
             upstream_fifo=self._upstream_connection.cxl_mem_fifo,
@@ -106,7 +104,7 @@ class CxlType3Device(RunnableComponent):
         # Create PCiComponent
         pci_identity = PciComponentIdentity(
             vendor_id=EEUM_VID,
-            device_id=SW_SLD_DID if self._ld_id is None else SW_MLD_DID,
+            device_id=SW_SLD_DID if self._dev_type is CXL_T3_DEV_TYPE.SLD else SW_MLD_DID,
             base_class_code=PCI_CLASS.MEMORY_CONTROLLER,
             sub_class_coce=MEMORY_CONTROLLER_SUBCLASS.CXL_MEMORY_DEVICE,
             programming_interface=0x10,
