@@ -41,7 +41,6 @@ class CxlComplexHost(RunnableComponent):
             mem_size=sys_mem_size,
             mem_filename=f"sys-mem{port_index}.bin",
         )
-
         self._cxl_memory_hub_config = CxlMemoryHubConfig(
             host_name="memhub",
             root_bus=port_index,
@@ -50,20 +49,12 @@ class CxlComplexHost(RunnableComponent):
             sys_mem_controller=self._sys_mem_config,
         )
         self._cxl_memory_hub = CxlMemoryHub(self._cxl_memory_hub_config)
-
-        # System Memory
-        self._sys_mem_base_addr = 0xFFFF888000000000
-        self._cxl_memory_hub.add_mem_range(
-            self._sys_mem_base_addr, self._sys_mem_config.mem_size, ADDR_TYPE.DRAM
-        )
-
         self._cpu = CPU(self._cxl_memory_hub, sys_sw_app, user_app)
 
     async def _run(self):
         tasks = [
             asyncio.create_task(self._cxl_memory_hub.run()),
         ]
-
         await self._cxl_memory_hub.wait_for_ready()
         tasks.append(asyncio.create_task(self._cpu.run()))
         await self._cpu.wait_for_ready()
@@ -72,7 +63,6 @@ class CxlComplexHost(RunnableComponent):
 
     async def _stop(self):
         tasks = [
-            # asyncio.create_task(self._switch_conn_client.stop()),
             asyncio.create_task(self._cxl_memory_hub.stop()),
         ]
         await asyncio.gather(*tasks)

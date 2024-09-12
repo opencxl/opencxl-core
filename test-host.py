@@ -16,6 +16,7 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     pci_cfg_base_addr = 0x10000000
     pci_mmio_base_addr = 0xFE000000
     cxl_hpa_base_addr = 0x100000000000
+    sys_mem_base_addr = 0xFFFF888000000000
 
     # PCI Device
     root_complex = cxl_memory_hub.get_root_complex()
@@ -49,14 +50,13 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
             cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL_CACHED)
         hpa_base += size
 
+    # System Memory
+    sys_mem_size = root_complex.get_sys_mem_size()
+    cxl_memory_hub.add_mem_range(sys_mem_base_addr, sys_mem_size, ADDR_TYPE.DRAM)
+
     for range in cxl_memory_hub.get_memory_ranges():
-        # logger.info(
-        #     self._create_message(
-        #         f"base: 0x{range.base_addr:X}, size: 0x{range.size:X}, type: {str(range.type)}"
-        #     )
-        # )
         logger.info(
-            f"[SYS-SW] base: 0x{range.base_addr:X}, size: 0x{range.size:X}, type: {str(range.addr_type)}"
+            f"[SYS-SW] MemoryRange: base: 0x{range.base_addr:X}, size: 0x{range.size:X}, type: {str(range.addr_type)}"
         )
 
 

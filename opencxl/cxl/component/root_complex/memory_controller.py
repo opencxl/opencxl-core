@@ -29,8 +29,12 @@ class MemoryControllerConfig:
 class MemoryController(RunnableComponent):
     def __init__(self, config: MemoryControllerConfig):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+        self._memory_size = config.memory_size
         self._memory_consumer_fifos = config.memory_consumer_fifos
         self._file_accessor = FileAccessor(config.memory_filename, config.memory_size)
+
+    def get_mem_size(self) -> int:
+        return self._memory_size
 
     async def _process_memory_requests(self):
         while True:

@@ -128,6 +128,9 @@ class RootComplex(RunnableComponent):
     def get_root_bus(self) -> int:
         return self._root_port_switch.get_root_bus()
 
+    def get_sys_mem_size(self) -> int:
+        return self._memory_controller.get_mem_size()
+
     def set_mmio_base_address(self, addr) -> int:
         self._mmio_base_address = addr
 
