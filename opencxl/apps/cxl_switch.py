@@ -97,6 +97,8 @@ class CxlSwitch(RunnableComponent):
         self._start_mctp = start_mctp
         self._run_as_child = switch_config.run_as_child
 
+        self._run_as_child = switch_config.run_as_child
+
     def _initialize_mctp_endpoint(self):
         commands = [
             BackgroundOperationStatusCommand(self._mctp_cci_executor),
@@ -146,6 +148,8 @@ class CxlSwitch(RunnableComponent):
         if self._run_as_child:
             os.kill(os.getppid(), signal.SIGCONT)
         await self._change_status_to_running()
+        if self._run_as_child:
+            os.kill(os.getppid(), signal.SIGCONT)
         await gather(*run_tasks)
 
     async def _stop(self):
