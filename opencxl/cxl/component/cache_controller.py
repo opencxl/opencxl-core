@@ -272,7 +272,6 @@ class CacheController(RunnableComponent):
         set = self._cache_extract_set(addr)
 
         cache_blk = self._cache_find_valid_block(tag, set)
-
         if cache_blk is not None:
             data = self._cache_data_read(set, cache_blk)
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
@@ -390,34 +389,50 @@ class CacheController(RunnableComponent):
             else:
                 assert False
 
+    async def _run_coh_request(self, packet: CacheRequest):
+        cache_blk, data = await self._coh_to_cache_state_lookup(packet.type, packet.addr)
+        if cache_blk is None:
+            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
+        elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
+            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S, data)
+        elif packet.type == CACHE_REQUEST_TYPE.SNP_INV:
+            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data)
+        elif packet.type == CACHE_REQUEST_TYPE.SNP_CUR:
+            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V, data)
+        elif packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
+            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V, data)
+        else:
+            assert False
+        await self._coh_agent_to_cache_fifo.response.put(packet)
+
     # registered event loop for coh module's cache loopup operations
-    async def _coh_request_scheduler(self):
+    async def _coh_agent_request_scheduler(self):
         while True:
             packet = await self._coh_agent_to_cache_fifo.request.get()
             if packet is None:
-                logger.debug(self._create_message("Stop processing coh request scheduler fifo"))
+                logger.debug(
+                    self._create_message("Stop processing coh agent request scheduler fifo")
+                )
                 break
+            self._run_coh_request(packet)
 
-            cache_blk, data = await self._coh_to_cache_state_lookup(packet.type, packet.addr)
-            if cache_blk is None:
-                packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
-            elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
-                packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S, data)
-            elif packet.type == CACHE_REQUEST_TYPE.SNP_INV:
-                packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data)
-            elif packet.type == CACHE_REQUEST_TYPE.SNP_CUR:
-                packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V, data)
-            elif packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
-                packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V, data)
-            else:
-                assert False
-            await self._coh_agent_to_cache_fifo.response.put(packet)
+    async def _coh_bridge_request_scheduler(self):
+        while True:
+            packet = await self._coh_bridge_to_cache_fifo.request.get()
+            if packet is None:
+                logger.debug(
+                    self._create_message("Stop processing coh bridge request scheduler fifo")
+                )
+                break
+            self._run_coh_request(packet)
 
     async def _run(self):
         tasks = [
             create_task(self._processor_request_scheduler()),
-            create_task(self._coh_request_scheduler()),
+            create_task(self._coh_agent_request_scheduler()),
         ]
+        if self._cache_to_coh_bridge_fifo:
+            tasks.append(create_task(self._coh_bridge_request_scheduler()))
         await self._change_status_to_running()
         await gather(*tasks)
 
