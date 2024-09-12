@@ -24,12 +24,14 @@ class CxlIoManager(RunnableComponent):
         device_type: PCI_DEVICE_TYPE,
         init_callback: Callable[[MmioManager, ConfigSpaceManager], None],
         label: Optional[str] = None,
+        ld_id: Optional[int] = None,
     ):
         super().__init__(label)
         self._mmio_manager = MmioManager(
             mmio_upstream_fifo,
             mmio_downstream_fifo,
             label=label,
+            ld_id=ld_id,
         )
         self._config_space_manager = ConfigSpaceManager(
             cfg_upstream_fifo,

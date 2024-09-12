@@ -53,8 +53,9 @@ class CxlMemManager(PacketProcessor):
 
         address = mem_rd_packet.get_address()
         data = await self._memory_device_component.read_mem(address)
+        ld_id = mem_rd_packet.m2sreq_header.ld_id
 
-        packet = CxlMemMemDataPacket.create(data)
+        packet = CxlMemMemDataPacket.create(data, ld_id=ld_id)
         await self._upstream_fifo.target_to_host.put(packet)
 
     async def _process_cxl_mem_wr_packet(self, mem_wr_packet: CxlMemMemWrPacket):
@@ -68,9 +69,10 @@ class CxlMemManager(PacketProcessor):
 
         address = mem_wr_packet.get_address()
         data = mem_wr_packet.data
+        ld_id = mem_wr_packet.m2srwd_header.ld_id
         await self._memory_device_component.write_mem(address, data)
 
-        packet = CxlMemCmpPacket.create()
+        packet = CxlMemCmpPacket.create(ld_id=ld_id)
         await self._upstream_fifo.target_to_host.put(packet)
 
     async def process_cxl_mem_bisnp_packet(self, mem_bisnp_packet: CxlMemBISnpPacket):
