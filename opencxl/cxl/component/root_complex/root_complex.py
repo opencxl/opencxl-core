@@ -18,7 +18,6 @@ from opencxl.cxl.component.root_complex.root_port_switch import (
     RootPortSwitchConfig,
     RootPortSwitchPortConfig,
     ROOT_PORT_SWITCH_TYPE,
-    COH_POLICY_TYPE,
 )
 from opencxl.cxl.component.root_complex.home_agent import HomeAgent, HomeAgentConfig
 from opencxl.cxl.component.root_complex.memory_controller import (
@@ -54,7 +53,6 @@ class RootComplexConfig:
     coh_bridge_to_cache_fifo: CacheFifoPair
     sys_mem_controller: SystemMemControllerConfig
     root_ports: List[RootPortSwitchPortConfig] = field(default_factory=list)
-    coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.NonCache
 
 
 class RootComplex(RunnableComponent):
@@ -114,7 +112,6 @@ class RootComplex(RunnableComponent):
             upstream_cache_to_home_agent_fifo=cache_to_home_agent_fifo,
             upstream_home_agent_to_cache_fifo=home_agent_to_cache_fifo,
             downstream_cxl_mem_fifos=root_port_switch_upstream_connection.cxl_mem_fifo,
-            coh_type=config.coh_type,
         )
         self._home_agent = HomeAgent(home_agent_config)
 

@@ -13,7 +13,7 @@ from typing import Callable, Awaitable
 # import websockets
 # from websockets import WebSocketClientProtocol
 
-from opencxl.util.logger import logger
+# from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cpu import CPU
 from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, ADDR_TYPE, CxlMemoryHubConfig

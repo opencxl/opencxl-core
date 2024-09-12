@@ -13,11 +13,10 @@ from opencxl.cxl.component.cxl_component import PORT_TYPE
 from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
 from opencxl.cxl.component.root_complex.root_port_switch import (
-    COH_POLICY_TYPE,
     ROOT_PORT_SWITCH_TYPE,
 )
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
-from opencxl.cxl.component.cxl_memory_hub import MemoryRange, ADDR_TYPE
+from opencxl.cxl.component.cache_controller import MemoryRange, ADDR_TYPE
 from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver

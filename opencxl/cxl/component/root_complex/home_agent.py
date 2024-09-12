@@ -8,12 +8,11 @@
 from dataclasses import dataclass
 from asyncio import create_task, gather, sleep, Queue
 import asyncio
-from typing import List, cast
+from typing import cast
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.pci.component.fifo_pair import FifoPair
-from opencxl.cxl.component.root_complex.root_port_switch import COH_POLICY_TYPE
 from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
     MemoryRequest,
@@ -51,7 +50,6 @@ from opencxl.cxl.component.cache_controller import (
     CohStateMachine,
     COH_STATE_MACHINE,
 )
-from opencxl.cxl.component.cxl_memory_hub import MemoryRange, ADDR_TYPE
 
 
 @dataclass
@@ -63,14 +61,12 @@ class HomeAgentConfig:
     upstream_cache_to_home_agent_fifo: CacheFifoPair
     upstream_home_agent_to_cache_fifo: CacheFifoPair
     downstream_cxl_mem_fifos: FifoPair
-    coh_type: COH_POLICY_TYPE
 
 
 class HomeAgent(RunnableComponent):
     def __init__(self, config: HomeAgentConfig):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
 
-        self._memory_ranges: List[MemoryRange] = []
         self._memory_consumer_io_fifos = config.memory_consumer_io_fifos
         self._memory_consumer_coh_fifos = config.memory_consumer_coh_fifos
         self._memory_producer_fifos = config.memory_producer_fifos
@@ -88,7 +84,7 @@ class HomeAgent(RunnableComponent):
 
         # emulated .mem s2m channels
         self._cxl_channel = {"s2m_ndr": Queue(), "s2m_drs": Queue(), "s2m_bisnp": Queue()}
-        self._non_cache = config.coh_type is COH_POLICY_TYPE.NonCache
+        self._non_cache = True  # config.coh_type is COH_POLICY_TYPE.NonCache
 
     def _create_m2s_req_packet(
         self,
@@ -111,38 +107,30 @@ class HomeAgent(RunnableComponent):
     ) -> CxlMemMemWrPacket:
         return CxlMemMemWrPacket.create(addr, data, opcode, meta_field, meta_value, snp_type)
 
-    async def _get_memory_range(self, addr: int, size: int) -> MemoryRange:
-        for memory_range in self._memory_ranges:
-            memory_range_end_addr = memory_range.base_addr + memory_range.size - 1
-            end_addr = addr + size - 1
-            if addr >= memory_range.base_addr and end_addr <= memory_range_end_addr:
-                return memory_range
-        return MemoryRange(type=ADDR_TYPE.OOB, base_addr=0, size=0)
-
-    async def _write_memory(self, address: int, size: int, value: int):
-        packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, address, size, value)
+    async def _write_memory(self, addr: int, size: int, value: int):
+        packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, size, value)
         await self._memory_producer_fifos.request.put(packet)
         packet = await self._memory_producer_fifos.response.get()
 
         assert packet.status == MEMORY_RESPONSE_STATUS.OK
 
-    async def _read_memory(self, address: int, size: int) -> int:
-        packet = MemoryRequest(MEMORY_REQUEST_TYPE.READ, address, size)
+    async def _read_memory(self, addr: int, size: int) -> int:
+        packet = MemoryRequest(MEMORY_REQUEST_TYPE.READ, addr, size)
         await self._memory_producer_fifos.request.put(packet)
         packet = await self._memory_producer_fifos.response.get()
 
         return packet.data
 
-    async def write_cxl_mem(self, address: int, size: int, value: int):
-        if address % 64 != 0 or size % 64 != 0:
+    async def write_cxl_mem(self, addr: int, size: int, value: int):
+        if addr % 64 != 0 or size % 64 != 0:
             raise Exception("Size and address must be aligned to 64!")
 
         chunk_count = 0
         while size > 0:
-            message = self._create_message(f"CXL.mem: Writing 0x{value:08x} to 0x{address:08x}")
+            message = self._create_message(f"CXL.mem: Writing 0x{value:08x} to 0x{addr:08x}")
             logger.debug(message)
             low_64_byte = value & ((1 << (64 * 8)) - 1)
-            packet = CxlMemMemWrPacket.create(address + (chunk_count * 64), low_64_byte)
+            packet = CxlMemMemWrPacket.create(addr + (chunk_count * 64), low_64_byte)
             await self._downstream_cxl_mem_fifos.host_to_target.put(packet)
             try:
                 async with asyncio.timeout(3):
@@ -154,15 +142,15 @@ class HomeAgent(RunnableComponent):
             chunk_count += 1
             value >>= 64 * 8
 
-    async def read_cxl_mem(self, address: int, size: int) -> int:
-        if address % 64 or size % 64:
+    async def read_cxl_mem(self, addr: int, size: int) -> int:
+        if addr % 64 or size % 64:
             raise Exception("Size and address must be aligned to 64!")
 
         result = 0
         while size > 0:
-            message = self._create_message(f"CXL.mem: Reading data from 0x{address:08x}")
+            message = self._create_message(f"CXL.mem: Reading data from 0x{addr:08x}")
             logger.debug(message)
-            packet = CxlMemMemRdPacket.create(address + (size - 64))
+            packet = CxlMemMemRdPacket.create(addr + (size - 64))
             await self._downstream_cxl_mem_fifos.host_to_target.put(packet)
 
             try:
@@ -190,9 +178,9 @@ class HomeAgent(RunnableComponent):
                 )
                 break
             if packet.type == MEMORY_REQUEST_TYPE.WRITE:
-                await self._write_memory(packet.address, packet.size, packet.data)
+                await self._write_memory(packet.addr, packet.size, packet.data)
             elif packet.type == MEMORY_REQUEST_TYPE.READ:
-                data = await self._read_memory(packet.address, packet.size)
+                data = await self._read_memory(packet.addr, packet.size)
                 response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
                 await self._memory_consumer_io_fifos.response.put(response)
 
@@ -207,9 +195,9 @@ class HomeAgent(RunnableComponent):
                 )
                 break
             if packet.type == MEMORY_REQUEST_TYPE.WRITE:
-                await self._write_memory(packet.address, packet.size, packet.data)
+                await self._write_memory(packet.addr, packet.size, packet.data)
             elif packet.type == MEMORY_REQUEST_TYPE.READ:
-                data = await self._read_memory(packet.address, packet.size)
+                data = await self._read_memory(packet.addr, packet.size)
                 response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
                 await self._memory_consumer_coh_fifos.response.put(response)
 
@@ -301,7 +289,7 @@ class HomeAgent(RunnableComponent):
             meta_field = CXL_MEM_META_FIELD.NO_OP
             meta_value = CXL_MEM_META_VALUE.INVALID
             snp_type = CXL_MEM_M2S_SNP_TYPE.NO_OP
-            addr = cache_packet.address
+            addr = cache_packet.addr
 
             if cache_packet.type in (CACHE_REQUEST_TYPE.WRITE, CACHE_REQUEST_TYPE.WRITE_BACK):
                 opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR

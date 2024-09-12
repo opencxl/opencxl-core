@@ -8,7 +8,6 @@
 import asyncio
 from dataclasses import dataclass, field
 from typing import List
-from enum import Enum, auto
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.root_complex.root_complex import (
     RootComplex,
@@ -18,6 +17,7 @@ from opencxl.cxl.component.root_complex.root_complex import (
 from opencxl.cxl.component.cache_controller import (
     CacheController,
     CacheControllerConfig,
+    ADDR_TYPE,
 )
 from opencxl.cxl.component.root_complex.root_port_client_manager import (
     RootPortClientManager,
@@ -36,22 +36,6 @@ from opencxl.cxl.transport.memory_fifo import (
     MEMORY_RESPONSE_STATUS,
 )
 from opencxl.util.pci import create_bdf
-
-
-class ADDR_TYPE(Enum):
-    DRAM = auto()
-    CFG = auto()
-    MMIO = auto()
-    CXL = auto()
-    CXL_BI = auto()
-    OOB = auto()
-
-
-@dataclass
-class MemoryRange:
-    base_addr: int
-    size: int
-    addr_type: ADDR_TYPE
 
 
 @dataclass
@@ -102,8 +86,8 @@ class CxlMemoryHub(RunnableComponent):
         cache_controller_config = CacheControllerConfig(
             component_name=config.host_name,
             processor_to_cache_fifo=self._processor_to_cache_fifo,
-            cache_to_home_agent_fifo=cache_to_home_agent_fifo,
-            home_agent_to_cache_fifo=home_agent_to_cache_fifo,
+            cache_to_coh_agent_fifo=cache_to_home_agent_fifo,
+            coh_agent_to_cache_fifo=home_agent_to_cache_fifo,
             cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
             coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
             cache_num_assoc=4,
