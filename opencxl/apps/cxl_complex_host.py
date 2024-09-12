@@ -16,7 +16,7 @@ from typing import Callable, Awaitable
 # from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cpu import CPU
-from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, ADDR_TYPE, CxlMemoryHubConfig
+from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, CxlMemoryHubConfig
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
 from opencxl.cxl.component.root_complex.root_port_switch import ROOT_PORT_SWITCH_TYPE
 from opencxl.cxl.component.root_complex.root_complex import SystemMemControllerConfig
