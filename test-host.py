@@ -56,7 +56,7 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
         #     )
         # )
         logger.info(
-            f"[SYS-SW] base: 0x{range.base_addr:X}, size: 0x{range.size:X}, type: {str(range.type)}"
+            f"[SYS-SW] base: 0x{range.base_addr:X}, size: 0x{range.size:X}, type: {str(range.addr_type)}"
         )
 
 

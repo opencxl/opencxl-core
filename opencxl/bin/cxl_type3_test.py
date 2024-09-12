@@ -21,7 +21,6 @@ from opencxl.cxl.component.root_complex.root_port_client_manager import RootPort
 from opencxl.apps.cxl_complex_host import (
     CxlComplexHost,
     CxlComplexHostConfig,
-    COH_POLICY_TYPE,
     ROOT_PORT_SWITCH_TYPE,
     RootComplexMemoryControllerConfig,
 )
@@ -137,7 +136,6 @@ def main():
         root_bus=0,
         root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
         root_ports=[RootPortClientConfig(0, "0.0.0.0", 8000)],
-        coh_type=COH_POLICY_TYPE.NonCache,
         memory_controller=RootComplexMemoryControllerConfig(
             memory_size=memory_size, memory_filename="memory_dram.bin"
         ),
