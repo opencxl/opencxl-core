@@ -111,7 +111,7 @@ class CxlMemoryHub(RunnableComponent):
     async def load(self, addr: int, size: int) -> int:
         addr_type = self._cache_controller.get_mem_addr_type(addr)
         match addr_type:
-            case ADDR_TYPE.DRAM | ADDR_TYPE.CXL | ADDR_TYPE.CXL_BI:
+            case ADDR_TYPE.DRAM | ADDR_TYPE.CXL_CACHED | ADDR_TYPE.CXL_CACHED_BI:
                 packet = MemoryRequest(MEMORY_REQUEST_TYPE.READ, addr, size)
                 await self._processor_to_cache_fifo.request.put(packet)
                 packet = await self._processor_to_cache_fifo.response.get()
@@ -129,7 +129,7 @@ class CxlMemoryHub(RunnableComponent):
     async def store(self, addr: int, size: int, value: int):
         addr_type = self._cache_controller.get_mem_addr_type(addr)
         match addr_type:
-            case ADDR_TYPE.DRAM | ADDR_TYPE.CXL | ADDR_TYPE.CXL_BI:
+            case ADDR_TYPE.DRAM | ADDR_TYPE.CXL_CACHED | ADDR_TYPE.CXL_CACHED_BI:
                 packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, size, value)
                 await self._processor_to_cache_fifo.request.put(packet)
                 packet = await self._processor_to_cache_fifo.response.get()

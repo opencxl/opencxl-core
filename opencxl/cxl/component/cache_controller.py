@@ -32,8 +32,9 @@ class ADDR_TYPE(Enum):
     DRAM = auto()
     CFG = auto()
     MMIO = auto()
-    CXL = auto()
-    CXL_BI = auto()
+    CXL_CACHED = auto()
+    CXL_CACHED_BI = auto()
+    CXL_UNCACHED = auto
     OOB = auto()
 
 
@@ -229,7 +230,7 @@ class CacheController(RunnableComponent):
         match addr_type:
             case ADDR_TYPE.DRAM:
                 return self._cache_to_coh_bridge_fifo
-            case ADDR_TYPE.CXL | ADDR_TYPE.CXL_BI:
+            case ADDR_TYPE.CXL_CACHED | ADDR_TYPE.CXL_CACHED_BI:
                 return self._cache_to_coh_agent_fifo
             case _:
                 return None
@@ -252,7 +253,7 @@ class CacheController(RunnableComponent):
         addr_type = self.get_mem_addr_type(addr)
         if addr_type == ADDR_TYPE.DRAM:
             cache_fifo = self._cache_to_coh_bridge_fifo
-        elif addr_type == ADDR_TYPE.CXL_BI:
+        elif addr_type == ADDR_TYPE.CXL_CACHED_BI:
             cache_fifo = self._cache_to_coh_agent_fifo
         else:
             # no need to send SNP_INV
@@ -334,8 +335,8 @@ class CacheController(RunnableComponent):
 
         cache_blk = self._cache_find_valid_block(tag, set)
 
-        # cache hit
         if cache_blk is not None:
+            # cache hit
             cache_state = self._cache_extract_block_state(set, cache_blk)
             assert cache_state != CacheState.CACHE_INVALID
 
@@ -346,8 +347,8 @@ class CacheController(RunnableComponent):
 
             self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_MODIFIED)
             self._cache_data_write(set, cache_blk, data)
-        # cache miss
         else:
+            # cache miss
             cache_blk = self._cache_find_invalid_block(set)
 
             # cache block full

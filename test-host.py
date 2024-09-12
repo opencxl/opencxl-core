@@ -44,9 +44,9 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
             logger.info(f"[SYS-SW] Failed to attach device {device}")
             continue
         if await device.get_bi_enable():
-            cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL_BI)
+            cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL_CACHED_BI)
         else:
-            cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL)
+            cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL_CACHED)
         hpa_base += size
 
     for range in cxl_memory_hub.get_memory_ranges():
