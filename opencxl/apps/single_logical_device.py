@@ -37,12 +37,17 @@ class SingleLogicalDevice(RunnableComponent):
         )
 
     async def _run(self):
-        tasks = [
+        run_tasks = [
             create_task(self._sw_conn_client.run()),
             create_task(self._cxl_type3_device.run()),
         ]
+        wait_tasks = [
+            create_task(self._sw_conn_client.wait_for_ready()),
+            create_task(self._cxl_type3_device.wait_for_ready()),
+        ]
+        await gather(*wait_tasks)
         await self._change_status_to_running()
-        await gather(*tasks)
+        await gather(*run_tasks)
 
     async def _stop(self):
         tasks = [
