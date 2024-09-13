@@ -17,6 +17,8 @@ class CACHE_REQUEST_TYPE(Enum):
     SNP_INV = auto()
     SNP_CUR = auto()
     WRITE_BACK = auto()
+    UNCACHED_WRITE = auto()
+    UNCACHED_READ = auto()
 
 
 @dataclass

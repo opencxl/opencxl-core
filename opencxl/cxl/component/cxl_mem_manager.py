@@ -51,9 +51,9 @@ class CxlMemManager(PacketProcessor):
         if self._memory_device_component is None:
             raise Exception("CxlMemoryDeviceComponent isn't set yet")
 
-        address = mem_rd_packet.get_address()
-        data = await self._memory_device_component.read_mem(address)
-
+        addr = mem_rd_packet.get_address()
+        data = await self._memory_device_component.read_mem(addr)
+        logger.debug(self._create_message(f"CXL.mem Read: HPA addr:0x{addr:08x}"))
         packet = CxlMemMemDataPacket.create(data)
         await self._upstream_fifo.target_to_host.put(packet)
 
@@ -66,9 +66,12 @@ class CxlMemManager(PacketProcessor):
         if self._memory_device_component is None:
             raise Exception("CxlMemoryDeviceComponent isn't set yet")
 
-        address = mem_wr_packet.get_address()
+        addr = mem_wr_packet.get_address()
         data = mem_wr_packet.data
-        await self._memory_device_component.write_mem(address, data)
+        logger.debug(
+            self._create_message(f"CXL.mem Write: HPA addr:0x{addr:08x} data:0x{data:08x}")
+        )
+        await self._memory_device_component.write_mem(addr, data)
 
         packet = CxlMemCmpPacket.create()
         await self._upstream_fifo.target_to_host.put(packet)

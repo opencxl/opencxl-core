@@ -334,7 +334,6 @@ class CacheController(RunnableComponent):
         set = self._cache_extract_set(addr)
 
         cache_blk = self._cache_find_valid_block(tag, set)
-
         if cache_blk is not None:
             # cache hit
             cache_state = self._cache_extract_block_state(set, cache_blk)
@@ -369,6 +368,17 @@ class CacheController(RunnableComponent):
             self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_MODIFIED)
             self._cache_data_write(set, cache_blk, data)
 
+    async def _uncached_load(self, addr: int, size: int) -> int:
+        packet = CacheRequest(CACHE_REQUEST_TYPE.UNCACHED_READ, addr, size)
+        await self._cache_to_coh_agent_fifo.request.put(packet)
+        resp = await self._cache_to_coh_agent_fifo.response.get()
+        return resp.data
+
+    async def _uncached_store(self, addr: int, size: int, data: int) -> int:
+        packet = CacheRequest(CACHE_REQUEST_TYPE.UNCACHED_WRITE, addr, size, data)
+        await self._cache_to_coh_agent_fifo.request.put(packet)
+        await self._cache_to_coh_agent_fifo.response.get()
+
     # registered event loop for processor's cache load/store operations
     async def _processor_request_scheduler(self):
         while True:
@@ -379,16 +389,29 @@ class CacheController(RunnableComponent):
                 )
                 break
 
-            if packet.type == MEMORY_REQUEST_TYPE.READ:
-                data = await self.cache_coherent_load(packet.addr, packet.size)
-                packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
-                await self._processor_to_cache_fifo.response.put(packet)
-            elif packet.type == MEMORY_REQUEST_TYPE.WRITE:
-                await self.cache_coherent_store(packet.addr, packet.size, packet.data)
-                packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
-                await self._processor_to_cache_fifo.response.put(packet)
-            else:
-                assert False
+            match packet.type:
+                case MEMORY_REQUEST_TYPE.READ:
+                    data = await self.cache_coherent_load(packet.addr, packet.size)
+                    packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
+                    await self._processor_to_cache_fifo.response.put(packet)
+
+                case MEMORY_REQUEST_TYPE.UNCACHED_READ:
+                    data = await self._uncached_load(packet.addr, packet.size)
+                    packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
+                    await self._processor_to_cache_fifo.response.put(packet)
+
+                case MEMORY_REQUEST_TYPE.WRITE:
+                    await self.cache_coherent_store(packet.addr, packet.size, packet.data)
+                    packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
+                    await self._processor_to_cache_fifo.response.put(packet)
+
+                case MEMORY_REQUEST_TYPE.UNCACHED_WRITE:
+                    await self._uncached_store(packet.addr, packet.size, packet.data)
+                    packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
+                    await self._processor_to_cache_fifo.response.put(packet)
+
+                case _:
+                    assert False
 
     async def _run_coh_request(self, packet: CacheRequest):
         cache_blk, data = await self._coh_to_cache_state_lookup(packet.type, packet.addr)

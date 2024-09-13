@@ -291,7 +291,11 @@ class HomeAgent(RunnableComponent):
             snp_type = CXL_MEM_M2S_SNP_TYPE.NO_OP
             addr = cache_packet.addr
 
-            if cache_packet.type in (CACHE_REQUEST_TYPE.WRITE, CACHE_REQUEST_TYPE.WRITE_BACK):
+            if cache_packet.type in (
+                CACHE_REQUEST_TYPE.WRITE,
+                CACHE_REQUEST_TYPE.WRITE_BACK,
+                CACHE_REQUEST_TYPE.UNCACHED_WRITE,
+            ):
                 opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR
                 data = cache_packet.data
 
@@ -300,11 +304,11 @@ class HomeAgent(RunnableComponent):
                     meta_value = CXL_MEM_META_VALUE.ANY
                 # HDM-DB Flush Write (Cmp: I/I)
                 elif cache_packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
-                    if self._non_cache:
-                        meta_value = CXL_MEM_META_VALUE.ANY
-                    else:
-                        meta_field = CXL_MEM_META_FIELD.META0_STATE
-                        meta_value = CXL_MEM_META_VALUE.INVALID
+                    meta_field = CXL_MEM_META_FIELD.META0_STATE
+                    meta_value = CXL_MEM_META_VALUE.INVALID
+                # HDM Uncached Write
+                elif cache_packet.type == CACHE_REQUEST_TYPE.UNCACHED_WRITE:
+                    meta_value = CXL_MEM_META_VALUE.ANY
 
                 cxl_packet = self._create_m2s_rwd_packet(
                     opcode, meta_field, meta_value, snp_type, addr, data
@@ -319,20 +323,11 @@ class HomeAgent(RunnableComponent):
                 # HDM-DB Device Shared Read (Cmp-S: S/S, Cmp-E: A/I)
                 elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
                     opcode = CXL_MEM_M2SREQ_OPCODE.MEM_RD
-                    if self._non_cache:
-                        meta_value = CXL_MEM_META_VALUE.ANY
-                    else:
-                        meta_field = CXL_MEM_META_FIELD.META0_STATE
-                        meta_value = CXL_MEM_META_VALUE.SHARED
-                        snp_type = CXL_MEM_M2S_SNP_TYPE.SNP_DATA
+                    meta_field = CXL_MEM_META_FIELD.META0_STATE
+                    meta_value = CXL_MEM_META_VALUE.SHARED
+                    snp_type = CXL_MEM_M2S_SNP_TYPE.SNP_DATA
                 # HDM-DB Non-Data, Host Ownership Device Invalidation (Cmp-E: A/I)
                 elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_INV:
-                    if self._non_cache:
-                        cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I)
-                        await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
-                        self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
-                        return
-
                     opcode = CXL_MEM_M2SREQ_OPCODE.MEM_INV
                     meta_field = CXL_MEM_META_FIELD.META0_STATE
                     meta_value = CXL_MEM_META_VALUE.ANY
@@ -342,6 +337,9 @@ class HomeAgent(RunnableComponent):
                     opcode = CXL_MEM_M2SREQ_OPCODE.MEM_RD
                     meta_field = CXL_MEM_META_FIELD.META0_STATE
                     snp_type = CXL_MEM_M2S_SNP_TYPE.SNP_CUR
+                elif cache_packet.type == CACHE_REQUEST_TYPE.UNCACHED_READ:
+                    opcode = CXL_MEM_M2SREQ_OPCODE.MEM_RD
+                    meta_value = CXL_MEM_META_VALUE.ANY
                 else:
                     raise Exception(f"Invalid M2S Opcode Type: {cache_packet.type}")
 

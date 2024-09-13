@@ -47,7 +47,7 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
         if await device.get_bi_enable():
             cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL_CACHED_BI)
         else:
-            cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL_CACHED)
+            cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL_UNCACHED)
         hpa_base += size
 
     # System Memory

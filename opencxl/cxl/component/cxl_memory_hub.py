@@ -32,6 +32,7 @@ from opencxl.cxl.transport.cache_fifo import CacheFifoPair
 from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
     MemoryRequest,
+    MemoryResponse,
     MEMORY_REQUEST_TYPE,
     MEMORY_RESPONSE_STATUS,
 )
@@ -108,15 +109,23 @@ class CxlMemoryHub(RunnableComponent):
             (cfg_addr >> 12) & 0x07,
         )
 
+    async def _send_mem_request(self, packet: MemoryRequest) -> MemoryResponse:
+        await self._processor_to_cache_fifo.request.put(packet)
+        resp = await self._processor_to_cache_fifo.response.get()
+        assert resp.status == MEMORY_RESPONSE_STATUS.OK
+        return resp
+
     async def load(self, addr: int, size: int) -> int:
         addr_type = self._cache_controller.get_mem_addr_type(addr)
         match addr_type:
             case ADDR_TYPE.DRAM | ADDR_TYPE.CXL_CACHED | ADDR_TYPE.CXL_CACHED_BI:
                 packet = MemoryRequest(MEMORY_REQUEST_TYPE.READ, addr, size)
-                await self._processor_to_cache_fifo.request.put(packet)
-                packet = await self._processor_to_cache_fifo.response.get()
-                assert packet.status == MEMORY_RESPONSE_STATUS.OK
-                return packet.data
+                resp = await self._send_mem_request(packet)
+                return resp.data
+            case ADDR_TYPE.CXL_UNCACHED:
+                packet = MemoryRequest(MEMORY_REQUEST_TYPE.UNCACHED_READ, addr, size)
+                resp = await self._send_mem_request(packet)
+                return resp.data
             case ADDR_TYPE.MMIO:
                 return await self._root_complex.read_mmio(addr, size)
             case ADDR_TYPE.CFG:
@@ -126,20 +135,21 @@ class CxlMemoryHub(RunnableComponent):
             case _:
                 raise Exception(self._create_message(f"Address 0x{addr:x} is OOB."))
 
-    async def store(self, addr: int, size: int, value: int):
+    async def store(self, addr: int, size: int, data: int):
         addr_type = self._cache_controller.get_mem_addr_type(addr)
         match addr_type:
             case ADDR_TYPE.DRAM | ADDR_TYPE.CXL_CACHED | ADDR_TYPE.CXL_CACHED_BI:
-                packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, size, value)
-                await self._processor_to_cache_fifo.request.put(packet)
-                packet = await self._processor_to_cache_fifo.response.get()
-                assert packet.status == MEMORY_RESPONSE_STATUS.OK
+                packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, size, data)
+                await self._send_mem_request(packet)
+            case ADDR_TYPE.CXL_UNCACHED:
+                packet = MemoryRequest(MEMORY_REQUEST_TYPE.UNCACHED_WRITE, addr, size, data)
+                await self._send_mem_request(packet)
             case ADDR_TYPE.MMIO:
-                await self._root_complex.write_mmio(addr, size, value)
+                await self._root_complex.write_mmio(addr, size, data)
             case ADDR_TYPE.CFG:
                 bdf = self._cfg_addr_to_bdf(addr)
                 offset = addr & 0xFFF
-                await self._root_complex.write_config(bdf, offset, size, value)
+                await self._root_complex.write_config(bdf, offset, size, data)
             case _:
                 raise Exception(self._create_message(f"Address 0x{addr:x} is OOB."))
 

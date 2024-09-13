@@ -13,6 +13,8 @@ from enum import Enum, auto
 class MEMORY_REQUEST_TYPE(Enum):
     READ = auto()
     WRITE = auto()
+    UNCACHED_READ = auto()
+    UNCACHED_WRITE = auto()
 
 
 @dataclass
