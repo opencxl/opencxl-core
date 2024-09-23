@@ -1,13 +1,12 @@
 import asyncio
-from opencxl.apps.cxl_complex_host import CxlComplexHost
-from opencxl.cpu import CPU
-from opencxl.util.logger import logger
 
-import asyncio
+from opencxl.util.logger import logger
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, ADDR_TYPE
+from opencxl.cpu import CPU
+from opencxl.apps.cxl_complex_host import CxlComplexHost
 
 
 async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
@@ -63,7 +62,9 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
 async def sample_app(cpu: CPU, value: str):
     logger.info(f"[USER-APP] {value} I AM HERE!")
     await cpu.store(0x100000000000, 0x40, 0xDEADBEEF)
+    await asyncio.sleep(0)
     val = await cpu.load(0x100000000000, 0x40)
+    await asyncio.sleep(0)
     logger.info(f"0x{val:X}")
     val = await cpu.load(0x100000000040, 0x40)
     logger.info(f"0x{val:X}")

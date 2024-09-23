@@ -233,7 +233,7 @@ class CacheController(RunnableComponent):
             case ADDR_TYPE.CXL_CACHED | ADDR_TYPE.CXL_CACHED_BI:
                 return self._cache_to_coh_agent_fifo
             case _:
-                return None
+                raise Exception(f"OOB Memory Address: 0x{addr:x}")
 
     async def _memory_load(self, addr: int, size: int) -> CacheResponse:
         cache_fifo = self._get_cache_fifo(addr)
