@@ -53,8 +53,10 @@ class CxlMemManager(PacketProcessor):
 
         addr = mem_rd_packet.get_address()
         data = await self._memory_device_component.read_mem(addr)
-        logger.debug(self._create_message(f"CXL.mem Read: HPA addr:0x{addr:08x}"))
-        packet = CxlMemMemDataPacket.create(data)
+        ld_id = mem_rd_packet.m2sreq_header.ld_id
+        logger.debug(self._create_message(f"CXL.mem Read: HPA addr:0x{addr:08x} LD-ID:{ld_id}"))
+
+        packet = CxlMemMemDataPacket.create(data, ld_id=ld_id)
         await self._upstream_fifo.target_to_host.put(packet)
 
     async def _process_cxl_mem_wr_packet(self, mem_wr_packet: CxlMemMemWrPacket):
@@ -68,12 +70,15 @@ class CxlMemManager(PacketProcessor):
 
         addr = mem_wr_packet.get_address()
         data = mem_wr_packet.data
+        ld_id = mem_wr_packet.m2srwd_header.ld_id
         logger.debug(
-            self._create_message(f"CXL.mem Write: HPA addr:0x{addr:08x} data:0x{data:08x}")
+            self._create_message(
+                f"CXL.mem Write: HPA addr:0x{addr:08x} LD-ID:{ld_id} Data:0x{data:08x}"
+            )
         )
         await self._memory_device_component.write_mem(addr, data)
 
-        packet = CxlMemCmpPacket.create()
+        packet = CxlMemCmpPacket.create(ld_id=ld_id)
         await self._upstream_fifo.target_to_host.put(packet)
 
     async def process_cxl_mem_bisnp_packet(self, mem_bisnp_packet: CxlMemBISnpPacket):
