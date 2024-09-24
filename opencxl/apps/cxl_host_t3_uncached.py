@@ -1,3 +1,10 @@
+"""
+ Copyright (c) 2024, Eeum, Inc.
+
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
+
 import asyncio
 
 from opencxl.util.logger import logger
@@ -55,12 +62,13 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
 
     for range in cxl_memory_hub.get_memory_ranges():
         logger.info(
-            f"[SYS-SW] MemoryRange: base: 0x{range.base_addr:X}, size: 0x{range.size:X}, type: {str(range.addr_type)}"
+            f"[SYS-SW] MemoryRange: base: 0x{range.base_addr:X}"
+            f"size: 0x{range.size:X}, type: {str(range.addr_type)}"
         )
 
 
 async def sample_app(cpu: CPU, value: str):
-    logger.info(f"[USER-APP] {value} I AM HERE!")
+    logger.info(f"[USER-APP] Start with {value}")
     await cpu.store(0x100000000000, 0x40, 0xDEADBEEF)
     await asyncio.sleep(0)
     val = await cpu.load(0x100000000000, 0x40)
@@ -71,8 +79,12 @@ async def sample_app(cpu: CPU, value: str):
 
 
 async def main():
-    host = CxlHost(0, 256 * 1024 * 1024, sys_sw_app=my_sys_sw_app, user_app=sample_app)
-    logger.info("STARTING")
+    host = CxlHost(
+        port_index=0,
+        sys_mem_size=(256 * 1024 * 1024),
+        sys_sw_app=my_sys_sw_app,
+        user_app=sample_app,
+    )
     await host.run()
 
 
