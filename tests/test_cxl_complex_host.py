@@ -12,7 +12,7 @@
 # from PIL import Image
 # import pytest
 
-# from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
+# from opencxl.apps.cxl_host import CxlHost, CxlHostConfig
 # from opencxl.cxl.component.root_complex.home_agent import ADDR_TYPE, MemoryRange
 # from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
 # from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
@@ -90,7 +90,7 @@
 #     root_ports = [RootPortClientConfig(0, "localhost", switch_port)]
 #     memory_ranges = [MemoryRange(ADDR_TYPE.DRAM, 0x0, host_mem_size)]
 
-#     config = CxlComplexHostConfig(
+#     config = CxlHostConfig(
 #         host_name,
 #         0,
 #         root_port_switch_type,
@@ -100,7 +100,7 @@
 #         coh_type=COH_POLICY_TYPE.DotCache,
 #     )
 
-#     host = CxlComplexHost(config)
+#     host = CxlHost(config)
 #     pci_bus_driver = PciBusDriver(host.get_root_complex())
 #     cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
 #     cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())

@@ -19,7 +19,7 @@ import pytest
 from opencxl.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
 )
-from opencxl.apps.cxl_host import CxlHostManager, CxlHost, CxlHostUtilClient
+from opencxl.apps.cxl_simple_host import CxlHostManager, CxlSimpleHost, CxlHostUtilClient
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
 from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
@@ -300,8 +300,8 @@ async def test_cxl_host_type3_ete():
     )
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
-    host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
-    test_mode_host = CxlHost(
+    host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
+    test_mode_host = CxlSimpleHost(
         port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
     )
 
@@ -405,7 +405,7 @@ async def test_cxl_host_type3_ete():
 #         )
 
 #         host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
-#         host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
+#         host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
 
 #         start_tasks = [
 #             asyncio.create_task(host.run()),
@@ -484,8 +484,8 @@ async def test_cxl_host_type3_ete():
 #     )
 
 #     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
-#     host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
-#     test_mode_host = CxlHost(
+#     host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
+#     test_mode_host = CxlSimpleHost(
 #         port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
 #     )
 

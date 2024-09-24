@@ -6,7 +6,7 @@ from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, ADDR_TYPE
 from opencxl.cpu import CPU
-from opencxl.apps.cxl_complex_host import CxlComplexHost
+from opencxl.apps.cxl_host import CxlHost
 
 
 async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
@@ -71,7 +71,7 @@ async def sample_app(cpu: CPU, value: str):
 
 
 async def main():
-    host = CxlComplexHost(0, 256 * 1024 * 1024, sys_sw_app=my_sys_sw_app, user_app=sample_app)
+    host = CxlHost(0, 256 * 1024 * 1024, sys_sw_app=my_sys_sw_app, user_app=sample_app)
     logger.info("STARTING")
     await host.run()
 

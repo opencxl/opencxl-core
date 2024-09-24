@@ -23,19 +23,19 @@ from opencxl.cxl.device.config.logical_device import SingleLogicalDeviceConfig
 #     ROOT_PORT_SWITCH_TYPE,
 # )
 
-# from opencxl.apps.cxl_complex_host import CxlComplexHostConfig
+# from opencxl.apps.cxl_host import CxlHostConfig
 # from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
 # from opencxl.cxl.component.root_complex.home_agent import ADDR_TYPE, MemoryRange
 
-# from opencxl.apps.cxl_complex_host import (
-#     # CxlComplexHostConfig,
+# from opencxl.apps.cxl_host import (
+#     # CxlHostConfig,
 #     RootPortClientConfig,
 # )
 
 
 @dataclass
 class CxlEnvironment:
-    # host_configs: CxlComplexHostConfig
+    # host_configs: CxlHostConfig
     switch_config: CxlSwitchConfig
     single_logical_device_configs: List[SingleLogicalDeviceConfig] = field(default_factory=list)
 
@@ -81,7 +81,7 @@ def parse_switch_config(config_data) -> CxlSwitchConfig:
 
 # def parse_host_configs(
 #     config_data,
-# ) -> List[CxlComplexHostConfig]:
+# ) -> List[CxlHostConfig]:
 #     hosts = config_data["hosts"]
 #     host_configs = []
 #     for host in hosts:
@@ -123,7 +123,7 @@ def parse_switch_config(config_data) -> CxlSwitchConfig:
 #         #     switch_port: int
 
 #         host_configs.append(
-#             CxlComplexHostConfig(
+#             CxlHostConfig(
 #                 host_name=f"CxlHost-{port_index}",
 #                 root_bus=0,
 #                 root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,

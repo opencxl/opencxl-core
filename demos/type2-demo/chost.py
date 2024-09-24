@@ -3,7 +3,7 @@
 from signal import *
 import asyncio
 import sys, os
-from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
+from opencxl.apps.cxl_host import CxlHost, CxlHostConfig
 
 from opencxl.apps.cxl_image_classification_host import (
     CxlImageClassificationHost,
