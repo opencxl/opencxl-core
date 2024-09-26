@@ -44,6 +44,7 @@ from opencxl.pci.component.pci import (
     PciComponentIdentity,
     EEUM_VID,
     SW_SLD_DID,
+    SW_MLD_DID,
     PCI_CLASS,
     MEMORY_CONTROLLER_SUBCLASS,
 )
@@ -73,6 +74,7 @@ class CxlType3Device(RunnableComponent):
         super().__init__(label)
         self._memory_size = memory_size
         self._memory_file = memory_file
+        self._dev_type = dev_type
         self._decoder_count = decoder_count
         self._cxl_memory_device_component = None
         self._upstream_connection = transport_connection
@@ -102,7 +104,7 @@ class CxlType3Device(RunnableComponent):
         # Create PCiComponent
         pci_identity = PciComponentIdentity(
             vendor_id=EEUM_VID,
-            device_id=SW_SLD_DID,
+            device_id=SW_SLD_DID if self._dev_type is CXL_T3_DEV_TYPE.SLD else SW_MLD_DID,
             base_class_code=PCI_CLASS.MEMORY_CONTROLLER,
             sub_class_coce=MEMORY_CONTROLLER_SUBCLASS.CXL_MEMORY_DEVICE,
             programming_interface=0x10,
