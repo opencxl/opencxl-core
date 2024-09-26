@@ -64,5 +64,6 @@ class CxlHost(RunnableComponent):
     async def _stop(self):
         tasks = [
             asyncio.create_task(self._cxl_memory_hub.stop()),
+            asyncio.create_task(self._cpu.stop()),
         ]
         await asyncio.gather(*tasks)
