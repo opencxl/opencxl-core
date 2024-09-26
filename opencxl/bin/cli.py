@@ -10,7 +10,6 @@ import os
 import sys
 import threading
 import logging
-import time
 
 from opencxl.util.logger import logger
 from opencxl.bin import fabric_manager
@@ -18,8 +17,6 @@ from opencxl.bin import cxl_switch
 from opencxl.bin import single_logical_device as sld
 from opencxl.bin import accelerator as accel
 from opencxl.bin import cxl_simple_host
-
-# from opencxl.bin import cxl_host
 from opencxl.bin import mem
 
 
@@ -172,8 +169,6 @@ def start(
         threads.append(t_chgroup)
         t_chgroup.start()
 
-    time.sleep(3600)
-
 
 # helper functions
 def start_capture(ctx, pcap_file):
@@ -257,18 +252,4 @@ cli.add_command(cxl_simple_host.host_group)
 cli.add_command(mem.mem_group)
 
 if __name__ == "__main__":
-    # start(
-    #     [
-    #         # "-c",
-    #         # "switch",
-    #         "-c",
-    #         "complex-host-group",
-    #         # "-c",
-    #         # "sld-group",
-    #         "--config-file",
-    #         "configs/1vcs_4sld.yaml",
-    #         "--log-level",
-    #         "debug",
-    #     ]
-    # )
     cli()
