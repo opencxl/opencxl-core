@@ -29,20 +29,17 @@ class CPU(RunnableComponent):
     async def store(self, addr: int, size: int, value: int):
         await self._cxl_mem_hub.store(addr, size, value)
 
-    async def _app_run_task(self, **kwargs):
-        return await self._user_app(cpu=self, **kwargs)
+    async def _app_run_task(self):
+        return await self._user_app(cpu=self)
 
     async def _run(self):
         await self._sys_sw_app(self._cxl_mem_hub)
         tasks = [
-            asyncio.create_task(self._app_run_task(value="Value")),
+            asyncio.create_task(self._app_run_task()),
         ]
         await self._change_status_to_running()
         await asyncio.gather(*tasks)
 
     async def _stop(self):
-        # tasks = [
-        #     asyncio.create_task(self._cxl_memory_hub.stop()),
-        # ]
-        # await asyncio.gather(*tasks)
+        # TODO: Add app interruptability
         pass

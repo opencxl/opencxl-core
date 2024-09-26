@@ -65,10 +65,11 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
             f"[SYS-SW] MemoryRange: base: 0x{range.base_addr:X}"
             f"size: 0x{range.size:X}, type: {str(range.addr_type)}"
         )
+    # TODO: Sort and merge ranges
 
 
-async def sample_app(cpu: CPU, value: str):
-    logger.info(f"[USER-APP] Start with {value}")
+async def sample_app(cpu: CPU):
+    logger.info(f"[USER-APP] Starting...")
     await cpu.store(0x100000000000, 0x40, 0xDEADBEEF)
     await asyncio.sleep(0)
     val = await cpu.load(0x100000000000, 0x40)
