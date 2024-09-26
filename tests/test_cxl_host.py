@@ -252,6 +252,7 @@ async def test_cxl_host_util_client():
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
+    await host_manager.wait_for_ready()
     dummy_host = DummyHost()
     asyncio.create_task(dummy_host.conn_open(port=host_port))
     await dummy_host.wait_connected()

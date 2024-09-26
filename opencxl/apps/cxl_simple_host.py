@@ -154,6 +154,9 @@ class CxlHostManager(RunnableComponent):
             asyncio.create_task(self._host_conn_server.run()),
             asyncio.create_task(self._util_conn_server.run()),
         ]
+        # TODO: Fix workaround
+        for _ in range(100):
+            await asyncio.sleep(0)
         await self._change_status_to_running()
         await asyncio.gather(*tasks)
 
