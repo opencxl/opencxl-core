@@ -97,6 +97,7 @@ class CxlSwitch(RunnableComponent):
         self._start_mctp = start_mctp
         self._run_as_child = switch_config.run_as_child
 
+        self._start_mctp = start_mctp
         self._run_as_child = switch_config.run_as_child
 
     def _initialize_mctp_endpoint(self):
