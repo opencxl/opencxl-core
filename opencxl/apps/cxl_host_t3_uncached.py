@@ -69,7 +69,7 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
 
 
 async def sample_app(cpu: CPU):
-    logger.info(f"[USER-APP] Starting...")
+    logger.info("[USER-APP] Starting...")
     await cpu.store(0x100000000000, 0x40, 0xDEADBEEF)
     await asyncio.sleep(0)
     val = await cpu.load(0x100000000000, 0x40)
