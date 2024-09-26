@@ -38,8 +38,8 @@ TODO: Add an internal PCIe switch for routing PCIe packets between root ports
 
 @dataclass
 class SystemMemControllerConfig:
-    mem_size: int
-    mem_filename: str
+    memory_size: int
+    memory_filename: str
 
 
 @dataclass
@@ -117,8 +117,8 @@ class RootComplex(RunnableComponent):
 
         # Create Memory Controller
         memory_controller_config = MemoryControllerConfig(
-            memory_size=config.sys_mem_controller.mem_size,
-            memory_filename=config.sys_mem_controller.mem_filename,
+            memory_size=config.sys_mem_controller.memory_size,
+            memory_filename=config.sys_mem_controller.memory_filename,
             host_name=config.host_name,
             memory_consumer_fifos=home_agent_to_memory_controller_fifo,
         )

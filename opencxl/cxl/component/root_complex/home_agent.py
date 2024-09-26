@@ -84,7 +84,7 @@ class HomeAgent(RunnableComponent):
 
         # emulated .mem s2m channels
         self._cxl_channel = {"s2m_ndr": Queue(), "s2m_drs": Queue(), "s2m_bisnp": Queue()}
-        self._non_cache = True  # config.coh_type is COH_POLICY_TYPE.NonCache
+        self._non_cache = True
 
     def _create_m2s_req_packet(
         self,
@@ -369,10 +369,8 @@ class HomeAgent(RunnableComponent):
             # packets are distributed to s2m channels
             cxl_packet = cast(CxlMemBasePacket, packet)
             if cxl_packet.is_s2mndr():
-                # print("s2m ndr")
                 await self._cxl_channel["s2m_ndr"].put(cast(CxlMemS2MNDRPacket, packet))
             elif cxl_packet.is_s2mdrs():
-                # print("s2m drs")
                 await self._cxl_channel["s2m_drs"].put(cast(CxlMemS2MDRSPacket, packet))
             elif cxl_packet.is_s2mbisnp():
                 await self._cxl_channel["s2m_bisnp"].put(cast(CxlMemS2MBISnpPacket, packet))

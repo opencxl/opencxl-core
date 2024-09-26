@@ -38,8 +38,8 @@ class CxlHost(RunnableComponent):
         root_ports = [RootPortClientConfig(port_index, switch_host, switch_port)]
 
         self._sys_mem_config = SystemMemControllerConfig(
-            mem_size=sys_mem_size,
-            mem_filename=f"sys-mem{port_index}.bin",
+            memory_size=sys_mem_size,
+            memory_filename=f"sys-mem{port_index}.bin",
         )
         self._cxl_memory_hub_config = CxlMemoryHubConfig(
             host_name="memhub",
