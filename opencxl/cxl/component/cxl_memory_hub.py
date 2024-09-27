@@ -17,7 +17,7 @@ from opencxl.cxl.component.root_complex.root_complex import (
 from opencxl.cxl.component.cache_controller import (
     CacheController,
     CacheControllerConfig,
-    ADDR_TYPE,
+    MEM_ADDR_TYPE,
 )
 from opencxl.cxl.component.root_complex.root_port_client_manager import (
     RootPortClientManager,
@@ -99,7 +99,7 @@ class CxlMemoryHub(RunnableComponent):
     def get_memory_ranges(self):
         return self._cache_controller.get_memory_ranges()
 
-    def add_mem_range(self, addr, size, addr_type: ADDR_TYPE):
+    def add_mem_range(self, addr, size, addr_type: MEM_ADDR_TYPE):
         self._cache_controller.add_mem_range(addr, size, addr_type)
 
     def _cfg_addr_to_bdf(self, cfg_addr):
@@ -118,17 +118,17 @@ class CxlMemoryHub(RunnableComponent):
     async def load(self, addr: int, size: int) -> int:
         addr_type = self._cache_controller.get_mem_addr_type(addr)
         match addr_type:
-            case ADDR_TYPE.DRAM | ADDR_TYPE.CXL_CACHED | ADDR_TYPE.CXL_CACHED_BI:
+            case MEM_ADDR_TYPE.DRAM | MEM_ADDR_TYPE.CXL_CACHED | MEM_ADDR_TYPE.CXL_CACHED_BI:
                 packet = MemoryRequest(MEMORY_REQUEST_TYPE.READ, addr, size)
                 resp = await self._send_mem_request(packet)
                 return resp.data
-            case ADDR_TYPE.CXL_UNCACHED:
+            case MEM_ADDR_TYPE.CXL_UNCACHED:
                 packet = MemoryRequest(MEMORY_REQUEST_TYPE.UNCACHED_READ, addr, size)
                 resp = await self._send_mem_request(packet)
                 return resp.data
-            case ADDR_TYPE.MMIO:
+            case MEM_ADDR_TYPE.MMIO:
                 return await self._root_complex.read_mmio(addr, size)
-            case ADDR_TYPE.CFG:
+            case MEM_ADDR_TYPE.CFG:
                 bdf = self._cfg_addr_to_bdf(addr)
                 offset = addr & 0xFFF
                 return await self._root_complex.read_config(bdf, offset, size)
@@ -138,15 +138,15 @@ class CxlMemoryHub(RunnableComponent):
     async def store(self, addr: int, size: int, data: int):
         addr_type = self._cache_controller.get_mem_addr_type(addr)
         match addr_type:
-            case ADDR_TYPE.DRAM | ADDR_TYPE.CXL_CACHED | ADDR_TYPE.CXL_CACHED_BI:
+            case MEM_ADDR_TYPE.DRAM | MEM_ADDR_TYPE.CXL_CACHED | MEM_ADDR_TYPE.CXL_CACHED_BI:
                 packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, size, data)
                 await self._send_mem_request(packet)
-            case ADDR_TYPE.CXL_UNCACHED:
+            case MEM_ADDR_TYPE.CXL_UNCACHED:
                 packet = MemoryRequest(MEMORY_REQUEST_TYPE.UNCACHED_WRITE, addr, size, data)
                 await self._send_mem_request(packet)
-            case ADDR_TYPE.MMIO:
+            case MEM_ADDR_TYPE.MMIO:
                 await self._root_complex.write_mmio(addr, size, data)
-            case ADDR_TYPE.CFG:
+            case MEM_ADDR_TYPE.CFG:
                 bdf = self._cfg_addr_to_bdf(addr)
                 offset = addr & 0xFFF
                 await self._root_complex.write_config(bdf, offset, size, data)

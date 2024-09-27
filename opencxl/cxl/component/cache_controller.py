@@ -28,7 +28,7 @@ from opencxl.cxl.transport.cache_fifo import (
 )
 
 
-class ADDR_TYPE(Enum):
+class MEM_ADDR_TYPE(Enum):
     DRAM = auto()
     CFG = auto()
     MMIO = auto()
@@ -42,7 +42,7 @@ class ADDR_TYPE(Enum):
 class MemoryRange:
     base_addr: int
     size: int
-    addr_type: ADDR_TYPE
+    addr_type: MEM_ADDR_TYPE
 
 
 class COH_STATE_MACHINE(Enum):
@@ -142,15 +142,15 @@ class CacheController(RunnableComponent):
     def get_memory_ranges(self):
         return self._memory_ranges
 
-    def add_mem_range(self, addr, size, addr_type: ADDR_TYPE):
+    def add_mem_range(self, addr, size, addr_type: MEM_ADDR_TYPE):
         self._memory_ranges.append(MemoryRange(base_addr=addr, size=size, addr_type=addr_type))
 
-    def get_mem_addr_type(self, addr) -> ADDR_TYPE:
+    def get_mem_addr_type(self, addr) -> MEM_ADDR_TYPE:
         for range in self._memory_ranges:
             if range.base_addr <= addr < (range.base_addr + range.size):
                 return range.addr_type
         logger.warning(self._create_message(f"0x{addr:x} is OOB."))
-        return ADDR_TYPE.OOB
+        return MEM_ADDR_TYPE.OOB
 
     def _cache_priority_update(self, set: int, blk: int) -> None:
         self._cache[set][blk].priority = self._setcnt[set].counter
@@ -228,9 +228,9 @@ class CacheController(RunnableComponent):
     def _get_cache_fifo(self, addr: int) -> CacheFifoPair:
         addr_type = self.get_mem_addr_type(addr)
         match addr_type:
-            case ADDR_TYPE.DRAM:
+            case MEM_ADDR_TYPE.DRAM:
                 return self._cache_to_coh_bridge_fifo
-            case ADDR_TYPE.CXL_CACHED | ADDR_TYPE.CXL_CACHED_BI:
+            case MEM_ADDR_TYPE.CXL_CACHED | MEM_ADDR_TYPE.CXL_CACHED_BI:
                 return self._cache_to_coh_agent_fifo
             case _:
                 raise Exception(f"OOB Memory Address: 0x{addr:x}")
@@ -251,9 +251,9 @@ class CacheController(RunnableComponent):
     # For request: coherency tasks from cache controller to coh module
     async def _cache_to_coh_state_lookup(self, addr: int) -> None:
         addr_type = self.get_mem_addr_type(addr)
-        if addr_type == ADDR_TYPE.DRAM:
+        if addr_type == MEM_ADDR_TYPE.DRAM:
             cache_fifo = self._cache_to_coh_bridge_fifo
-        elif addr_type == ADDR_TYPE.CXL_CACHED_BI:
+        elif addr_type == MEM_ADDR_TYPE.CXL_CACHED_BI:
             cache_fifo = self._cache_to_coh_agent_fifo
         else:
             # no need to send SNP_INV

@@ -11,7 +11,7 @@ from opencxl.util.logger import logger
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from opencxl.drivers.pci_bus_driver import PciBusDriver
-from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, ADDR_TYPE
+from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
 from opencxl.cpu import CPU
 from opencxl.apps.cxl_host import CxlHost
 
@@ -31,12 +31,12 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     pci_cfg_size = 0x10000000  # assume bus bits n = 8
     for i, device in enumerate(pci_bus_driver.get_devices()):
         cxl_memory_hub.add_mem_range(
-            pci_cfg_base_addr + (i * pci_cfg_size), pci_cfg_size, ADDR_TYPE.CFG
+            pci_cfg_base_addr + (i * pci_cfg_size), pci_cfg_size, MEM_ADDR_TYPE.CFG
         )
         for bar_info in device.bars:
             if bar_info.base_address == 0:
                 continue
-            cxl_memory_hub.add_mem_range(bar_info.base_address, bar_info.size, ADDR_TYPE.MMIO)
+            cxl_memory_hub.add_mem_range(bar_info.base_address, bar_info.size, MEM_ADDR_TYPE.MMIO)
 
     # CXL Device
     cxl_bus_driver = CxlBusDriver(pci_bus_driver, root_complex)
@@ -51,14 +51,14 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
             logger.info(f"[SYS-SW] Failed to attach device {device}")
             continue
         if await device.get_bi_enable():
-            cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL_CACHED_BI)
+            cxl_memory_hub.add_mem_range(hpa_base, size, MEM_ADDR_TYPE.CXL_CACHED_BI)
         else:
-            cxl_memory_hub.add_mem_range(hpa_base, size, ADDR_TYPE.CXL_UNCACHED)
+            cxl_memory_hub.add_mem_range(hpa_base, size, MEM_ADDR_TYPE.CXL_UNCACHED)
         hpa_base += size
 
     # System Memory
     sys_mem_size = root_complex.get_sys_mem_size()
-    cxl_memory_hub.add_mem_range(sys_mem_base_addr, sys_mem_size, ADDR_TYPE.DRAM)
+    cxl_memory_hub.add_mem_range(sys_mem_base_addr, sys_mem_size, MEM_ADDR_TYPE.DRAM)
 
     for range in cxl_memory_hub.get_memory_ranges():
         logger.info(

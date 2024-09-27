@@ -10,7 +10,7 @@ from opencxl.apps.cxl_image_classification_host import (
     CxlImageClassificationHostConfig,
 )
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
-from opencxl.cxl.component.root_complex.home_agent import ADDR_TYPE, MemoryRange
+from opencxl.cxl.component.root_complex.home_agent import MEM_ADDR_TYPE, MemoryRange
 from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
 from opencxl.cxl.component.root_complex.root_port_switch import (
@@ -101,7 +101,7 @@ async def main():
     root_port_switch_type = ROOT_PORT_SWITCH_TYPE.PASS_THROUGH
     memory_controller = RootComplexMemoryControllerConfig(host_mem_size, "foo.bin")
     root_ports = [RootPortClientConfig(0, "localhost", sw_portno)]
-    memory_ranges = [MemoryRange(ADDR_TYPE.DRAM, 0x0, host_mem_size)]
+    memory_ranges = [MemoryRange(MEM_ADDR_TYPE.DRAM, 0x0, host_mem_size)]
 
     config = CxlImageClassificationHostConfig(
         host_name,
