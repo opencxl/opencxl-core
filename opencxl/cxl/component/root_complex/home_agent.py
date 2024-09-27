@@ -40,6 +40,7 @@ from opencxl.cxl.transport.transaction import (
     CXL_MEM_M2SRWD_OPCODE,
     CXL_MEM_M2SBIRSP_OPCODE,
     CXL_MEM_S2MNDR_OPCODE,
+    CXL_MEM_S2MDRS_OPCODE,
     CXL_MEM_S2MBISNP_OPCODE,
     CXL_MEM_META_FIELD,
     CXL_MEM_META_VALUE,
@@ -84,7 +85,7 @@ class HomeAgent(RunnableComponent):
 
         # emulated .mem s2m channels
         self._cxl_channel = {"s2m_ndr": Queue(), "s2m_drs": Queue(), "s2m_bisnp": Queue()}
-        self._non_cache = True
+        self._cache_rsp_status = None
 
     def _create_m2s_req_packet(
         self,
@@ -202,40 +203,47 @@ class HomeAgent(RunnableComponent):
                 await self._memory_consumer_coh_fifos.response.put(response)
 
     # .mem s2m rsp handler
-    async def _process_cxl_s2m_rsp_packet(self, s2mndr_packet: CxlMemS2MNDRPacket):
+    async def _process_cxl_s2m_ndr_packet(self, s2mndr_packet: CxlMemS2MNDRPacket):
+        self._cache_rsp_status = None
         if s2mndr_packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_S:
-            status = CACHE_RESPONSE_STATUS.RSP_S
+            self._cache_rsp_status = CACHE_RESPONSE_STATUS.RSP_S
         elif s2mndr_packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_E:
-            status = CACHE_RESPONSE_STATUS.RSP_I
+            self._cache_rsp_status = CACHE_RESPONSE_STATUS.RSP_I
         elif s2mndr_packet.s2mndr_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP_M:
             pass
         else:
             if self._cur_state.birsp_sched:
+                self._cur_state.birsp_sched = False
                 bi_id = self._cur_state.packet.s2mbisnp_header.bi_id
                 bi_tag = self._cur_state.packet.s2mbisnp_header.bi_tag
                 cxl_packet = CxlMemBIRspPacket.create(self._cur_state.cache_rsp, bi_id, bi_tag)
                 await self._downstream_cxl_mem_fifos.host_to_target.put(cxl_packet)
-                self._cur_state.birsp_sched = False
             self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
             return
 
         if s2mndr_packet.s2mndr_header.meta_value == CXL_MEM_META_VALUE.ANY:
-            while self._cxl_channel["s2m_drs"].empty():
-                await asyncio.sleep(0)  # just spin
-            cxl_packet = await self._cxl_channel["s2m_drs"].get()
-            assert cast(CxlMemBasePacket, cxl_packet).is_s2mdrs()
-            cache_packet = CacheResponse(status, cxl_packet.data)
-        else:
-            cache_packet = CacheResponse(status)
+            # HDM-DB: After NDR, DRS will follow as part of the response.
+            # Further processing for done in DRS handler with
+            # self._cache_rsp_status that was set based on opcode.
+            return
+
+        cache_packet = CacheResponse(self._cache_rsp_status)
         await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
         self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 
     # .mem s2m drs handler
     # method is only used for non cacheable devices like memory expander
     async def _process_cxl_s2m_drs_packet(self, s2mdrs_packet: CxlMemS2MDRSPacket):
-        assert s2mdrs_packet.s2mdrs_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP
+        assert s2mdrs_packet.s2mdrs_header.opcode == CXL_MEM_S2MDRS_OPCODE.MEM_DATA
 
-        cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, s2mdrs_packet.data)
+        if self._cache_rsp_status:
+            # HDM-DB: CacheResponse status set during prior NDR processing
+            cache_packet = CacheResponse(self._cache_rsp_status, s2mdrs_packet.data)
+        else:
+            # Uncached
+            cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, s2mdrs_packet.data)
+
+        self._cache_rsp_status = None
         await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
         self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 
@@ -430,12 +438,11 @@ class HomeAgent(RunnableComponent):
 
                 if not self._cxl_channel["s2m_ndr"].empty():
                     packet = await self._cxl_channel["s2m_ndr"].get()
-                    await self._process_cxl_s2m_rsp_packet(packet)
+                    await self._process_cxl_s2m_ndr_packet(packet)
 
-                if self._non_cache:
-                    if not self._cxl_channel["s2m_drs"].empty():
-                        packet = await self._cxl_channel["s2m_drs"].get()
-                        await self._process_cxl_s2m_drs_packet(packet)
+                if not self._cxl_channel["s2m_drs"].empty():
+                    packet = await self._cxl_channel["s2m_drs"].get()
+                    await self._process_cxl_s2m_drs_packet(packet)
 
     async def _run(self):
         tasks = [
