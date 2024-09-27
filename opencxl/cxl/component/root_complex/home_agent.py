@@ -40,6 +40,7 @@ from opencxl.cxl.transport.transaction import (
     CXL_MEM_M2SRWD_OPCODE,
     CXL_MEM_M2SBIRSP_OPCODE,
     CXL_MEM_S2MNDR_OPCODE,
+    CXL_MEM_S2MDRS_OPCODE,
     CXL_MEM_S2MBISNP_OPCODE,
     CXL_MEM_META_FIELD,
     CXL_MEM_META_VALUE,
@@ -84,7 +85,6 @@ class HomeAgent(RunnableComponent):
 
         # emulated .mem s2m channels
         self._cxl_channel = {"s2m_ndr": Queue(), "s2m_drs": Queue(), "s2m_bisnp": Queue()}
-        self._non_cache = True
 
     def _create_m2s_req_packet(
         self,
@@ -233,7 +233,7 @@ class HomeAgent(RunnableComponent):
     # .mem s2m drs handler
     # method is only used for non cacheable devices like memory expander
     async def _process_cxl_s2m_drs_packet(self, s2mdrs_packet: CxlMemS2MDRSPacket):
-        assert s2mdrs_packet.s2mdrs_header.opcode == CXL_MEM_S2MNDR_OPCODE.CMP
+        assert s2mdrs_packet.s2mdrs_header.opcode == CXL_MEM_S2MDRS_OPCODE.MEM_DATA
 
         cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, s2mdrs_packet.data)
         await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
@@ -432,10 +432,9 @@ class HomeAgent(RunnableComponent):
                     packet = await self._cxl_channel["s2m_ndr"].get()
                     await self._process_cxl_s2m_rsp_packet(packet)
 
-                if self._non_cache:
-                    if not self._cxl_channel["s2m_drs"].empty():
-                        packet = await self._cxl_channel["s2m_drs"].get()
-                        await self._process_cxl_s2m_drs_packet(packet)
+                if not self._cxl_channel["s2m_drs"].empty():
+                    packet = await self._cxl_channel["s2m_drs"].get()
+                    await self._process_cxl_s2m_drs_packet(packet)
 
     async def _run(self):
         tasks = [
