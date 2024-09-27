@@ -432,7 +432,6 @@ class HomeAgent(RunnableComponent):
                     self._cur_state.state = COH_STATE_MACHINE.COH_STATE_START
 
             # run request processing and response checking code continuously until state changed
-            # drs packets are extracted and consumed in ndr processing code
             else:
                 await fn(self._cur_state.packet)
 
