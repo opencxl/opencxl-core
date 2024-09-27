@@ -72,7 +72,7 @@ class CxlMemoryHub(RunnableComponent):
             for connection in self._root_port_client_manager.get_cxl_connections()
         ]
         root_complex_config = RootComplexConfig(
-            host_name="rp",
+            host_name=config.host_name,
             root_bus=config.root_bus,
             root_port_switch_type=config.root_port_switch_type,
             cache_to_home_agent_fifo=cache_to_home_agent_fifo,
