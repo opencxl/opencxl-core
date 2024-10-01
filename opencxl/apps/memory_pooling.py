@@ -12,8 +12,8 @@ from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
+from opencxl.cxl.component.cxl_host import CxlHost
 from opencxl.cpu import CPU
-from opencxl.apps.cxl_host import CxlHost
 
 
 async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
