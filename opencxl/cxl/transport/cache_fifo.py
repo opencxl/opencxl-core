@@ -17,6 +17,7 @@ class CACHE_REQUEST_TYPE(Enum):
     SNP_INV = auto()
     SNP_CUR = auto()
     WRITE_BACK = auto()
+    WRITE_BACK_CLEAN = auto()
 
 
 @dataclass
@@ -34,6 +35,8 @@ class CACHE_RESPONSE_STATUS(Enum):
     OK = auto()
     FAILED = auto()
     RSP_V = auto()
+    RSP_M = auto()
+    RSP_E = auto()
     RSP_S = auto()
     RSP_I = auto()
     RSP_MISS = auto()
