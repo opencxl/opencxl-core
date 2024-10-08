@@ -8,20 +8,21 @@
 from asyncio import gather, create_task
 import pytest
 
-from opencxl.apps.single_logical_device import SingleLogicalDevice
+from opencxl.apps.multihead_single_logical_device import MultiHeadSingleLogicalDevice
 from opencxl.cxl.device.root_port_device import CxlRootPortDevice
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.util.number_const import MB
 
-# This test will cause many duplicate code between MH-SLD, disable duplicate-code lint here
-# pylint: disable=duplicate-code
+# Test with 4 ports
+num_ports = 4
 
 
-def test_single_logical_device():
+def test_multihead_single_logical_device():
     memory_size = 256 * MB
     memory_file = "mem.bin"
     transport_connection = CxlConnection()
-    SingleLogicalDevice(
+    MultiHeadSingleLogicalDevice(
+        num_ports,
         memory_size=memory_size,
         memory_file=memory_file,
         test_mode=True,
@@ -30,11 +31,12 @@ def test_single_logical_device():
 
 
 @pytest.mark.asyncio
-async def test_single_logical_device_run_stop(get_gold_std_reg_vals):
+async def test_multihead_single_logical_device_run_stop(get_gold_std_reg_vals):
     memory_size = 256 * MB
     memory_file = "mem.bin"
     transport_connection = CxlConnection()
-    device = SingleLogicalDevice(
+    device = MultiHeadSingleLogicalDevice(
+        num_ports,
         memory_size=memory_size,
         memory_file=memory_file,
         test_mode=True,
@@ -43,9 +45,10 @@ async def test_single_logical_device_run_stop(get_gold_std_reg_vals):
 
     # check register values after initialization
     # pylint: disable=protected-access
-    reg_vals = str(device._cxl_type3_device.get_reg_vals())
-    reg_vals_expected = get_gold_std_reg_vals("SLD")
-    assert reg_vals == reg_vals_expected
+    for sld_device in device._sld_devices:
+        reg_vals = str(sld_device._cxl_type3_device.get_reg_vals())
+        reg_vals_expected = get_gold_std_reg_vals("SLD")
+        assert reg_vals == reg_vals_expected
 
     async def wait_and_stop():
         await device.wait_for_ready()
@@ -56,12 +59,13 @@ async def test_single_logical_device_run_stop(get_gold_std_reg_vals):
 
 
 @pytest.mark.asyncio
-async def test_single_logical_device_enumeration():
+async def test_multihead_single_logical_device_enumeration():
     memory_size = 256 * MB
     memory_file = "mem.bin"
     transport_connection = CxlConnection()
     root_port_device = CxlRootPortDevice(downstream_connection=transport_connection, label="Port0")
-    device = SingleLogicalDevice(
+    device = MultiHeadSingleLogicalDevice(
+        num_ports,
         memory_size=memory_size,
         memory_file=memory_file,
         test_mode=True,
