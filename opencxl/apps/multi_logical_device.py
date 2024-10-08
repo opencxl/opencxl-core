@@ -76,6 +76,7 @@ class MultiLogicalDevice(RunnableComponent):
             self._cxl_type3_devices.append(cxl_type3_device)
 
     async def _run(self):
+        # pylint: disable=duplicate-code
         run_tasks = [create_task(device.run()) for device in self._cxl_type3_devices]
         wait_tasks = [create_task(device.wait_for_ready()) for device in self._cxl_type3_devices]
         if not self._test_mode:
