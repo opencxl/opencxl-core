@@ -150,6 +150,7 @@ class CacheController(RunnableComponent):
             if range.base_addr <= addr < (range.base_addr + range.size):
                 return range
         logger.warning(self._create_message(f"0x{addr:x} is OOB"))
+        return None
 
     def get_mem_range(self, addr) -> MemoryRange:
         return self._get_mem_range(addr)
