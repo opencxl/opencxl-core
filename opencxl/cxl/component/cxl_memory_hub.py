@@ -99,10 +99,13 @@ class CxlMemoryHub(RunnableComponent):
     def get_memory_ranges(self):
         return self._cache_controller.get_memory_ranges()
 
-    def add_mem_range(self, addr, size, addr_type: MEM_ADDR_TYPE):
+    def add_mem_range(self, addr: int, size: int, addr_type: MEM_ADDR_TYPE):
         self._cache_controller.add_mem_range(addr, size, addr_type)
 
-    def _cfg_addr_to_bdf(self, cfg_addr):
+    def remove_mem_range(self, addr: int, size: int, addr_type: MEM_ADDR_TYPE):
+        self._cache_controller.remove_mem_range(addr, size, addr_type)
+
+    def _cfg_addr_to_bdf(self, cfg_addr: int) -> int:
         mem_range = self._cache_controller.get_mem_range(cfg_addr)
         cfg_addr -= mem_range.base_addr
         return create_bdf(
