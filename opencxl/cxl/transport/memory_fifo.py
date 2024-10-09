@@ -13,12 +13,14 @@ from enum import Enum, auto
 class MEMORY_REQUEST_TYPE(Enum):
     READ = auto()
     WRITE = auto()
+    UNCACHED_READ = auto()
+    UNCACHED_WRITE = auto()
 
 
 @dataclass
 class MemoryRequest:
     type: MEMORY_REQUEST_TYPE
-    address: int
+    addr: int
     size: int
     data: int = 0
 
