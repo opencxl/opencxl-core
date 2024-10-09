@@ -26,7 +26,7 @@ from opencxl.cxl.component.host_manager_conn import (
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 
 
-class CxlHost(RunnableComponent):
+class CxlSimpleHost(RunnableComponent):
     def __init__(
         self,
         port_index: int,
@@ -154,6 +154,9 @@ class CxlHostManager(RunnableComponent):
             asyncio.create_task(self._host_conn_server.run()),
             asyncio.create_task(self._util_conn_server.run()),
         ]
+        # TODO: Fix workaround
+        for _ in range(100):
+            await asyncio.sleep(0)
         await self._change_status_to_running()
         await asyncio.gather(*tasks)
 

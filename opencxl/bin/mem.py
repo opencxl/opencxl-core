@@ -9,7 +9,7 @@ import asyncio
 import click
 
 from opencxl.util.logger import logger
-from opencxl.apps.cxl_host import CxlHostUtilClient
+from opencxl.apps.cxl_simple_host import CxlHostUtilClient
 from opencxl.bin.common import BASED_INT
 
 

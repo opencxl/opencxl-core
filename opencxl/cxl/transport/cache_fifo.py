@@ -17,17 +17,19 @@ class CACHE_REQUEST_TYPE(Enum):
     SNP_INV = auto()
     SNP_CUR = auto()
     WRITE_BACK = auto()
+    UNCACHED_WRITE = auto()
+    UNCACHED_READ = auto()
 
 
 @dataclass
 class CacheRequest:
     type: CACHE_REQUEST_TYPE
-    address: int
+    addr: int
     size: int = 0
     data: int = 0
 
     def get_address(self) -> int:
-        return self.address
+        return self.addr
 
 
 class CACHE_RESPONSE_STATUS(Enum):

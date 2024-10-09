@@ -16,8 +16,7 @@ from opencxl.bin import fabric_manager
 from opencxl.bin import cxl_switch
 from opencxl.bin import single_logical_device as sld
 from opencxl.bin import accelerator as accel
-from opencxl.bin import cxl_host
-from opencxl.bin import cxl_complex_host
+from opencxl.bin import cxl_simple_host
 from opencxl.bin import mem
 
 
@@ -207,7 +206,7 @@ def start_capture(ctx, pcap_file):
 
 
 def start_host_manager(ctx):
-    ctx.invoke(cxl_host.start_host_manager)
+    ctx.invoke(cxl_simple_host.start_host_manager)
 
 
 def start_fabric_manager(ctx):
@@ -219,15 +218,16 @@ def start_switch(ctx, config_file):
 
 
 def start_host(ctx):
-    ctx.invoke(cxl_host.start)
+    ctx.invoke(cxl_simple_host.start)
 
 
 def start_complex_host_group(ctx, config_file):
-    ctx.invoke(cxl_complex_host.start_group, config_file=config_file)
+    # ctx.invoke(cxl_host.start_group, config_file=config_file)
+    pass
 
 
 def start_host_group(ctx, config_file, hm_mode):
-    ctx.invoke(cxl_host.start_group, config_file=config_file, hm_mode=hm_mode)
+    ctx.invoke(cxl_simple_host.start_group, config_file=config_file, hm_mode=hm_mode)
 
 
 def start_sld(ctx, config_file):
@@ -248,7 +248,7 @@ def foo():
     pass
 
 
-cli.add_command(cxl_host.host_group)
+cli.add_command(cxl_simple_host.host_group)
 cli.add_command(mem.mem_group)
 
 if __name__ == "__main__":
