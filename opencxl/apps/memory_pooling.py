@@ -62,7 +62,7 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
 
     for range in cxl_memory_hub.get_memory_ranges():
         logger.info(
-            f"[SYS-SW] MemoryRange: base: 0x{range.base_addr:X}"
+            f"[SYS-SW] MemoryRange: base: 0x{range.base_addr:X} "
             f"size: 0x{range.size:X}, type: {str(range.addr_type)}"
         )
     # TODO: Sort and merge ranges
