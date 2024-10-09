@@ -169,8 +169,8 @@ class PciBusDriver(LabeledComponent):
         self._root_complex = root_complex
         self._devices: List[PciDeviceInfo] = []
 
-    async def init(self):
-        await self._scan_pci_devices()
+    async def init(self, mmio_base_address: int):
+        await self._scan_pci_devices(mmio_base_address)
         await self._init_pci_devices()
         self._devices = sorted(self._devices, key=lambda x: x.bdf)
         self.display_devices()
@@ -185,9 +185,8 @@ class PciBusDriver(LabeledComponent):
             device.print("[PciBusDriver] ")
             logger.debug(self._create_message("------------------------------"))
 
-    async def _scan_pci_devices(self):
+    async def _scan_pci_devices(self, mmio_base_address: int):
         root_bus = self._root_complex.get_root_bus()
-        mmio_base_address = self._root_complex.get_mmio_base_address()
         await self._scan_bus(root_bus, mmio_base_address)
 
     async def _init_pci_devices(self):

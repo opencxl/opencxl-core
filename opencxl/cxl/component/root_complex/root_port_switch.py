@@ -15,12 +15,6 @@ from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.pci.component.packet_processor import PacketProcessor
 
 
-class COH_POLICY_TYPE(Enum):
-    NonCache = auto()
-    DotCache = auto()
-    DotMemBI = auto()
-
-
 class ROOT_PORT_SWITCH_TYPE(Enum):
     PASS_THROUGH = auto()
     PCIE_SWITCH = auto()

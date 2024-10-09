@@ -16,21 +16,10 @@ from jsonrpcclient import request_json
 import websockets
 import pytest
 
-from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
-from opencxl.cxl.component.bi_decoder import (
-    CxlBIDecoderCapabilityRegister,
-    CxlBIDecoderCapabilityRegisterOptions,
-    CxlBIDecoderCapabilityStructureOptions,
-)
-from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
-from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
-from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
-from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
-from opencxl.cxl.component.root_complex.root_port_switch import ROOT_PORT_SWITCH_TYPE
 from opencxl.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
 )
-from opencxl.apps.cxl_host import CxlHostManager, CxlHost, CxlHostUtilClient
+from opencxl.apps.cxl_simple_host import CxlHostManager, CxlSimpleHost, CxlHostUtilClient
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
 from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
@@ -38,7 +27,6 @@ from opencxl.cxl.component.virtual_switch_manager import (
     VirtualSwitchManager,
     VirtualSwitchConfig,
 )
-from opencxl.apps.accelerator import MyType2Accelerator
 from opencxl.apps.single_logical_device import SingleLogicalDevice
 from opencxl.util.number_const import MB
 
@@ -264,6 +252,7 @@ async def test_cxl_host_util_client():
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
+    await host_manager.wait_for_ready()
     dummy_host = DummyHost()
     asyncio.create_task(dummy_host.conn_open(port=host_port))
     await dummy_host.wait_connected()
@@ -312,8 +301,8 @@ async def test_cxl_host_type3_ete():
     )
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
-    host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
-    test_mode_host = CxlHost(
+    host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
+    test_mode_host = CxlSimpleHost(
         port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
     )
 
@@ -417,7 +406,7 @@ async def test_cxl_host_type3_ete():
 #         )
 
 #         host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
-#         host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
+#         host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
 
 #         start_tasks = [
 #             asyncio.create_task(host.run()),
@@ -496,8 +485,8 @@ async def test_cxl_host_type3_ete():
 #     )
 
 #     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
-#     host = CxlHost(port_index=0, switch_port=switch_port, host_port=host_port)
-#     test_mode_host = CxlHost(
+#     host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
+#     test_mode_host = CxlSimpleHost(
 #         port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
 #     )
 

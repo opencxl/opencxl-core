@@ -7,16 +7,17 @@
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import List
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.root_complex.root_complex import (
     RootComplex,
     RootComplexConfig,
-    RootComplexMemoryControllerConfig,
+    SystemMemControllerConfig,
 )
 from opencxl.cxl.component.cache_controller import (
     CacheController,
     CacheControllerConfig,
+    MEM_ADDR_TYPE,
 )
 from opencxl.cxl.component.root_complex.root_port_client_manager import (
     RootPortClientManager,
@@ -25,34 +26,33 @@ from opencxl.cxl.component.root_complex.root_port_client_manager import (
 )
 from opencxl.cxl.component.root_complex.root_port_switch import (
     RootPortSwitchPortConfig,
-    COH_POLICY_TYPE,
     ROOT_PORT_SWITCH_TYPE,
 )
-from opencxl.cxl.component.root_complex.home_agent import MemoryRange
-from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
-from opencxl.cxl.component.host_llc_iogen import (
-    HostLlcIoGen,
-    HostLlcIoGenConfig,
+from opencxl.cxl.transport.memory_fifo import (
+    MemoryFifoPair,
+    MemoryRequest,
+    MemoryResponse,
+    MEMORY_REQUEST_TYPE,
+    MEMORY_RESPONSE_STATUS,
 )
+from opencxl.util.pci import create_bdf
 
 
 @dataclass
-class CxlComplexHostConfig:
+class CxlMemoryHubConfig:
     host_name: str
     root_bus: int
+    sys_mem_controller: SystemMemControllerConfig
     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
-    memory_controller: RootComplexMemoryControllerConfig
-    memory_ranges: List[MemoryRange] = field(default_factory=list)
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
-    coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.NonCache
 
 
-class CxlComplexHost(RunnableComponent):
-    def __init__(self, config: CxlComplexHostConfig):
+class CxlMemoryHub(RunnableComponent):
+    def __init__(self, config: CxlMemoryHubConfig):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
 
-        processor_to_cache_fifo = MemoryFifoPair()
+        self._processor_to_cache_fifo = MemoryFifoPair()
         cache_to_home_agent_fifo = CacheFifoPair()
         home_agent_to_cache_fifo = CacheFifoPair()
         cache_to_coh_bridge_fifo = CacheFifoPair()
@@ -79,45 +79,81 @@ class CxlComplexHost(RunnableComponent):
             home_agent_to_cache_fifo=home_agent_to_cache_fifo,
             cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
             coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
-            memory_controller=config.memory_controller,
-            memory_ranges=config.memory_ranges,
+            sys_mem_controller=config.sys_mem_controller,
             root_ports=root_complex_root_ports,
-            coh_type=config.coh_type,
         )
         self._root_complex = RootComplex(root_complex_config)
 
-        if config.coh_type == COH_POLICY_TYPE.DotCache:
-            cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
-            coh_agent_to_cache_fifo = coh_bridge_to_cache_fifo
-        elif config.coh_type in (COH_POLICY_TYPE.NonCache, COH_POLICY_TYPE.DotMemBI):
-            cache_to_coh_agent_fifo = cache_to_home_agent_fifo
-            coh_agent_to_cache_fifo = home_agent_to_cache_fifo
-
         cache_controller_config = CacheControllerConfig(
             component_name=config.host_name,
-            processor_to_cache_fifo=processor_to_cache_fifo,
-            cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
-            coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
+            processor_to_cache_fifo=self._processor_to_cache_fifo,
+            cache_to_coh_agent_fifo=cache_to_home_agent_fifo,
+            coh_agent_to_cache_fifo=home_agent_to_cache_fifo,
+            cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
+            coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
             cache_num_assoc=4,
             cache_num_set=8,
         )
         self._cache_controller = CacheController(cache_controller_config)
 
-        host_processor_config = HostLlcIoGenConfig(
-            host_name=config.host_name,
-            processor_to_cache_fifo=processor_to_cache_fifo,
-            memory_size=config.memory_controller.memory_size,
+    def get_memory_ranges(self):
+        return self._cache_controller.get_memory_ranges()
+
+    def add_mem_range(self, addr, size, addr_type: MEM_ADDR_TYPE):
+        self._cache_controller.add_mem_range(addr, size, addr_type)
+
+    def _cfg_addr_to_bdf(self, cfg_addr):
+        mem_range = self._cache_controller.get_mem_range(cfg_addr)
+        cfg_addr -= mem_range.base_addr
+        return create_bdf(
+            (cfg_addr >> 20) & 0xFF,  # bus bits, n = 8
+            (cfg_addr >> 15) & 0x1F,
+            (cfg_addr >> 12) & 0x07,
         )
-        self._host_simple_processor = HostLlcIoGen(host_processor_config)
 
-        self._dev_mmio_ranges: list[tuple[int, int]] = []
-        self._dev_mem_ranges: list[tuple[int, int]] = []
+    async def _send_mem_request(self, packet: MemoryRequest) -> MemoryResponse:
+        await self._processor_to_cache_fifo.request.put(packet)
+        resp = await self._processor_to_cache_fifo.response.get()
+        assert resp.status == MEMORY_RESPONSE_STATUS.OK
+        return resp
 
-    def append_dev_mmio_range(self, base, size):
-        self._dev_mmio_ranges.append((base, size))
+    async def load(self, addr: int, size: int) -> int:
+        addr_type = self._cache_controller.get_mem_addr_type(addr)
+        match addr_type:
+            case MEM_ADDR_TYPE.DRAM | MEM_ADDR_TYPE.CXL_CACHED | MEM_ADDR_TYPE.CXL_CACHED_BI:
+                packet = MemoryRequest(MEMORY_REQUEST_TYPE.READ, addr, size)
+                resp = await self._send_mem_request(packet)
+                return resp.data
+            case MEM_ADDR_TYPE.CXL_UNCACHED:
+                packet = MemoryRequest(MEMORY_REQUEST_TYPE.UNCACHED_READ, addr, size)
+                resp = await self._send_mem_request(packet)
+                return resp.data
+            case MEM_ADDR_TYPE.MMIO:
+                return await self._root_complex.read_mmio(addr, size)
+            case MEM_ADDR_TYPE.CFG:
+                bdf = self._cfg_addr_to_bdf(addr)
+                offset = addr & 0xFFF
+                return await self._root_complex.read_config(bdf, offset, size)
+            case _:
+                raise Exception(self._create_message(f"Address 0x{addr:x} is OOB."))
 
-    def append_dev_mem_range(self, base, size):
-        self._dev_mem_ranges.append((base, size))
+    async def store(self, addr: int, size: int, data: int):
+        addr_type = self._cache_controller.get_mem_addr_type(addr)
+        match addr_type:
+            case MEM_ADDR_TYPE.DRAM | MEM_ADDR_TYPE.CXL_CACHED | MEM_ADDR_TYPE.CXL_CACHED_BI:
+                packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, size, data)
+                await self._send_mem_request(packet)
+            case MEM_ADDR_TYPE.CXL_UNCACHED:
+                packet = MemoryRequest(MEMORY_REQUEST_TYPE.UNCACHED_WRITE, addr, size, data)
+                await self._send_mem_request(packet)
+            case MEM_ADDR_TYPE.MMIO:
+                await self._root_complex.write_mmio(addr, size, data)
+            case MEM_ADDR_TYPE.CFG:
+                bdf = self._cfg_addr_to_bdf(addr)
+                offset = addr & 0xFFF
+                await self._root_complex.write_config(bdf, offset, size, data)
+            case _:
+                raise Exception(self._create_message(f"Address 0x{addr:x} is OOB."))
 
     def get_root_complex(self):
         return self._root_complex
@@ -139,13 +175,11 @@ class CxlComplexHost(RunnableComponent):
             asyncio.create_task(self._root_port_client_manager.run()),
             asyncio.create_task(self._root_complex.run()),
             asyncio.create_task(self._cache_controller.run()),
-            asyncio.create_task(self._host_simple_processor.run()),
         ]
         wait_tasks = [
             asyncio.create_task(self._root_port_client_manager.wait_for_ready()),
             asyncio.create_task(self._root_complex.wait_for_ready()),
             asyncio.create_task(self._cache_controller.wait_for_ready()),
-            asyncio.create_task(self._host_simple_processor.wait_for_ready()),
         ]
         await asyncio.gather(*wait_tasks)
         await self._change_status_to_running()
@@ -156,6 +190,5 @@ class CxlComplexHost(RunnableComponent):
             asyncio.create_task(self._root_port_client_manager.stop()),
             asyncio.create_task(self._root_complex.stop()),
             asyncio.create_task(self._cache_controller.stop()),
-            asyncio.create_task(self._host_simple_processor.stop()),
         ]
         await asyncio.gather(*tasks)

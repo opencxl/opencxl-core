@@ -18,9 +18,9 @@ from opencxl.cxl.component.virtual_switch_manager import (
 )
 from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
-from opencxl.apps.cxl_complex_host import (
-    CxlComplexHost,
-    CxlComplexHostConfig,
+from opencxl.apps.cxl_host import (
+    CxlHost,
+    CxlHostConfig,
     COH_POLICY_TYPE,
     ROOT_PORT_SWITCH_TYPE,
     RootComplexMemoryControllerConfig,
@@ -51,7 +51,7 @@ class TestRunner:
     async def run_test(self):
         logger.info("Waiting for Apps to be ready")
         await self.wait_for_ready()
-        host = cast(CxlComplexHost, self._apps[3])
+        host = cast(CxlHost, self._apps[3])
         pci_bus_driver = PciBusDriver(host.get_root_complex())
         logger.info("Starting PCI bus driver init")
         await pci_bus_driver.init()
@@ -132,7 +132,7 @@ def main():
 
     # 256 MB
     memory_size = 0x10000000
-    host_config = CxlComplexHostConfig(
+    host_config = CxlHostConfig(
         host_name="CXLHost",
         root_bus=0,
         root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
@@ -143,7 +143,7 @@ def main():
         ),
         memory_ranges=[],
     )
-    host = CxlComplexHost(host_config)
+    host = CxlHost(host_config)
     apps.append(host)
 
     accel_t2_1 = MyType2Accelerator(

@@ -18,9 +18,8 @@ from opencxl.cxl.component.root_complex.root_port_switch import (
     RootPortSwitchConfig,
     RootPortSwitchPortConfig,
     ROOT_PORT_SWITCH_TYPE,
-    COH_POLICY_TYPE,
 )
-from opencxl.cxl.component.root_complex.home_agent import HomeAgent, HomeAgentConfig, MemoryRange
+from opencxl.cxl.component.root_complex.home_agent import HomeAgent, HomeAgentConfig
 from opencxl.cxl.component.root_complex.memory_controller import (
     MemoryController,
     MemoryControllerConfig,
@@ -38,7 +37,7 @@ TODO: Add an internal PCIe switch for routing PCIe packets between root ports
 
 
 @dataclass
-class RootComplexMemoryControllerConfig:
+class SystemMemControllerConfig:
     memory_size: int
     memory_filename: str
 
@@ -52,10 +51,8 @@ class RootComplexConfig:
     home_agent_to_cache_fifo: CacheFifoPair
     cache_to_coh_bridge_fifo: CacheFifoPair
     coh_bridge_to_cache_fifo: CacheFifoPair
-    memory_controller: RootComplexMemoryControllerConfig
-    memory_ranges: List[MemoryRange] = field(default_factory=list)
+    sys_mem_controller: SystemMemControllerConfig
     root_ports: List[RootPortSwitchPortConfig] = field(default_factory=list)
-    coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.NonCache
 
 
 class RootComplex(RunnableComponent):
@@ -109,31 +106,36 @@ class RootComplex(RunnableComponent):
         # Create Home Agent
         home_agent_config = HomeAgentConfig(
             host_name=config.host_name,
-            memory_ranges=config.memory_ranges,
             memory_consumer_io_fifos=io_bridge_to_home_agent_memory_fifo,
             memory_consumer_coh_fifos=coh_bridge_to_home_agent_memory_fifo,
             memory_producer_fifos=home_agent_to_memory_controller_fifo,
             upstream_cache_to_home_agent_fifo=cache_to_home_agent_fifo,
             upstream_home_agent_to_cache_fifo=home_agent_to_cache_fifo,
             downstream_cxl_mem_fifos=root_port_switch_upstream_connection.cxl_mem_fifo,
-            coh_type=config.coh_type,
         )
         self._home_agent = HomeAgent(home_agent_config)
 
         # Create Memory Controller
         memory_controller_config = MemoryControllerConfig(
-            memory_size=config.memory_controller.memory_size,
-            memory_filename=config.memory_controller.memory_filename,
+            memory_size=config.sys_mem_controller.memory_size,
+            memory_filename=config.sys_mem_controller.memory_filename,
             host_name=config.host_name,
             memory_consumer_fifos=home_agent_to_memory_controller_fifo,
         )
         self._memory_controller = MemoryController(memory_controller_config)
+        self._mmio_base_address = 0
 
     def get_root_bus(self) -> int:
         return self._root_port_switch.get_root_bus()
 
+    def get_sys_mem_size(self) -> int:
+        return self._memory_controller.get_mem_size()
+
+    def set_mmio_base_address(self, addr) -> int:
+        self._mmio_base_address = addr
+
     def get_mmio_base_address(self) -> int:
-        return 0x80000000
+        return self._mmio_base_address
 
     async def write_config(self, bdf: int, offset: int, size: int, value: int):
         await self._io_bridge.write_config(bdf, offset, size, value)
