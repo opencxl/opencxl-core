@@ -145,12 +145,20 @@ class CacheController(RunnableComponent):
     def add_mem_range(self, addr, size, addr_type: MEM_ADDR_TYPE):
         self._memory_ranges.append(MemoryRange(base_addr=addr, size=size, addr_type=addr_type))
 
-    def get_mem_addr_type(self, addr) -> MEM_ADDR_TYPE:
+    def _get_mem_range(self, addr) -> MemoryRange:
         for range in self._memory_ranges:
             if range.base_addr <= addr < (range.base_addr + range.size):
-                return range.addr_type
-        logger.warning(self._create_message(f"0x{addr:x} is OOB."))
-        return MEM_ADDR_TYPE.OOB
+                return range
+        logger.warning(self._create_message(f"0x{addr:x} is OOB"))
+
+    def get_mem_range(self, addr) -> MemoryRange:
+        return self._get_mem_range(addr)
+
+    def get_mem_addr_type(self, addr) -> MEM_ADDR_TYPE:
+        r = self._get_mem_range(addr)
+        if not r:
+            return MEM_ADDR_TYPE.OOB
+        return r.addr_type
 
     def _cache_priority_update(self, set: int, blk: int) -> None:
         self._cache[set][blk].priority = self._setcnt[set].counter

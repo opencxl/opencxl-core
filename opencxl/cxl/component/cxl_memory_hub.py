@@ -103,6 +103,8 @@ class CxlMemoryHub(RunnableComponent):
         self._cache_controller.add_mem_range(addr, size, addr_type)
 
     def _cfg_addr_to_bdf(self, cfg_addr):
+        mem_range = self._cache_controller.get_mem_range(cfg_addr)
+        cfg_addr -= mem_range.base_addr
         return create_bdf(
             (cfg_addr >> 20) & 0xFF,  # bus bits, n = 8
             (cfg_addr >> 15) & 0x1F,
