@@ -1,7 +1,7 @@
 import asyncio
-from opencxl.apps.cxl_complex_host import (
-    CxlComplexHost,
-    CxlComplexHostConfig,
+from opencxl.apps.cxl_host import (
+    CxlHost,
+    CxlHostConfig,
     RootPortClientConfig,
     ROOT_PORT_SWITCH_TYPE,
     RootComplexMemoryControllerConfig,
@@ -33,7 +33,7 @@ class TestRunner:
     async def run_test(self):
         logger.info("Waiting for Apps to be ready")
         await self.wait_for_ready()
-        host = cast(CxlComplexHost, self._apps[0])
+        host = cast(CxlHost, self._apps[0])
         bus_driver = PciBusDriver(host.get_root_complex())
         logger.info("Starting PCI bus driver init")
         await bus_driver.init()
@@ -60,7 +60,7 @@ def main():
     # Add Host
     switch_host = "0.0.0.0"
     switch_port = 8000
-    host_config = CxlComplexHostConfig(
+    host_config = CxlHostConfig(
         host_name="CXLHost",
         root_bus=0,
         root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
@@ -72,7 +72,7 @@ def main():
             memory_size=0x10000, memory_filename="memory_dram.bin"
         ),
     )
-    host = CxlComplexHost(host_config)
+    host = CxlHost(host_config)
     apps.append(host)
 
     # Add PCI devices

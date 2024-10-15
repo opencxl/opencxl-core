@@ -26,7 +26,7 @@ from opencxl.cxl.component.irq_manager import Irq, IrqManager
 from opencxl.cxl.component.root_complex.root_complex import (
     RootComplex,
     RootComplexConfig,
-    RootComplexMemoryControllerConfig,
+    SystemMemControllerConfig,
 )
 from opencxl.cxl.component.cache_controller import (
     CacheController,
@@ -39,11 +39,10 @@ from opencxl.cxl.component.root_complex.root_port_client_manager import (
 )
 from opencxl.cxl.component.root_complex.root_port_switch import (
     RootPortSwitchPortConfig,
-    COH_POLICY_TYPE,
     ROOT_PORT_SWITCH_TYPE,
 )
-from opencxl.cxl.component.root_complex.home_agent import MemoryRange
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
+from opencxl.cxl.component.cache_controller import MemoryRange
 
 
 @dataclass
@@ -444,10 +443,9 @@ class CxlImageClassificationHostConfig:
     root_bus: int
     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
     train_data_path: str
-    memory_controller: RootComplexMemoryControllerConfig
+    memory_controller: SystemMemControllerConfig
     memory_ranges: List[MemoryRange] = field(default_factory=list)
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
-    coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.DotMemBI
     device_type: Optional[CXL_COMPONENT_TYPE] = None
     base_addr: int = 0x0
 
@@ -490,26 +488,19 @@ class CxlImageClassificationHost(RunnableComponent):
             home_agent_to_cache_fifo=home_agent_to_cache_fifo,
             cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
             coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
-            memory_controller=config.memory_controller,
-            memory_ranges=config.memory_ranges,
+            sys_mem_controller=config.memory_controller,
             root_ports=root_complex_root_ports,
-            coh_type=config.coh_type,
         )
         self._root_complex = RootComplex(root_complex_config)
-
-        if config.coh_type == COH_POLICY_TYPE.DotCache:
-            cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
-            coh_agent_to_cache_fifo = coh_bridge_to_cache_fifo
-        elif config.coh_type in (COH_POLICY_TYPE.NonCache, COH_POLICY_TYPE.DotMemBI):
-            cache_to_coh_agent_fifo = cache_to_home_agent_fifo
-            coh_agent_to_cache_fifo = home_agent_to_cache_fifo
 
         cache_controller_config = CacheControllerConfig(
             component_name=config.host_name,
             processor_to_cache_fifo=processor_to_cache_fifo,
-            cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
-            coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
-            cache_num_assoc=4,  ### used to be 4
+            cache_to_coh_agent_fifo=cache_to_home_agent_fifo,
+            coh_agent_to_cache_fifo=home_agent_to_cache_fifo,
+            cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
+            coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
+            cache_num_assoc=4,
             cache_num_set=8,
         )
         self._cache_controller = CacheController(cache_controller_config)

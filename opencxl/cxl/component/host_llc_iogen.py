@@ -62,12 +62,12 @@ class HostLlcIoGen(RunnableComponent):
                     written_data = addr
                     valid_addr.add(addr)
 
+                    logger.debug(f"[{self._host_name}] Write 0x{written_data:X} at 0x{addr:x}")
                     packet = await self.store(addr, 0x40, written_data)
                     if packet is None:
                         logger.debug(self._create_message("Stop processing host llc iogen"))
                         stop_process = True
                     assert packet.status == MEMORY_RESPONSE_STATUS.OK
-                    logger.debug(f"[{self._host_name}] Write 0x{written_data:X} at 0x{addr:x}")
 
                 logger.info(f"[{self._host_name}] Written Counts {len(valid_addr)}")
 

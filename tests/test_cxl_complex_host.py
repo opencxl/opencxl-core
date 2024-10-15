@@ -6,35 +6,35 @@
 """
 
 # pylint: disable=unused-import, duplicate-code
-import asyncio
-import os
-from pathlib import Path
-from PIL import Image
-import pytest
+# import asyncio
+# import os
+# from pathlib import Path
+# from PIL import Image
+# import pytest
 
-from opencxl.apps.cxl_complex_host import CxlComplexHost, CxlComplexHostConfig
-from opencxl.cxl.component.root_complex.home_agent import MEMORY_RANGE_TYPE, MemoryRange
-from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
-from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
-from opencxl.cxl.component.root_complex.root_port_switch import (
-    COH_POLICY_TYPE,
-    ROOT_PORT_SWITCH_TYPE,
-)
-from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
-from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
-from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
-from opencxl.cxl.component.virtual_switch_manager import (
-    VirtualSwitchManager,
-    VirtualSwitchConfig,
-)
-from opencxl.apps.accelerator import MyType2Accelerator
-from opencxl.drivers.cxl_mem_driver import CxlMemDriver
-from opencxl.drivers.cxl_bus_driver import CxlBusDriver
-from opencxl.drivers.pci_bus_driver import PciBusDriver
-from opencxl.util.number_const import MB
-from opencxl.util.logger import logger
+# from opencxl.apps.cxl_host import CxlHost, CxlHostConfig
+# from opencxl.cxl.component.root_complex.home_agent import MEM_ADDR_TYPE, MemoryRange
+# from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
+# from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
+# from opencxl.cxl.component.root_complex.root_port_switch import (
+#     COH_POLICY_TYPE,
+#     ROOT_PORT_SWITCH_TYPE,
+# )
+# from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
+# from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
+# from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
+# from opencxl.cxl.component.virtual_switch_manager import (
+#     VirtualSwitchManager,
+#     VirtualSwitchConfig,
+# )
+# from opencxl.apps.accelerator import MyType2Accelerator
+# from opencxl.drivers.cxl_mem_driver import CxlMemDriver
+# from opencxl.drivers.cxl_bus_driver import CxlBusDriver
+# from opencxl.drivers.pci_bus_driver import PciBusDriver
+# from opencxl.util.number_const import MB
+# from opencxl.util.logger import logger
 
-BASE_TEST_PORT = 9500
+# BASE_TEST_PORT = 9500
 
 
 # @pytest.mark.asyncio
@@ -88,9 +88,9 @@ BASE_TEST_PORT = 9500
 #     root_port_switch_type = ROOT_PORT_SWITCH_TYPE.PASS_THROUGH
 #     memory_controller = RootComplexMemoryControllerConfig(host_mem_size, "foo.bin")
 #     root_ports = [RootPortClientConfig(0, "localhost", switch_port)]
-#     memory_ranges = [MemoryRange(MEMORY_RANGE_TYPE.DRAM, 0x0, host_mem_size)]
+#     memory_ranges = [MemoryRange(MEM_ADDR_TYPE.DRAM, 0x0, host_mem_size)]
 
-#     config = CxlComplexHostConfig(
+#     config = CxlHostConfig(
 #         host_name,
 #         0,
 #         root_port_switch_type,
@@ -100,7 +100,7 @@ BASE_TEST_PORT = 9500
 #         coh_type=COH_POLICY_TYPE.DotCache,
 #     )
 
-#     host = CxlComplexHost(config)
+#     host = CxlHost(config)
 #     pci_bus_driver = PciBusDriver(host.get_root_complex())
 #     cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
 #     cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())

@@ -100,6 +100,7 @@ class CxlPortDevice(RunnableComponent):
             create_task(self._cxl_mem_manager.wait_for_ready()),
             create_task(self._cxl_cache_manager.wait_for_ready()),
         ]
+        # pylint: disable=duplicate-code
         await gather(*wait_tasks)
         await self._change_status_to_running()
         await gather(*run_tasks)
