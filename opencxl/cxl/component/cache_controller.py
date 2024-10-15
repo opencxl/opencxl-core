@@ -142,20 +142,34 @@ class CacheController(RunnableComponent):
     def get_memory_ranges(self):
         return self._memory_ranges
 
-    def add_mem_range(self, addr, size, addr_type: MEM_ADDR_TYPE):
+    def add_mem_range(self, addr: int, size: int, addr_type: MEM_ADDR_TYPE):
         self._memory_ranges.append(MemoryRange(base_addr=addr, size=size, addr_type=addr_type))
 
-    def _get_mem_range(self, addr) -> MemoryRange:
+    def remove_mem_range(self, base_addr: int, size: int, addr_type: MEM_ADDR_TYPE):
+        r = MemoryRange(base_addr, size, addr_type)
+        if r in self._memory_ranges:
+            logger.info(
+                self._create_message(
+                    f"Removing MemoryRange addr: 0x{base_addr:x} addr_type: {addr_type.name}"
+                )
+            )
+            self._memory_ranges.remove(r)
+            return
+        logger.error(
+            self._create_message(f"MemoryRange addr:{base_addr} {addr_type.name} not found.")
+        )
+
+    def _get_mem_range(self, addr: int) -> MemoryRange:
         for range in self._memory_ranges:
             if range.base_addr <= addr < (range.base_addr + range.size):
                 return range
         logger.warning(self._create_message(f"0x{addr:x} is OOB"))
         return None
 
-    def get_mem_range(self, addr) -> MemoryRange:
+    def get_mem_range(self, addr: int) -> MemoryRange:
         return self._get_mem_range(addr)
 
-    def get_mem_addr_type(self, addr) -> MEM_ADDR_TYPE:
+    def get_mem_addr_type(self, addr: int) -> MEM_ADDR_TYPE:
         r = self._get_mem_range(addr)
         if not r:
             return MEM_ADDR_TYPE.OOB
