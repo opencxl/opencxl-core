@@ -265,13 +265,13 @@ class CacheController(RunnableComponent):
         packet = await cache_fifo.response.get()
         return packet
 
-    async def _memory_store(self, address: int, size: int, prev_state: CacheState, value) -> None:
+    async def _memory_store(self, addr: int, size: int, prev_state: CacheState, value) -> None:
         cache_fifo = self._get_cache_fifo(addr)
         # Check for dirtiness, use WRITE_BACK_CLEAN if clean
         if prev_state == CacheState.CACHE_MODIFIED:
-            packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, address, size, value)
+            packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, addr, size, value)
         else:
-            packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN, address, size, value)
+            packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN, addr, size, value)
         await cache_fifo.request.put(packet)
         await cache_fifo.response.get()
 
