@@ -35,31 +35,31 @@ class MultiLogicalDevice(RunnableComponent):
 
         assert (
             not test_mode or cxl_connections is not None
-        ), "get_cxl_connection must be passed in test mode"
+        ), "cxl_connections must be passed in test mode"
         assert (
             test_mode or cxl_connections is None
-        ), "get_cxl_connection must not be passed in non-test mode"
+        ), "cxl_connections must not be passed in non-test mode"
 
         if cxl_connections is not None:
-            self._get_cxl_connection = cxl_connections
+            self._cxl_connections = cxl_connections
         else:
             self._sw_conn_client = SwitchConnectionClient(
                 port_index, CXL_COMPONENT_TYPE.LD, num_ld=num_ld, host=host, port=port
             )
-            self._get_cxl_connection = self._sw_conn_client.get_cxl_connection()
+            self._cxl_connections = self._sw_conn_client.get_cxl_connection()
 
         base_outgoing = FifoGroup(
-            self._get_cxl_connection[0].cfg_fifo.target_to_host,
-            self._get_cxl_connection[0].mmio_fifo.target_to_host,
-            self._get_cxl_connection[0].cxl_mem_fifo.target_to_host,
-            self._get_cxl_connection[0].cxl_cache_fifo.target_to_host,
+            self._cxl_connections[0].cfg_fifo.target_to_host,
+            self._cxl_connections[0].mmio_fifo.target_to_host,
+            self._cxl_connections[0].cxl_mem_fifo.target_to_host,
+            self._cxl_connections[0].cxl_cache_fifo.target_to_host,
         )
 
         # Share the outgoing queue across multiple LDs
         # TODO: avoid creation at all
         if num_ld > 1:
             for i in range(1, num_ld):
-                connection = self._get_cxl_connection[i]
+                connection = self._cxl_connections[i]
                 connection.cfg_fifo.target_to_host = base_outgoing.cfg_space
                 connection.mmio_fifo.target_to_host = base_outgoing.mmio
                 connection.cxl_mem_fifo.target_to_host = base_outgoing.cxl_mem
@@ -67,7 +67,7 @@ class MultiLogicalDevice(RunnableComponent):
 
         for ld in range(num_ld):
             cxl_type3_device = CxlType3Device(
-                transport_connection=self._get_cxl_connection[ld],
+                transport_connection=self._cxl_connections[ld],
                 memory_size=memory_sizes[ld],
                 memory_file=memory_files[ld],
                 dev_type=CXL_T3_DEV_TYPE.MLD,
@@ -76,6 +76,7 @@ class MultiLogicalDevice(RunnableComponent):
             self._cxl_type3_devices.append(cxl_type3_device)
 
     async def _run(self):
+        # pylint: disable=duplicate-code
         run_tasks = [create_task(device.run()) for device in self._cxl_type3_devices]
         wait_tasks = [create_task(device.wait_for_ready()) for device in self._cxl_type3_devices]
         if not self._test_mode:
