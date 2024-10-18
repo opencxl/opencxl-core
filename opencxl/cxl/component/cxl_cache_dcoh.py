@@ -323,7 +323,11 @@ class CxlCacheDcoh(PacketProcessor):
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
                 opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_S_HIT_SE
             elif type == CACHE_REQUEST_TYPE.SNP_CUR:
-                opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_V_HIT_V
+                if cache_packet.status == CACHE_RESPONSE_STATUS.RSP_E:
+                    data_read = True
+                    opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_V_FWD_V
+                else:
+                    opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_V_HIT_V
         elif cache_packet.status in (CACHE_RESPONSE_STATUS.RSP_M, CACHE_RESPONSE_STATUS.RSP_V):
             data_read = True
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
