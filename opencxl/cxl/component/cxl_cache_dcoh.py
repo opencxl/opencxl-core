@@ -322,14 +322,14 @@ class CxlCacheDcoh(PacketProcessor):
             # Use RSP_S_HIT_SE if data is clean
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
                 opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_S_HIT_SE
+            elif type == CACHE_REQUEST_TYPE.SNP_CUR:
+                opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_V_HIT_V
         elif cache_packet.status in (CACHE_RESPONSE_STATUS.RSP_M, CACHE_RESPONSE_STATUS.RSP_V):
             data_read = True
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
                 opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_S_FWD_M
             elif type == CACHE_REQUEST_TYPE.SNP_CUR:
-                # TODO: only RSP_V_FWD_V requires data
-                # *HIT* opcodes do not transfer data
-                opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_V_HIT_V
+                opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_V_FWD_V
         else:
             raise Exception(f"Received unexpected packet: {h2dreq_packet.get_type()}")
 
