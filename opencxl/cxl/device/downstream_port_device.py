@@ -19,6 +19,7 @@ from opencxl.cxl.component.cxl_bridge_component import (
 )
 from opencxl.cxl.mmio import CombinedMmioRegister, CombinedMmioRegiterOptions
 from opencxl.cxl.device.port_device import CxlPortDevice
+from opencxl.cxl.device.pci_to_pci_bridge_device import PPBDevice
 from opencxl.cxl.config_space.port import (
     CxlDownstreamPortConfigSpace,
     CxlDownstreamPortConfigSpaceOptions,
@@ -66,40 +67,33 @@ class DownstreamPortDevice(CxlPortDevice):
         self,
         transport_connection: CxlConnection,
         port_index: int = 0,
-        dummy_config: Optional[DummyConfig] = None,
     ):
-        if dummy_config is not None:
-            self._vcs_id = dummy_config.vcs_id
-            self._vppb_index = dummy_config.vppb_id
-        else:
-            self._vppb_index: Optional[int] = None
-
         super().__init__(transport_connection, port_index)
 
-        self._dummy_config = dummy_config
-        self._is_dummy = dummy_config is not None
         self._pci_bridge_component = None
         self._pci_registers = None
         self._cxl_component = None
-        self._upstream_connection = CxlConnection()
+
+        self._ppb_device: PPBDevice = None
+        self._ppb_bind = None
 
         self._cxl_io_manager = CxlIoManager(
-            self._upstream_connection.mmio_fifo,
-            self._transport_connection.mmio_fifo,
-            self._upstream_connection.cfg_fifo,
-            self._transport_connection.cfg_fifo,
+            self._vppb_upstream_connection.mmio_fifo,
+            self._vppb_downstream_connection.mmio_fifo,
+            self._vppb_upstream_connection.cfg_fifo,
+            self._vppb_downstream_connection.cfg_fifo,
             device_type=PCI_DEVICE_TYPE.DOWNSTREAM_BRIDGE,
             init_callback=self._init_device,
             label=self._get_label(),
         )
         self._cxl_mem_manager = CxlMemManager(
-            upstream_fifo=self._upstream_connection.cxl_mem_fifo,
-            downstream_fifo=transport_connection.cxl_mem_fifo,
+            upstream_fifo=self._vppb_upstream_connection.cxl_mem_fifo,
+            downstream_fifo=self._vppb_downstream_connection.cxl_mem_fifo,
             label=self._get_label(),
         )
         self._cxl_cache_manager = CxlCacheManager(
-            upstream_fifo=self._upstream_connection.cxl_cache_fifo,
-            downstream_fifo=transport_connection.cxl_cache_fifo,
+            upstream_fifo=self._vppb_upstream_connection.cxl_cache_fifo,
+            downstream_fifo=self._vppb_downstream_connection.cxl_cache_fifo,
             label=self._get_label(),
         )
 
@@ -122,9 +116,6 @@ class DownstreamPortDevice(CxlPortDevice):
             mmio_manager=mmio_manager,
             label=self._get_label(),
         )
-        if self._is_dummy:
-            self._pci_bridge_component.set_port_number(self._dummy_config.vppb_id)
-            self._pci_bridge_component.set_routing_table(self._dummy_config.routing_table)
 
         # Create MMIO register
         cxl_component = CxlDownstreamPortComponent()
@@ -147,10 +138,6 @@ class DownstreamPortDevice(CxlPortDevice):
         config_space_manager.set_register(self._pci_registers)
 
     def _get_label(self) -> str:
-        if self._is_dummy:
-            vcs_str = f"VCS{self._vcs_id}"
-            vppb_str = f"vPPB{self._vppb_index}(DSP)"
-            return f"{vcs_str}:{vppb_str}"
         return f"DSP{self._port_index}"
 
     def _create_message(self, message: str) -> str:
@@ -159,9 +146,6 @@ class DownstreamPortDevice(CxlPortDevice):
 
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
-
-    def get_upstream_connection(self) -> CxlConnection:
-        return self._upstream_connection
 
     def set_vppb_index(self, vppb_index: int):
         if self._is_dummy:
@@ -213,3 +197,16 @@ class DownstreamPortDevice(CxlPortDevice):
 
     def get_cxl_component(self) -> CxlDownstreamPortComponent:
         return self._cxl_component
+
+    def is_sld(self):
+        return True
+
+    def set_ppb(self, ppb_device: PPBDevice, ppb_bind):
+        self._ppb_device = ppb_device
+        self._ppb_bind = ppb_bind
+
+    def get_ppb_device(self) -> Optional[PPBDevice]:
+        return self._ppb_device
+
+    def get_ppb_bind(self):
+        return self._ppb_bind

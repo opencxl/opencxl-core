@@ -664,7 +664,6 @@ class CxlRootPortDevice(RunnableComponent):
     ) -> List[DeviceEnumerationInfo]:
         bdf_list = generate_bdfs_for_bus(bus)
         devices: List[DeviceEnumerationInfo] = []
-
         multi_function_devices = set()
         for bdf in bdf_list:
             device_number = extract_device_from_bdf(bdf)

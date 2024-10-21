@@ -8,6 +8,8 @@
 from abc import abstractmethod
 from asyncio import create_task, gather
 from enum import IntEnum
+import typing
+
 
 from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 from opencxl.util.logger import logger
@@ -66,9 +68,12 @@ class SupportedCxlModes(UnalignedBitStructure):
 
 class CxlPortDevice(RunnableComponent):
     def __init__(self, transport_connection: CxlConnection, port_index: int):
-        self._cxl_mem_manager: CxlMemManager
-        self._cxl_io_manager: CxlIoManager
-        self._cxl_cache_manager: CxlCacheManager
+        self._cxl_mem_manager: CxlMemManager | list[CxlMemManager]
+        self._cxl_io_manager: CxlIoManager | list[CxlIoManager]
+        self._cxl_cache_manager: CxlCacheManager | list[CxlCacheManager]
+
+        self._vppb_upstream_connection: CxlConnection | list[CxlConnection] = CxlConnection()
+        self._vppb_downstream_connection: CxlConnection | list[CxlConnection] = CxlConnection()
 
         super().__init__()
         self._port_index = port_index
@@ -79,6 +84,12 @@ class CxlPortDevice(RunnableComponent):
 
     def get_transport_connection(self) -> CxlConnection:
         return self._transport_connection
+
+    def get_downstream_connection(self) -> CxlConnection | list[CxlConnection]:
+        return self._vppb_downstream_connection
+
+    def get_upstream_connection(self) -> CxlConnection | list[CxlConnection]:
+        return self._vppb_upstream_connection
 
     @abstractmethod
     def set_routing_table(self, routing_table: RoutingTable):

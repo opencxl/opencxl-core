@@ -50,34 +50,35 @@ from opencxl.pci.component.config_space_manager import (
 class UpstreamPortDevice(CxlPortDevice):
     def __init__(self, transport_connection: CxlConnection, port_index: int):
         super().__init__(transport_connection, port_index)
-        self._downstream_connection = CxlConnection()
         self._decoder_count = HDM_DECODER_COUNT.DECODER_32
+        self._vppb_upstream_connection = transport_connection
 
         label = f"USP{self._port_index}"
         self._label = label
         self._pci_bridge_component = None
+        self._pci_registers = None
 
         self._cxl_component = CxlUpstreamPortComponent(
             decoder_count=self._decoder_count,
             label=label,
         )
         self._cxl_io_manager = CxlIoManager(
-            self._transport_connection.mmio_fifo,
-            self._downstream_connection.mmio_fifo,
-            self._transport_connection.cfg_fifo,
-            self._downstream_connection.cfg_fifo,
+            self._vppb_upstream_connection.mmio_fifo,
+            self._vppb_downstream_connection.mmio_fifo,
+            self._vppb_upstream_connection.cfg_fifo,
+            self._vppb_downstream_connection.cfg_fifo,
             device_type=PCI_DEVICE_TYPE.UPSTREAM_BRIDGE,
             init_callback=self._init_device,
             label=label,
         )
         self._cxl_mem_manager = CxlMemManager(
-            self._transport_connection.cxl_mem_fifo,
-            self._downstream_connection.cxl_mem_fifo,
+            upstream_fifo=self._vppb_upstream_connection.cxl_mem_fifo,
+            downstream_fifo=self._vppb_downstream_connection.cxl_mem_fifo,
             label=label,
         )
         self._cxl_cache_manager = CxlCacheManager(
-            self._transport_connection.cxl_cache_fifo,
-            self._downstream_connection.cxl_cache_fifo,
+            upstream_fifo=self._vppb_upstream_connection.cxl_cache_fifo,
+            downstream_fifo=self._vppb_downstream_connection.cxl_cache_fifo,
             label=label,
         )
 
@@ -117,14 +118,11 @@ class UpstreamPortDevice(CxlPortDevice):
             ),
             doe=doe_options,
         )
-        pci_registers = CxlUpstreamPortConfigSpace(options=pci_registers_options)
-        config_space_manager.set_register(pci_registers)
+        self._pci_registers = CxlUpstreamPortConfigSpace(options=pci_registers_options)
+        config_space_manager.set_register(self._pci_registers)
 
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
-
-    def get_downstream_connection(self) -> CxlConnection:
-        return self._downstream_connection
 
     def set_routing_table(self, routing_table: RoutingTable):
         logger.debug(f"[UpstreamPort{self.get_port_index()}] Setting routing table")

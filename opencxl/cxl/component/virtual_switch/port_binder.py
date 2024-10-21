@@ -11,6 +11,9 @@ from enum import Enum, auto
 from typing import List, Optional
 
 from opencxl.cxl.component.cxl_connection import CxlConnection
+from opencxl.cxl.component.virtual_switch.vppb import Vppb
+from opencxl.cxl.component.virtual_switch.upstream_vppb import UpstreamVppb
+from opencxl.cxl.component.virtual_switch.downstream_vppb import DownstreamVppb
 from opencxl.cxl.device.downstream_port_device import DownstreamPortDevice
 from opencxl.util.async_gatherer import AsyncGatherer
 from opencxl.util.component import RunnableComponent
@@ -91,30 +94,36 @@ class BIND_STATUS(Enum):
 
 @dataclass
 class BindSlot:
-    vppb_connection: CxlConnection
+    vppb: Vppb
     status: BIND_STATUS = BIND_STATUS.INIT
     processor: Optional[BindProcessor] = None
     dsp: Optional[DownstreamPortDevice] = None
 
 
 class PortBinder(RunnableComponent):
-    def __init__(self, vcs_id: int, vppb_connections: List[CxlConnection]):
+    def __init__(self, vcs_id: int, vppbs: List[Vppb]):
         super().__init__()
         self._vcs_id = vcs_id
-        self._vppb_connections = vppb_connections
+        self._vppbs = vppbs
         self._bind_slots: List[BindSlot] = []
         self._async_gatherer = AsyncGatherer()
-        for vppb_connection in self._vppb_connections:
+        for vppb in self._vppbs:
             bind_slot = BindSlot(
-                vppb_connection=vppb_connection,
+                vppb=vppb,
             )
             self._bind_slots.append(bind_slot)
+
+        self._dummy = BindProcessor(self._vcs_id, 0, CxlConnection(), CxlConnection())
+        self._init_flag = True
 
     def _create_message(self, message):
         message = f"[{self.__class__.__name__}:VCS{self._vcs_id}] {message}"
         return message
 
     async def bind_vppb(self, dsp_device: DownstreamPortDevice, vppb_index: int):
+        if self._init_flag:
+            self._async_gatherer.add_task(self._dummy.run())
+            self._init_flag = False
         if vppb_index >= len(self._bind_slots) or vppb_index < 0:
             raise Exception("vppb_index is out of bound")
 
@@ -125,19 +134,23 @@ class PortBinder(RunnableComponent):
         # TODO: Get config space from dummy and store in PPB
         if bind_slot.processor is not None:
             await bind_slot.processor.stop()
-            info = bind_slot.dsp.backup_enumeration_info()
-            dsp_device.restore_enumeration_info(info)
 
         bind_slot.dsp = dsp_device
-        downstream_connection = bind_slot.vppb_connection
-        upstream_connection = dsp_device.get_upstream_connection()
+        bind_slot.vppb = self._vppbs[vppb_index]
+        downstream_connection = bind_slot.vppb.get_downstream_connection()
+        # upstream_connection = dsp_device.get_transport_connection()
+        upstream_connection = dsp_device.get_ppb_device().get_upstream_connection()
         bind_slot.processor = BindProcessor(
             self._vcs_id, vppb_index, downstream_connection, upstream_connection
         )
         self._async_gatherer.add_task(bind_slot.processor.run())
         bind_slot.status = BIND_STATUS.BOUND
 
-    async def unbind_vppb(self, dsp_device: DownstreamPortDevice, vppb_index: int):
+    # TODO: vppb -- unbind need to be fiexed
+    async def unbind_vppb(self, vppb_index: int):
+        if self._init_flag:
+            self._async_gatherer.add_task(self._dummy.run())
+            self._init_flag = False
         if vppb_index >= len(self._bind_slots) or vppb_index < 0:
             raise Exception("vppb_index is out of bound")
 
@@ -148,16 +161,6 @@ class PortBinder(RunnableComponent):
         # TODO: Get config space from PPB and store in dummy
         if bind_slot.processor is not None:
             await bind_slot.processor.stop()
-            info = bind_slot.dsp.backup_enumeration_info()
-            dsp_device.restore_enumeration_info(info)
-
-        bind_slot.dsp = dsp_device
-        downstream_connection = bind_slot.vppb_connection
-        upstream_connection = dsp_device.get_upstream_connection()
-        bind_slot.processor = BindProcessor(
-            self._vcs_id, vppb_index, downstream_connection, upstream_connection
-        )
-        self._async_gatherer.add_task(bind_slot.processor.run())
         bind_slot.status = BIND_STATUS.UNBOUND
 
     def get_bind_status(self, vppb_index: int) -> BIND_STATUS:
@@ -182,8 +185,8 @@ class PortBinder(RunnableComponent):
     def get_bind_slots(self):
         return self._bind_slots
 
-    def get_vppb_connections(self):
-        return self._vppb_connections
+    def get_vppbs(self):
+        return self._vppbs
 
     async def _run(self):
         await self._change_status_to_running()
@@ -194,4 +197,5 @@ class PortBinder(RunnableComponent):
         for slot in self._bind_slots:
             if slot.processor is not None:
                 tasks.append(create_task(slot.processor.stop()))
+        tasks.append(create_task(self._dummy.stop()))
         await gather(*tasks)

@@ -44,7 +44,7 @@ class PciRoutingTable(LabeledComponent):
             for _ in range(BRIDGE_MAX_BARS):
                 mmio_entry.bars.append(BarEntry())
 
-        self._config_space_table = [ConfigSpaceEntry() for _ in range(table_size)]
+        self._config_space_table = [[ConfigSpaceEntry(), True] for _ in range(table_size)]
 
     def set_router_bus_number(self, bus_number: int):
         logger.debug(self._create_message(f"Setting router bus number to {bus_number}"))
@@ -64,7 +64,7 @@ class PciRoutingTable(LabeledComponent):
 
     def set_secondary_bus_number(self, bus_number: int, port_number: int):
         self._check_port_number(port_number)
-        self._config_space_table[port_number].secondary_bus = bus_number
+        self._config_space_table[port_number][0].secondary_bus = bus_number
         logger.debug(
             self._create_message(
                 f"Setting secondary bus number of port {port_number} to {bus_number}"
@@ -73,7 +73,7 @@ class PciRoutingTable(LabeledComponent):
 
     def set_subordinate_bus_number(self, bus_number: int, port_number: int):
         self._check_port_number(port_number)
-        self._config_space_table[port_number].subordinate_bus = bus_number
+        self._config_space_table[port_number][0].subordinate_bus = bus_number
 
     def set_memory_base(self, base: int, port_number: int):
         self._check_port_number(port_number)
@@ -107,13 +107,20 @@ class PciRoutingTable(LabeledComponent):
         if bus_number == self._router_bus_number:
             logger.debug(self._create_message("Rounting to DSP"))
             device_number = extract_device_from_bdf(id)
-            if extract_device_from_bdf(id) < len(self._config_space_table):
+            if extract_device_from_bdf(id) < sum(
+                1 for entry, flag in self._config_space_table if flag
+            ):
                 return device_number
             return None
 
-        for port_number, config_space_entry in enumerate(self._config_space_table):
-            if config_space_entry.secondary_bus <= bus_number <= config_space_entry.subordinate_bus:
-                return port_number
+        for port_number, (config_space_entry, active) in enumerate(self._config_space_table):
+            if active:
+                if (
+                    config_space_entry.secondary_bus
+                    <= bus_number
+                    <= config_space_entry.subordinate_bus
+                ):
+                    return port_number
         return None
 
     def is_config_space_id_local(self, id: int) -> bool:
@@ -132,4 +139,10 @@ class PciRoutingTable(LabeledComponent):
         return None
 
     def get_secondary_bus_number(self, port_number: int) -> int:
-        return self._config_space_table[port_number].secondary_bus
+        return self._config_space_table[port_number][0].secondary_bus
+
+    def active_vppb(self, vppb_number: int):
+        self._config_space_table[vppb_number][1] = True
+
+    def deactive_vppb(self, vppb_number: int):
+        self._config_space_table[vppb_number][1] = False
