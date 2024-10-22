@@ -6,6 +6,7 @@
 """
 
 import asyncio
+from dataclasses import dataclass
 from typing import Callable, Awaitable
 
 # import jsonrpcclient
@@ -20,6 +21,13 @@ from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, CxlMemoryHubConfi
 from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
 from opencxl.cxl.component.root_complex.root_port_switch import ROOT_PORT_SWITCH_TYPE
 from opencxl.cxl.component.root_complex.root_complex import SystemMemControllerConfig
+from opencxl.cxl.component.irq_manager import IrqManager
+
+
+@dataclass
+class CxlHostAddrRange:
+    mmio_range: tuple[int, int]
+    mem_range: tuple[int, int]
 
 
 class CxlHost(RunnableComponent):
@@ -32,6 +40,8 @@ class CxlHost(RunnableComponent):
         host_name: str = None,
         switch_host: str = "0.0.0.0",
         switch_port: int = 8000,
+        irq_host: str = "0.0.0.0",
+        irq_port: int = 9060,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
@@ -43,20 +53,30 @@ class CxlHost(RunnableComponent):
             memory_size=sys_mem_size,
             memory_filename=f"sys-mem{port_index}.bin",
         )
+        self._irq_handler = IrqManager(
+            device_name=host_name,
+            addr=irq_host,
+            port=irq_port,
+            server=False,
+            device_id=port_index,
+        )
         self._cxl_memory_hub_config = CxlMemoryHubConfig(
             host_name=host_name,
             root_bus=port_index,
             root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
             root_ports=root_ports,
             sys_mem_controller=self._sys_mem_config,
+            irq_handler=self._irq_handler,
         )
         self._cxl_memory_hub = CxlMemoryHub(self._cxl_memory_hub_config)
         self._cpu = CPU(self._cxl_memory_hub, sys_sw_app, user_app)
 
     async def _run(self):
         tasks = [
+            asyncio.create_task(self._irq_handler.run()),
             asyncio.create_task(self._cxl_memory_hub.run()),
         ]
+        await self._irq_handler.wait_for_ready()
         await self._cxl_memory_hub.wait_for_ready()
         tasks.append(asyncio.create_task(self._cpu.run()))
         await self._cpu.wait_for_ready()
@@ -67,5 +87,6 @@ class CxlHost(RunnableComponent):
         tasks = [
             asyncio.create_task(self._cxl_memory_hub.stop()),
             asyncio.create_task(self._cpu.stop()),
+            asyncio.create_task(self._irq_handler.stop()),
         ]
         await asyncio.gather(*tasks)

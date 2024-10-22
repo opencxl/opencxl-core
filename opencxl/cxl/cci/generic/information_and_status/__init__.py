@@ -5,6 +5,12 @@
  See LICENSE for details.
 """
 
+from .identify import (
+    IdentifyComponentType,
+    IdentifyCommand,
+    IdentifyResponsePayload,
+)
+
 from .background_command_status import (
     BackgroundOperationStatusCommand,
     BackgroundOperationStatusResponsePayload,

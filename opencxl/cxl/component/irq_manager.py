@@ -39,6 +39,12 @@ class Irq(Enum):
     # Accelerator finished training, waiting for host to send validation pics
     ACCEL_TRAINING_FINISHED = 0x04
 
+    # Interrupt for Removed Device
+    DEV_REMOVED = 0x05
+
+    # Interrupt for Plugged Device
+    DEV_PLUGGED = 0x06
+
 
 IRQ_WIDTH = 2  # in bytes
 
@@ -61,6 +67,7 @@ class IrqManager(RunnableComponent):
         self._port = port
         self._callbacks = []
         self._msg_to_interrupt_event = {}
+        self._general_interrupt_event = {}
         self._server = server
         self._connections: list[tuple[StreamReader, StreamWriter]] = []
         self._tasks: list[Task] = []
@@ -97,6 +104,23 @@ class IrqManager(RunnableComponent):
             self._msg_to_interrupt_event[dev_id] = {}
         self._msg_to_interrupt_event[dev_id][irq_msg] = cb_func
 
+    def register_general_handler(
+        self, irq_msg: Irq, irq_recv_cb: Callable, persistent: bool = True
+    ):
+        """
+        Registers a callback on the arrival of a specific interrupt.
+        Handlers registered here will be triggered disregard of the device.
+        """
+
+        async def _callback(dev_id):
+            await irq_recv_cb(dev_id)
+
+        cb_func = _callback
+        logger.debug(
+            self._create_message(f"Registering a general interrupt for IRQ {irq_msg.name}")
+        )
+        self._general_interrupt_event[irq_msg] = (cb_func, persistent)
+
     async def _irq_handler(self, reader: StreamReader, _: StreamWriter):
         this_dev_name = f"Device {self._device_id}"
         if self._server:
@@ -122,7 +146,15 @@ class IrqManager(RunnableComponent):
             irq = Irq(irq_num)
             logger.debug(self._create_message(f"IRQ received for {irq.name}"))
             if remote_dev_id not in self._msg_to_interrupt_event:
-                raise RuntimeError(f"No IRQ registered for remote {remote_dev_name}")
+                if irq not in self._general_interrupt_event:
+                    raise RuntimeError(f"IRQ: {irq} is not registered for remote {remote_dev_name}")
+                func = self._general_interrupt_event[irq][0]
+                persistent = self._general_interrupt_event[irq][1]
+                if not persistent:
+                    del self._general_interrupt_event[irq]
+                t = create_task(func(remote_dev_id))
+                self._irq_tasks.append(t)
+                return
 
             if irq not in self._msg_to_interrupt_event[remote_dev_id]:
                 raise RuntimeError(f"Invalid IRQ: {irq} for remote {remote_dev_name}")

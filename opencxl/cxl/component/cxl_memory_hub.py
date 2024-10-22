@@ -7,7 +7,8 @@
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import List
+from typing import Callable, List
+from opencxl.cxl.component.irq_manager import Irq, IrqManager
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.root_complex.root_complex import (
     RootComplex,
@@ -46,6 +47,7 @@ class CxlMemoryHubConfig:
     sys_mem_controller: SystemMemControllerConfig
     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
+    irq_handler: IrqManager
 
 
 class CxlMemoryHub(RunnableComponent):
@@ -95,9 +97,52 @@ class CxlMemoryHub(RunnableComponent):
             cache_num_set=8,
         )
         self._cache_controller = CacheController(cache_controller_config)
+        self._irq_handler = config.irq_handler
 
     def get_memory_ranges(self):
         return self._cache_controller.get_memory_ranges()
+
+    def register_fm_add_mem_range(
+        self, addr: int, size: int, addr_type: MEM_ADDR_TYPE, cb: Callable
+    ):
+        """
+        This function is for registering Irq Handlers if the host wants the FM
+        to handle host hot-plug requests.
+        """
+
+        def add_dev_callback():
+            async def _cb(_):
+                self._cache_controller.add_mem_range(addr, size, addr_type)
+                cb()
+
+            return _cb
+
+        self._irq_handler.register_general_handler(
+            Irq.DEV_PLUGGED,
+            add_dev_callback(),
+            True,
+        )
+
+    def register_fm_remove_mem_range(
+        self, addr: int, size: int, addr_type: MEM_ADDR_TYPE, cb: Callable
+    ):
+        """
+        This function is for registering Irq Handlers if the host wants the FM
+        to handle host hot-plug requests.
+        """
+        self._cache_controller.remove_mem_range(addr, size, addr_type)
+
+        def remove_dev_callback():
+            async def _cb(_):
+                cb()
+
+            return _cb
+
+        self._irq_handler.register_general_handler(
+            Irq.DEV_REMOVED,
+            remove_dev_callback(),
+            True,
+        )
 
     def add_mem_range(self, addr: int, size: int, addr_type: MEM_ADDR_TYPE):
         self._cache_controller.add_mem_range(addr, size, addr_type)
