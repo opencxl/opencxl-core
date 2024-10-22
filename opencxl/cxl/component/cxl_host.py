@@ -57,7 +57,7 @@ class CxlHost(RunnableComponent):
             device_name=host_name,
             addr=irq_host,
             port=irq_port,
-            server=False,
+            server=True,
             device_id=port_index,
         )
         self._cxl_memory_hub_config = CxlMemoryHubConfig(

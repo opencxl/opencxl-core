@@ -76,7 +76,7 @@ class CxlVirtualSwitch(RunnableComponent):
             device_name=self._label,
             addr=irq_host,
             port=irq_port,
-            server=True,
+            server=False,
             device_id=id,
         )
 

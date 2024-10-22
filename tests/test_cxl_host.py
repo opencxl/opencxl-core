@@ -289,7 +289,15 @@ async def test_cxl_host_type3_ete():
         switch_connection_manager=sw_conn_manager, port_configs=port_configs
     )
 
-    switch_configs = [VirtualSwitchConfig(upstream_port_index=0, vppb_counts=1, initial_bounds=[1])]
+    switch_configs = [
+        VirtualSwitchConfig(
+            upstream_port_index=0,
+            vppb_counts=1,
+            initial_bounds=[1],
+            irq_host="127.0.0.1",
+            irq_port=9060,
+        )
+    ]
     virtual_switch_manager = VirtualSwitchManager(
         switch_configs=switch_configs, physical_port_manager=physical_port_manager
     )
