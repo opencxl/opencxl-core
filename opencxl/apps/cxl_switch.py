@@ -104,7 +104,7 @@ class CxlSwitch(RunnableComponent):
 
     def _initialize_mctp_endpoint(self):
         ident_payload = IdentifyResponsePayload(
-            devide_id=SW_SWITCH_DID, component_type=IdentifyComponentType.SWITCH
+            device_id=SW_SWITCH_DID, component_type=IdentifyComponentType.SWITCH
         )
         commands = [
             IdentifyCommand(ident_payload),
