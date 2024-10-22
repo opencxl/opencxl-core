@@ -9,7 +9,7 @@ endif
 
 test:
 	poetry run pytest --cov --cov-report=term-missing -n $(NPROC)
-	rm -f mem*.bin
+	rm -f *.bin
 
 lint:
 	poetry run pylint opencxl
