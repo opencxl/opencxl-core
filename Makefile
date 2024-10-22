@@ -8,6 +8,7 @@ else
 endif
 
 test:
+	poetry run python3 -O -m compileall -q opencxl tests
 	poetry run pytest --cov --cov-report=term-missing -n $(NPROC)
 	rm -f *.bin
 
