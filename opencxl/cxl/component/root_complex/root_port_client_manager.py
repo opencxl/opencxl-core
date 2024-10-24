@@ -53,7 +53,7 @@ class RootPortClientManager(RunnableComponent):
         for client in self._switch_clients:
             connections.append(
                 RootPortConnection(
-                    connection=client.get_cxl_connection(), port_index=client.get_port_index()
+                    connection=client.get_cxl_connection()[0], port_index=client.get_port_index()
                 )
             )
         return connections

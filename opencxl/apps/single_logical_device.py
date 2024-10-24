@@ -42,7 +42,7 @@ class SingleLogicalDevice(RunnableComponent):
             self._sw_conn_client = SwitchConnectionClient(
                 port_index, CXL_COMPONENT_TYPE.D2, host=host, port=port
             )
-            self._cxl_connection = self._sw_conn_client.get_cxl_connection()
+            self._cxl_connection = self._sw_conn_client.get_cxl_connection()[0]
 
         self._cxl_type3_device = CxlType3Device(
             transport_connection=self._cxl_connection,

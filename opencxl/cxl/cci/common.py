@@ -5,7 +5,8 @@
  See LICENSE for details.
 """
 
-from enum import IntEnum
+from dataclasses import dataclass, field
+from enum import Enum, IntEnum
 
 
 class CCI_RETURN_CODE(IntEnum):
@@ -127,3 +128,65 @@ def get_opcode_string(opcode: int) -> str:
     ):
         return CCI_VENDOR_SPECIFIC_OPCODE(opcode).name
     return "Unknown Command"
+
+
+class TunnelManagementTargetType(Enum):
+    PORT_OR_LD_BASED = 0x00
+    LD_POOL_CCI = 0x01
+
+
+@dataclass
+class TunnelManagementRequestPayload:
+    port_or_ld_id: int = field(default=0, metadata={"offset": 0, "length": 1})
+    target_type: TunnelManagementTargetType = field(
+        default=TunnelManagementTargetType(0), metadata={"offset": 1, "length": 1}
+    )
+    command_size: int = field(default=0, metadata={"offset": 2, "length": 2})
+    command_payload: int = field(default=0, metadata={"offset": 4})
+
+    def dump(self) -> bytes:
+        data = bytearray(self.command_size + 4)
+        data[0:1] = self.port_or_ld_id.to_bytes(1, "little")
+        data[1:2] = self.target_type.value.to_bytes(1, "little")
+        data[2:4] = self.command_size.to_bytes(2, "little")
+        data[4 : 4 + self.command_size] = self.command_payload.to_bytes(self.command_size, "little")
+        return bytes(data)
+
+    @classmethod
+    def parse(cls, data: bytes):
+        port_or_ld_id = int.from_bytes(data[0:1], "little")
+        target_type = int.from_bytes(data[1:2], "little")
+        command_size = int.from_bytes(data[2:4], "little")
+        command_payload = int.from_bytes(data[4:], "little")
+
+        if len(data) != command_size:
+            raise ValueError("Provided bytes object does not match the expected data size.")
+        return cls(port_or_ld_id, target_type, command_size, command_payload)
+
+
+@dataclass
+class TunnelManagementResponsePayload:
+    response_size: int = field(default=0, metadata={"offset": 0, "length": 2})
+    reserved: int = field(default=0, metadata={"offset": 2, "length": 2})
+    payload: int = field(default=0, metadata={"offset": 4})
+
+    @classmethod
+    def parse(cls, data: bytes):
+        response_size = int.from_bytes(data[0:2], "little")
+        payload = int.from_bytes(data[4:], "little")
+
+        if len(data) != response_size + 4:
+            raise ValueError("Provided bytes object does not match the expected data size.")
+        return cls(
+            response_size,
+            payload,
+        )
+
+    def dump(self) -> bytes:
+        data = bytearray(self.response_size + 4)
+        data[0:2] = self.response_size.to_bytes(2, "little")
+        data[4 : 4 + self.response_size] = self.payload.to_bytes(self.response_size, "little")
+        return bytes(data)
+
+    def get_pretty_print(self) -> str:
+        return f"- Tunnel Management Command:\n" f"- Payload Bytes: {self.response_size} Bytes\n"

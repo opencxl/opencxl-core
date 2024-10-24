@@ -301,9 +301,9 @@ async def test_switch_connection_manager_handle_cfg_packet():
         logger.info("[PyTest] Sending config space request packets from client")
         client_connection = client.get_cxl_connection()
         packet = CxlIoCfgWrPacket.create(create_bdf(0, 0, 0), 0x10, 4, 0xDEADBEEF)
-        await client_connection.cfg_fifo.host_to_target.put(packet)
+        await client_connection[0].cfg_fifo.host_to_target.put(packet)
         packet = CxlIoCfgRdPacket.create(create_bdf(0, 0, 0), 0x10, 4)
-        await client_connection.cfg_fifo.host_to_target.put(packet)
+        await client_connection[0].cfg_fifo.host_to_target.put(packet)
 
         logger.info("[PyTest] Checking config space request packets received from server")
         server_connection = manager.get_cxl_connection(0)
@@ -353,9 +353,9 @@ async def test_switch_connection_manager_handle_mmio_packet():
         logger.info("[PyTest] Sending MMIO request packets from client")
         client_connection = client.get_cxl_connection()
         packet = CxlIoMemWrPacket.create(0, 4, 0)
-        await client_connection.mmio_fifo.host_to_target.put(packet)
+        await client_connection[0].mmio_fifo.host_to_target.put(packet)
         packet = CxlIoMemRdPacket.create(0, 4)
-        await client_connection.mmio_fifo.host_to_target.put(packet)
+        await client_connection[0].mmio_fifo.host_to_target.put(packet)
 
         logger.info("[PyTest] Checking MMIO request packets received from server")
         server_connection = manager.get_cxl_connection(0)
@@ -404,11 +404,11 @@ async def test_switch_connection_manager_handle_cxl_mem_packet_m2s():
         logger.info("[PyTest] Sending CXL.mem request packets from client")
         client_connection = client.get_cxl_connection()
         packet = CxlMemMemWrPacket.create(0x80, 0xDEADBEEF)
-        await client_connection.cxl_mem_fifo.host_to_target.put(packet)
+        await client_connection[0].cxl_mem_fifo.host_to_target.put(packet)
         packet = CxlMemMemRdPacket.create(0x80)
-        await client_connection.cxl_mem_fifo.host_to_target.put(packet)
+        await client_connection[0].cxl_mem_fifo.host_to_target.put(packet)
         packet = CxlMemBIRspPacket.create(CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, 0, 0)
-        await client_connection.cxl_mem_fifo.host_to_target.put(packet)
+        await client_connection[0].cxl_mem_fifo.host_to_target.put(packet)
 
         logger.info("[PyTest] Checking CXL.mem request packets received from server")
         server_connection = manager.get_cxl_connection(0)
@@ -460,18 +460,18 @@ async def test_switch_connection_manager_handle_cfg_completion():
         req_id = 0x10
         tag = 0xA5
         req1 = CxlIoCfgWrPacket.create(0, 0x10, 4, 0xDEADBEEF, req_id=req_id, tag=tag)
-        await client_connection.cfg_fifo.host_to_target.put(req1)
+        await client_connection[0].cfg_fifo.host_to_target.put(req1)
 
         tag = 0xA6
         req2 = CxlIoCfgRdPacket.create(0, 0x10, 4, req_id=req_id, tag=tag)
-        await client_connection.cfg_fifo.host_to_target.put(req2)
+        await client_connection[0].cfg_fifo.host_to_target.put(req2)
         cpl2 = CxlIoCompletionWithDataPacket.create(req_id, tag, CXL_IO_CPL_STATUS.SC, 0xDEADBEEF)
         await server_connection.cfg_fifo.target_to_host.put(cpl2)
 
         logger.info("[PyTest] Checking config space completion packets received from client")
         rcvd_packets = []
-        rcvd_packets.append(await client_connection.cfg_fifo.host_to_target.get())
-        rcvd_packets.append(await client_connection.cfg_fifo.host_to_target.get())
+        rcvd_packets.append(await client_connection[0].cfg_fifo.host_to_target.get())
+        rcvd_packets.append(await client_connection[0].cfg_fifo.host_to_target.get())
         rcvd_packets.append(await server_connection.cfg_fifo.target_to_host.get())
 
         assert bytes(rcvd_packets[0]) == bytes(req1)
@@ -525,18 +525,18 @@ async def test_switch_connection_manager_handle_mmio_completion():
         req_id = 0x10
         tag = 0x1
         req1 = CxlIoMemWrPacket.create(0x10, 4, 0xDEADBEEF, req_id=req_id, tag=tag)
-        await client_connection.mmio_fifo.host_to_target.put(req1)
+        await client_connection[0].mmio_fifo.host_to_target.put(req1)
 
         tag = 0x2
         req2 = CxlIoMemRdPacket.create(0x10, 4, req_id=req_id, tag=tag)
-        await client_connection.mmio_fifo.host_to_target.put(req2)
+        await client_connection[0].mmio_fifo.host_to_target.put(req2)
         cpl2 = CxlIoCompletionWithDataPacket.create(req_id, tag, data=0)
         await server_connection.mmio_fifo.target_to_host.put(cpl2)
 
         logger.info("[PyTest] Checking MMIO completion packets received from client")
         rcvd_packets = []
-        rcvd_packets.append(await client_connection.mmio_fifo.host_to_target.get())  # wr
-        rcvd_packets.append(await client_connection.mmio_fifo.host_to_target.get())  # rd
+        rcvd_packets.append(await client_connection[0].mmio_fifo.host_to_target.get())  # wr
+        rcvd_packets.append(await client_connection[0].mmio_fifo.host_to_target.get())  # rd
         rcvd_packets.append(await server_connection.mmio_fifo.target_to_host.get())  # cpld
 
         assert bytes(rcvd_packets[0]) == bytes(req1)
@@ -594,11 +594,11 @@ async def test_switch_connection_manager_handle_cxl_mem_s2m():
 
         logger.info("[PyTest] Checking CXL.mem completion packets received from client")
         client_connection = client.get_cxl_connection()
-        received_packet1 = await client_connection.cxl_mem_fifo.target_to_host.get()
+        received_packet1 = await client_connection[0].cxl_mem_fifo.target_to_host.get()
         assert bytes(received_packet1) == bytes(sent_packet1)
-        received_packet2 = await client_connection.cxl_mem_fifo.target_to_host.get()
+        received_packet2 = await client_connection[0].cxl_mem_fifo.target_to_host.get()
         assert bytes(received_packet2) == bytes(sent_packet2)
-        received_packet3 = await client_connection.cxl_mem_fifo.target_to_host.get()
+        received_packet3 = await client_connection[0].cxl_mem_fifo.target_to_host.get()
         assert bytes(received_packet3) == bytes(sent_packet3)
 
         logger.info("[PyTest] Stopping SwitchConnectionManager")

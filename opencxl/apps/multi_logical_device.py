@@ -8,6 +8,7 @@
 from asyncio import gather, create_task
 from typing import List
 
+from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.device.cxl_type3_device import CxlType3Device, CXL_T3_DEV_TYPE
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
@@ -25,12 +26,15 @@ class MultiLogicalDevice(RunnableComponent):
         host: str = "0.0.0.0",
         port: int = 8000,
         test_mode: bool = False,
-        cxl_connections=None,
+        cxl_connections: List[CxlConnection] = None,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
 
-        self._cxl_type3_devices = []
+        self._cxl_type3_devices: list[CxlType3Device] = []
+        # TODO: we also need a FMLD connection for cases like
+        # TunnelManagementCommand MCTP requests/responses
+        # See Figure 7-20/7-23 for details
         self._test_mode = test_mode
 
         assert (
@@ -53,6 +57,7 @@ class MultiLogicalDevice(RunnableComponent):
             self._cxl_connections[0].mmio_fifo.target_to_host,
             self._cxl_connections[0].cxl_mem_fifo.target_to_host,
             self._cxl_connections[0].cxl_cache_fifo.target_to_host,
+            self._cxl_connections[0].cci_fifo.target_to_host,
         )
 
         # Share the outgoing queue across multiple LDs
@@ -64,6 +69,7 @@ class MultiLogicalDevice(RunnableComponent):
                 connection.mmio_fifo.target_to_host = base_outgoing.mmio
                 connection.cxl_mem_fifo.target_to_host = base_outgoing.cxl_mem
                 connection.cxl_cache_fifo.target_to_host = base_outgoing.cxl_cache
+                connection.cci_fifo.target_to_host = base_outgoing.cci_fifo
 
         for ld in range(num_ld):
             cxl_type3_device = CxlType3Device(
