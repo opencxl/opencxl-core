@@ -137,7 +137,6 @@ class CxlVirtualSwitch(RunnableComponent):
         self.init_routers()
         run_tasks = [
             create_task(self._irq_manager.run()),
-            create_task(self._start_dummy_devices()),
             create_task(self._cxl_io_router.run()),
             create_task(self._cxl_mem_router.run()),
             create_task(self._cxl_cache_router.run()),
