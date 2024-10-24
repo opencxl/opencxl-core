@@ -16,6 +16,7 @@ from opencxl.pci.component.routing_table import PciRoutingTable
 from opencxl.util.component import LabeledComponent
 
 EEUM_VID = 0x1DC5  # Note: 1DC5 is for FADU
+SW_SWITCH_DID = 0xF000
 SW_SLD_DID = 0xF001
 SW_USP_DID = 0xF002
 SW_DSP_DID = 0xF003

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import List, Optional, cast, Callable, Coroutine, Any
 
+from opencxl.cxl.component.irq_manager import Irq, IrqManager
 from opencxl.util.logger import logger
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BIND_STATUS
@@ -55,19 +56,31 @@ class CxlVirtualSwitch(RunnableComponent):
         physical_ports: List[CxlPortDevice],
         bi_enable_override_for_test: Optional[int] = None,
         bi_forward_override_for_test: Optional[int] = None,
+        irq_host: str = "0.0.0.0",
+        irq_port: int = 8500,
     ):
         super().__init__()
+        self._label = f"VCS{id}"
         self._id = id
         self._vppb_counts = vppb_counts
         self._initial_bounds = initial_bounds
         self._physical_ports = physical_ports
-        self._routing_table = RoutingTable(vppb_counts, label=f"VCS{id}")
+        self._routing_table = RoutingTable(vppb_counts, label=self._label)
         self._event_handler = None
+        self._fm_enabled = False
         self._bi_enable_override_for_test = bi_enable_override_for_test
         self._bi_forward_override_for_test = bi_forward_override_for_test
         self._cxl_io_router = None
         self._cxl_mem_router = None
         self._cxl_cache_router = None
+
+        self._irq_manager = IrqManager(
+            device_name=self._label,
+            addr=irq_host,
+            port=irq_port,
+            server=False,
+            device_id=id,
+        )
 
         if len(initial_bounds) != self._vppb_counts:
             raise Exception("length of initial_bounds and vppb_count must be the same")
@@ -123,12 +136,14 @@ class CxlVirtualSwitch(RunnableComponent):
         await self._bind_initial_vppb()
         self.init_routers()
         run_tasks = [
+            create_task(self._irq_manager.run()),
             create_task(self._cxl_io_router.run()),
             create_task(self._cxl_mem_router.run()),
             create_task(self._cxl_cache_router.run()),
             create_task(self._port_binder.run()),
         ]
         wait_tasks = [
+            create_task(self._irq_manager.wait_for_ready()),
             create_task(self._cxl_io_router.wait_for_ready()),
             create_task(self._cxl_mem_router.wait_for_ready()),
             create_task(self._cxl_cache_router.wait_for_ready()),
@@ -144,6 +159,7 @@ class CxlVirtualSwitch(RunnableComponent):
             create_task(self._cxl_mem_router.stop()),
             create_task(self._cxl_cache_router.stop()),
             create_task(self._port_binder.stop()),
+            create_task(self._irq_manager.stop()),
         ]
         await gather(*tasks)
 
@@ -174,6 +190,10 @@ class CxlVirtualSwitch(RunnableComponent):
         )
         await self._call_event_handler(vppb_index, PPB_BINDING_STATUS.BOUND_LD)
 
+    async def fm_bind_vppb(self, port_index: int, vppb_index: int):
+        await self.bind_vppb(port_index, vppb_index)
+        await self._irq_manager.send_irq_request(Irq.DEV_ADDED)
+
     async def unbind_vppb(self, vppb_index: int):
         logger.info(self._create_message(f"Started unbinding physical port from vPPB {vppb_index}"))
         await self._call_event_handler(vppb_index, PPB_BINDING_STATUS.BIND_OR_UNBIND_IN_PROGRESS)
@@ -185,6 +205,10 @@ class CxlVirtualSwitch(RunnableComponent):
         # needs to be fixed
         await self._downstream_vppbs[vppb_index].unbind_from_physical_port()
         self._routing_table.deactivate_vppb(vppb_index)
+
+    async def fm_unbind_vppb(self, vppb_index: int):
+        await self.unbind_vppb(vppb_index)
+        await self._irq_manager.send_irq_request(Irq.DEV_REMOVED)
 
     async def _call_event_handler(self, vppb_id: int, binding_status: PPB_BINDING_STATUS):
         if not self._event_handler:

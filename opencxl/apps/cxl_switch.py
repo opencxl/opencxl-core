@@ -11,6 +11,8 @@ import os
 import signal
 from typing import List
 
+from opencxl.pci.component.pci import SW_SWITCH_DID
+
 from opencxl.cxl.component.physical_port_manager import (
     PhysicalPortManager,
     PortConfig,
@@ -32,6 +34,9 @@ from opencxl.cxl.component.mctp.mctp_connection_client import (
 )
 from opencxl.cxl.component.mctp.mctp_cci_executor import MctpCciExecutor
 from opencxl.cxl.cci.generic.information_and_status import (
+    IdentifyCommand,
+    IdentifyComponentType,
+    IdentifyResponsePayload,
     BackgroundOperationStatusCommand,
 )
 from opencxl.cxl.cci.fabric_manager.physical_switch import (
@@ -98,7 +103,11 @@ class CxlSwitch(RunnableComponent):
         self._run_as_child = switch_config.run_as_child
 
     def _initialize_mctp_endpoint(self):
+        ident_payload = IdentifyResponsePayload(
+            device_id=SW_SWITCH_DID, component_type=IdentifyComponentType.SWITCH
+        )
         commands = [
+            IdentifyCommand(ident_payload),
             BackgroundOperationStatusCommand(self._mctp_cci_executor),
             IdentifySwitchDeviceCommand(self._physical_port_manager, self._virtual_switch_manager),
             GetPhysicalPortStateCommand(self._switch_connection_manager),

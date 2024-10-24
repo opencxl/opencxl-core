@@ -40,7 +40,13 @@ def test_virtual_switch_manager_init():
         switch_connection_manager=switch_connection_manager, port_configs=port_configs
     )
     switch_configs = [
-        VirtualSwitchConfig(upstream_port_index=0, vppb_counts=3, initial_bounds=[1, 2, 3])
+        VirtualSwitchConfig(
+            upstream_port_index=0,
+            vppb_counts=3,
+            initial_bounds=[1, 2, 3],
+            irq_host="127.0.0.1",
+            irq_port=BASE_TEST_PORT + pytest.PORT.TEST_1 + 61,
+        )
     ]
     virtual_switch_manager = VirtualSwitchManager(
         switch_configs=switch_configs, physical_port_manager=physical_port_manager
@@ -68,7 +74,13 @@ async def test_virtual_switch_manager_run_and_stop():
         switch_connection_manager=switch_connection_manager, port_configs=port_configs
     )
     switch_configs = [
-        VirtualSwitchConfig(upstream_port_index=0, vppb_counts=3, initial_bounds=[1, 2, 3])
+        VirtualSwitchConfig(
+            upstream_port_index=0,
+            vppb_counts=3,
+            initial_bounds=[1, 2, 3],
+            irq_host="127.0.0.1",
+            irq_port=BASE_TEST_PORT + pytest.PORT.TEST_1 + 62,
+        )
     ]
     virtual_switch_manager = VirtualSwitchManager(
         switch_configs=switch_configs, physical_port_manager=physical_port_manager
