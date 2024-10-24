@@ -31,7 +31,7 @@ class MctpConnectionClient(RunnableComponent):
         self._mctp_connection = MctpConnection()
         self._packet_processor = None
 
-    async def _connect(self) -> (asyncio.StreamReader, asyncio.StreamWriter):
+    async def _connect(self):
         return await asyncio.open_connection(self._host, self._port)
 
     def get_mctp_connection(self):

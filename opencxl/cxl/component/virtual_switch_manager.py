@@ -22,6 +22,8 @@ class VirtualSwitchConfig:
     upstream_port_index: int
     vppb_counts: int
     initial_bounds: List[int]
+    irq_host: str
+    irq_port: int
 
 
 class VirtualSwitchManager(RunnableComponent):
@@ -44,6 +46,8 @@ class VirtualSwitchManager(RunnableComponent):
                 bi_enable_override_for_test=bi_enable_override_for_test,
                 bi_forward_override_for_test=bi_forward_override_for_test,
                 physical_ports=physical_port_manager.get_port_devices(),
+                irq_host=switch_config.irq_host,
+                irq_port=switch_config.irq_port,
             )
             self._virtual_switches.append(virtual_switch)
 

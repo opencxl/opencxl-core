@@ -56,6 +56,8 @@ def parse_switch_config(config_data) -> CxlSwitchConfig:
                     upstream_port_index=vswitch["upstream_port_index"],
                     vppb_counts=vswitch["vppb_counts"],
                     initial_bounds=vswitch["initial_bounds"],
+                    irq_host="127.0.0.1",
+                    irq_port=8500,
                 )
             )
         except KeyError as e:
