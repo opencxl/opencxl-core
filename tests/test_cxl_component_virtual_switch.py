@@ -144,7 +144,7 @@ async def test_virtual_switch_manager_run_and_stop():
         vppb_counts=vppb_counts,
         initial_bounds=initial_bounds,
         physical_ports=physical_ports,
-        irq_port=9601,
+        irq_port=8501,
     )
 
     async def wait_and_stop():

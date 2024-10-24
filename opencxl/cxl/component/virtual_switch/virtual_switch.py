@@ -58,7 +58,7 @@ class CxlVirtualSwitch(RunnableComponent):
         bi_enable_override_for_test: Optional[int] = None,
         bi_forward_override_for_test: Optional[int] = None,
         irq_host: str = "0.0.0.0",
-        irq_port: int = 9060,
+        irq_port: int = 8500,
     ):
         super().__init__()
         self._label = f"VCS{id}"
@@ -72,7 +72,7 @@ class CxlVirtualSwitch(RunnableComponent):
         self._bi_enable_override_for_test = bi_enable_override_for_test
         self._bi_forward_override_for_test = bi_forward_override_for_test
 
-        self._irq_handler = IrqManager(
+        self._irq_manager = IrqManager(
             device_name=self._label,
             addr=irq_host,
             port=irq_port,
@@ -166,7 +166,7 @@ class CxlVirtualSwitch(RunnableComponent):
     async def _run(self):
         await self._bind_initial_vppb()
         run_tasks = [
-            create_task(self._irq_handler.run()),
+            create_task(self._irq_manager.run()),
             create_task(self._start_dummy_devices()),
             create_task(self._cxl_io_router.run()),
             create_task(self._cxl_mem_router.run()),
@@ -174,7 +174,7 @@ class CxlVirtualSwitch(RunnableComponent):
             create_task(self._port_binder.run()),
         ]
         wait_tasks = [
-            create_task(self._irq_handler.wait_for_ready()),
+            create_task(self._irq_manager.wait_for_ready()),
             create_task(self._cxl_io_router.wait_for_ready()),
             create_task(self._cxl_mem_router.wait_for_ready()),
             create_task(self._cxl_cache_router.wait_for_ready()),
@@ -191,7 +191,7 @@ class CxlVirtualSwitch(RunnableComponent):
             create_task(self._cxl_mem_router.stop()),
             create_task(self._cxl_cache_router.stop()),
             create_task(self._port_binder.stop()),
-            create_task(self._irq_handler.stop()),
+            create_task(self._irq_manager.stop()),
         ]
         await gather(*tasks)
 
@@ -219,7 +219,7 @@ class CxlVirtualSwitch(RunnableComponent):
 
     async def fm_bind_vppb(self, port_index: int, vppb_index: int):
         await self.bind_vppb(port_index, vppb_index)
-        await self._irq_handler.send_irq_request(Irq.DEV_PLUGGED)
+        await self._irq_manager.send_irq_request(Irq.DEV_ADDED)
 
     async def unbind_vppb(self, vppb_index: int):
         if vppb_index >= len(self._dummy_dsp_devices):
@@ -235,7 +235,7 @@ class CxlVirtualSwitch(RunnableComponent):
 
     async def fm_unbind_vppb(self, vppb_index: int):
         await self.unbind_vppb(vppb_index)
-        await self._irq_handler.send_irq_request(Irq.DEV_REMOVED)
+        await self._irq_manager.send_irq_request(Irq.DEV_REMOVED)
 
     async def _call_event_handler(self, vppb_id: int, binding_status: PPB_BINDING_STATUS):
         if not self._event_handler:

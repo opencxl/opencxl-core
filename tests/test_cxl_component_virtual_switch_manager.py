@@ -45,7 +45,7 @@ def test_virtual_switch_manager_init():
             vppb_counts=3,
             initial_bounds=[1, 2, 3],
             irq_host="127.0.0.1",
-            irq_port=9060,
+            irq_port=8500,
         )
     ]
     virtual_switch_manager = VirtualSwitchManager(
@@ -79,7 +79,7 @@ async def test_virtual_switch_manager_run_and_stop():
             vppb_counts=3,
             initial_bounds=[1, 2, 3],
             irq_host="127.0.0.1",
-            irq_port=9060,
+            irq_port=8500,
         )
     ]
     virtual_switch_manager = VirtualSwitchManager(

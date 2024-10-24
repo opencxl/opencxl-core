@@ -295,7 +295,7 @@ async def test_cxl_host_type3_ete():
             vppb_counts=1,
             initial_bounds=[1],
             irq_host="127.0.0.1",
-            irq_port=9060,
+            irq_port=8500,
         )
     ]
     virtual_switch_manager = VirtualSwitchManager(

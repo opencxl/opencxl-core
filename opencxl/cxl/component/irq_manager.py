@@ -43,7 +43,7 @@ class Irq(Enum):
     DEV_REMOVED = 0x05
 
     # Interrupt for Plugged Device
-    DEV_PLUGGED = 0x06
+    DEV_ADDED = 0x06
 
 
 IRQ_WIDTH = 2  # in bytes

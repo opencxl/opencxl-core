@@ -118,7 +118,7 @@ class CxlMemoryHub(RunnableComponent):
             return _cb
 
         self._irq_handler.register_general_handler(
-            Irq.DEV_PLUGGED,
+            Irq.DEV_ADDED,
             add_dev_callback(),
             True,
         )
