@@ -60,7 +60,7 @@ class CxlSimpleHost(RunnableComponent):
                 )
             )
         self._root_port_device = CxlRootPortDevice(
-            downstream_connection=self._switch_conn_client.get_cxl_connection(),
+            downstream_connection=self._switch_conn_client.get_cxl_connection()[0],
             label=label,
             test_mode=self._test_mode,
         )

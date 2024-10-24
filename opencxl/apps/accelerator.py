@@ -70,7 +70,7 @@ class MyType1Accelerator(RunnableComponent):
         )
         self._cxl_type1_device = CxlType1Device(
             CxlType1DeviceConfig(
-                transport_connection=self._sw_conn_client.get_cxl_connection(),
+                transport_connection=self._sw_conn_client.get_cxl_connection()[0],
                 device_name=label,
                 device_id=device_id,
                 host_mem_size=host_mem_size,
@@ -447,7 +447,7 @@ class MyType2Accelerator(RunnableComponent):
 
         self._device_config = CxlType2DeviceConfig(
             device_name=label,
-            transport_connection=self._sw_conn_client.get_cxl_connection(),
+            transport_connection=self._sw_conn_client.get_cxl_connection()[0],
             memory_size=memory_size,
             memory_file=memory_file,
         )

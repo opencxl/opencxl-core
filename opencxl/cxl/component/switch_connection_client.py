@@ -49,7 +49,7 @@ class SwitchConnectionClient(RunnableComponent):
         if num_ld != 0:
             self._cxl_connection = [CxlConnection() for _ in range(num_ld)]
         else:
-            self._cxl_connection = CxlConnection()
+            self._cxl_connection = [CxlConnection()]
         self._packet_processor = None
         self._injected_error = None
         self._retry = retry

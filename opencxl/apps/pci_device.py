@@ -37,7 +37,7 @@ class PciDevice(RunnableComponent):
             parent_name=f"PciDevice{port_index}",
         )
         self._pci_device = PciDeviceInternal(
-            transport_connection=self._sw_conn_client.get_cxl_connection(),
+            transport_connection=self._sw_conn_client.get_cxl_connection()[0],
             identity=PciComponentIdentity(
                 EEUM_VID,
                 SW_EP_DID,

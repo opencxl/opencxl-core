@@ -194,7 +194,7 @@ class SwitchConnectionManager(RunnableComponent):
         port_index: int,
     ):
         logger.info(self._create_message(f"Starting PacketProcessor for port {port_index}"))
-        cxl_connection = self._ports[port_index].cxl_connection
+        cxl_connection = [self._ports[port_index].cxl_connection]
         port_config = self._ports[port_index].port_config
         component_type = (
             CXL_COMPONENT_TYPE.USP if port_config.type == PORT_TYPE.USP else CXL_COMPONENT_TYPE.DSP

@@ -14,7 +14,7 @@ from asyncio import (
 )
 from dataclasses import dataclass
 from enum import StrEnum, IntEnum
-from typing import cast, Optional, Dict, Union, List
+from typing import cast, Optional, Dict, List
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
@@ -24,6 +24,9 @@ from opencxl.cxl.component.packet_reader import PacketReader
 from opencxl.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
+    CciBasePacket,
+    CciMessagePacket,
+    CciPayloadPacket,
     CxlIoBasePacket,
     CxlMemBasePacket,
     CxlCacheBasePacket,
@@ -39,6 +42,7 @@ class FifoGroup:
     mmio: Queue
     cxl_mem: Queue
     cxl_cache: Queue
+    cci_fifo: Queue
 
 
 class CXL_IO_FIFO_TYPE(IntEnum):
@@ -57,7 +61,7 @@ class CxlPacketProcessor(RunnableComponent):
         reader: StreamReader,
         writer: StreamWriter,
         # cxl_connection for SLD & MLD
-        cxl_connection: Union[CxlConnection, List[CxlConnection]],
+        cxl_connection: List[CxlConnection],
         component_type: CXL_COMPONENT_TYPE,
         label: Optional[str] = None,
     ):
@@ -70,17 +74,19 @@ class CxlPacketProcessor(RunnableComponent):
         logger.debug(self._create_message(f"Configured for {component_type.name}"))
         if component_type in (CXL_COMPONENT_TYPE.R, CXL_COMPONENT_TYPE.DSP):
             self._incoming = FifoGroup(
-                cfg_space=self._cxl_connection.cfg_fifo.target_to_host,
-                mmio=self._cxl_connection.mmio_fifo.target_to_host,
-                cxl_mem=self._cxl_connection.cxl_mem_fifo.target_to_host,
-                cxl_cache=self._cxl_connection.cxl_cache_fifo.target_to_host,
+                cfg_space=self._cxl_connection[0].cfg_fifo.target_to_host,
+                mmio=self._cxl_connection[0].mmio_fifo.target_to_host,
+                cxl_mem=self._cxl_connection[0].cxl_mem_fifo.target_to_host,
+                cxl_cache=self._cxl_connection[0].cxl_cache_fifo.target_to_host,
+                cci_fifo=self._cxl_connection[0].cci_fifo.target_to_host,
             )
             self._incoming_dir = PROCESSOR_DIRECTION.TARGET_TO_HOST
             self._outgoing = FifoGroup(
-                cfg_space=self._cxl_connection.cfg_fifo.host_to_target,
-                mmio=self._cxl_connection.mmio_fifo.host_to_target,
-                cxl_mem=self._cxl_connection.cxl_mem_fifo.host_to_target,
-                cxl_cache=self._cxl_connection.cxl_cache_fifo.host_to_target,
+                cfg_space=self._cxl_connection[0].cfg_fifo.host_to_target,
+                mmio=self._cxl_connection[0].mmio_fifo.host_to_target,
+                cxl_mem=self._cxl_connection[0].cxl_mem_fifo.host_to_target,
+                cxl_cache=self._cxl_connection[0].cxl_cache_fifo.host_to_target,
+                cci_fifo=self._cxl_connection[0].cci_fifo.host_to_target,
             )
             self._outgoing_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
         elif component_type in (
@@ -95,17 +101,19 @@ class CxlPacketProcessor(RunnableComponent):
 
             # Add common FIFOs
             self._incoming = FifoGroup(
-                cfg_space=self._cxl_connection.cfg_fifo.host_to_target,
-                mmio=self._cxl_connection.mmio_fifo.host_to_target,
+                cfg_space=self._cxl_connection[0].cfg_fifo.host_to_target,
+                mmio=self._cxl_connection[0].mmio_fifo.host_to_target,
                 cxl_mem=None,
                 cxl_cache=None,
+                cci_fifo=None,
             )
 
             self._outgoing = FifoGroup(
-                cfg_space=self._cxl_connection.cfg_fifo.target_to_host,
-                mmio=self._cxl_connection.mmio_fifo.target_to_host,
+                cfg_space=self._cxl_connection[0].cfg_fifo.target_to_host,
+                mmio=self._cxl_connection[0].mmio_fifo.target_to_host,
                 cxl_mem=None,
                 cxl_cache=None,
+                cci_fifo=None,
             )
 
             # Add CXL.cache and CXL.mem FIFO based on the device type
@@ -114,16 +122,16 @@ class CxlPacketProcessor(RunnableComponent):
                 CXL_COMPONENT_TYPE.T2,
                 CXL_COMPONENT_TYPE.USP,
             ):
-                self._incoming.cxl_cache = self._cxl_connection.cxl_cache_fifo.host_to_target
-                self._outgoing.cxl_cache = self._cxl_connection.cxl_cache_fifo.target_to_host
+                self._incoming.cxl_cache = self._cxl_connection[0].cxl_cache_fifo.host_to_target
+                self._outgoing.cxl_cache = self._cxl_connection[0].cxl_cache_fifo.target_to_host
 
             if component_type in (
                 CXL_COMPONENT_TYPE.T2,
                 CXL_COMPONENT_TYPE.D2,
                 CXL_COMPONENT_TYPE.USP,
             ):
-                self._incoming.cxl_mem = self._cxl_connection.cxl_mem_fifo.host_to_target
-                self._outgoing.cxl_mem = self._cxl_connection.cxl_mem_fifo.target_to_host
+                self._incoming.cxl_mem = self._cxl_connection[0].cxl_mem_fifo.host_to_target
+                self._outgoing.cxl_mem = self._cxl_connection[0].cxl_mem_fifo.target_to_host
         # Add MLD
         elif component_type == CXL_COMPONENT_TYPE.LD:
             self._incoming_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
@@ -134,6 +142,7 @@ class CxlPacketProcessor(RunnableComponent):
                     mmio=cxl_conn.mmio_fifo.host_to_target,
                     cxl_mem=cxl_conn.cxl_mem_fifo.host_to_target,
                     cxl_cache=None,
+                    cci_fifo=cxl_conn.cci_fifo.host_to_target,
                 )
                 for cxl_conn in self._cxl_connection
             ]
@@ -143,6 +152,7 @@ class CxlPacketProcessor(RunnableComponent):
                 mmio=self._cxl_connection[0].mmio_fifo.target_to_host,
                 cxl_mem=self._cxl_connection[0].cxl_mem_fifo.target_to_host,
                 cxl_cache=None,
+                cci_fifo=self._cxl_connection[0].cci_fifo.target_to_host,
             )
         else:
             raise Exception(f"Unsupported component type {component_type.name}")
@@ -272,6 +282,14 @@ class CxlPacketProcessor(RunnableComponent):
                     )
                     cxl_cache_packet = cast(CxlCacheBasePacket, packet)
                     await self._incoming.cxl_cache.put(cxl_cache_packet)
+                elif packet.is_cci():
+                    if self._incoming.cci_fifo is None:
+                        logger.error(self._create_message("Got CCI packet on no CCI FIFO"))
+                        continue
+                    logger.debug(self._create_message(f"Received {self._incoming_dir} CCI packet"))
+                    cci_packet = cast(CciBasePacket, packet)
+                    cci_packet_payload = cast(CciMessagePacket, cci_packet.data)
+                    await self._incoming.cci_fifo.put(cci_packet_payload)
                 else:
                     message = f"Received unexpected {self._incoming_dir} packet"
                     logger.debug(self._create_message(message))
@@ -292,6 +310,8 @@ class CxlPacketProcessor(RunnableComponent):
             await self._outgoing.cxl_mem.put(packet)
         if self._outgoing.cxl_cache:
             await self._outgoing.cxl_cache.put(packet)
+        if self._outgoing.cci_fifo:
+            await self._outgoing.cci_fifo.put(packet)
 
     async def _process_outgoing_cfg_packets(self):
         logger.debug(self._create_message("Starting outgoing CFG FIFO processor"))
@@ -359,6 +379,17 @@ class CxlPacketProcessor(RunnableComponent):
             await self._writer.drain()
         logger.debug(self._create_message("Stopped outgoing CXL.cache FIFO processor"))
 
+    async def _process_outgoing_cci_packets(self):
+        logger.debug(self._create_message("Starting outgoing CCI FIFO processor"))
+        while True:
+            packet: CciMessagePacket = await self._outgoing.cci_fifo.get()
+            if self._is_disconnection_notification(packet):
+                break
+            cci_payload_packet = CciPayloadPacket.create(packet, packet.get_size())
+            self._writer.write(bytes(cci_payload_packet))
+            await self._writer.drain()
+        logger.debug(self._create_message("Stopped outgoing CCI FIFO processor"))
+
     async def _process_outgoing_packets(self):
         tasks = [
             create_task(self._process_outgoing_cfg_packets()),
@@ -368,6 +399,8 @@ class CxlPacketProcessor(RunnableComponent):
             tasks.append(create_task(self._process_outgoing_cxl_mem_packets()))
         if self._outgoing.cxl_cache:
             tasks.append(create_task(self._process_outgoing_cxl_cache_packets()))
+        if self._outgoing.cci_fifo:
+            tasks.append(create_task(self._process_outgoing_cci_packets()))
         await gather(*tasks)
 
     async def _run(self):
