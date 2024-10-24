@@ -11,8 +11,10 @@ from typing import List, Dict, Optional, cast
 
 from opencxl.cxl.device.port_device import CxlPortDevice
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
+from opencxl.cxl.device.pci_to_pci_bridge_device import PpbDevice
 from opencxl.cxl.device.downstream_port_device import DownstreamPortDevice
 from opencxl.cxl.device.config.logical_device import SingleLogicalDeviceConfig
+from opencxl.cxl.component.bind_processor import PpbDspBindProcessor
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import (
     PORT_TYPE,
@@ -45,14 +47,26 @@ class PhysicalPortManager(RunnableComponent):
     ):
         super().__init__()
         self._port_devices: List[CxlPortDevice] = []
+        self._ppb_devices: List[PpbDevice] = []
+        self._ppb_binds: List[PpbDspBindProcessor] = []
+
         self._switch_connection_manager = switch_connection_manager
         self._device_configs = device_configs
         for port_index, port_config in enumerate(port_configs):
             transport_connection = self._switch_connection_manager.get_cxl_connection(port_index)
             if port_config.type == PORT_TYPE.USP:
                 self._port_devices.append(UpstreamPortDevice(transport_connection, port_index))
+                self._ppb_binds.append(None)
             else:
-                self._port_devices.append(DownstreamPortDevice(transport_connection, port_index))
+                physical_port = DownstreamPortDevice(transport_connection, port_index)
+                ppb = PpbDevice(port_index)
+                self._port_devices.append(physical_port)
+                self._ppb_devices.append(ppb)
+                bind = PpbDspBindProcessor(
+                    ppb.get_downstream_connection(), physical_port.get_transport_connection()
+                )
+                self._ppb_binds.append(bind)
+                physical_port.set_ppb(ppb, bind)
 
     def get_port_device(self, port_index: int) -> CxlPortDevice:
         if port_index < 0 or port_index >= len(self._port_devices):
@@ -64,6 +78,12 @@ class PhysicalPortManager(RunnableComponent):
 
     def get_port_devices(self) -> List[CxlPortDevice]:
         return self._port_devices
+
+    def get_ppb_devices(self) -> List[PpbDevice]:
+        return self._ppb_devices
+
+    def get_ppb_binds(self) -> List[PpbDspBindProcessor]:
+        return self._ppb_binds
 
     def get_usp_hdm_decoder_count(self) -> int:
         hdm_decoder_count = 0
@@ -112,6 +132,14 @@ class PhysicalPortManager(RunnableComponent):
         for port_device in self._port_devices:
             run_tasks.append(create_task(port_device.run()))
             wait_tasks.append(create_task(port_device.wait_for_ready()))
+        for ppb_device in self._ppb_devices:
+            run_tasks.append(create_task(ppb_device.run()))
+            wait_tasks.append(create_task(ppb_device.wait_for_ready()))
+
+        for ppb_bind in self._ppb_binds:
+            if ppb_bind is not None:
+                run_tasks.append(create_task(ppb_bind.run()))
+
         await gather(*wait_tasks)
         await self._change_status_to_running()
         await gather(*run_tasks)
@@ -120,4 +148,9 @@ class PhysicalPortManager(RunnableComponent):
         tasks = []
         for port_device in self._port_devices:
             tasks.append(create_task(port_device.stop()))
+        for ppb_device in self._ppb_devices:
+            tasks.append(create_task(ppb_device.stop()))
+        for ppb_bind in self._ppb_binds:
+            if ppb_bind is not None:
+                tasks.append(create_task(ppb_bind.stop()))
         await gather(*tasks)

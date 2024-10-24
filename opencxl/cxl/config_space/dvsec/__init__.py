@@ -13,6 +13,10 @@ from opencxl.cxl.config_space.dvsec.cxl_extension_dvsec_for_ports import (
     CxlExtensionDvsecForPortsOptions,
 )
 from opencxl.cxl.component.cxl_memory_device_component import CxlMemoryDeviceComponent
+from opencxl.cxl.config_space.dvsec.mld_dvsec import (
+    MldDvsec,
+    MldDvsecOptions,
+)
 from opencxl.util.unaligned_bit_structure import (
     ShareableByteArray,
     BitMaskedBitStructure,
@@ -34,6 +38,7 @@ class CXL_DEVICE_TYPE(Enum):
     LD = auto()
     ACCEL_T1 = auto()
     ACCEL_T2 = auto()
+    FMLD = auto()
 
 
 class DvsecConfigSpaceOptions(TypedDict):
@@ -74,6 +79,7 @@ class DvsecConfigSpace(BitMaskedBitStructure):
         start = self._add_cxl_extension_dvsec_for_ports(start)
         start = self._add_pcie_dvsec_for_flex_bus_ports(start)
         start = self._add_register_locator_dvsec(start)
+        start = self._add_mld_dvsec(start)
         if self._last_offset_header:
             self._last_offset_header["next_capability_offset"] = next_offset
 
@@ -179,6 +185,26 @@ class DvsecConfigSpace(BitMaskedBitStructure):
                 start,
                 end,
                 DvsecRegisterLocator,
+                options=dvsec_options,
+            )
+        )
+        return end + 1
+
+    def _add_mld_dvsec(self, start: int) -> int:
+        if self._device_type != CXL_DEVICE_TYPE.FMLD:
+            return start
+
+        dvsec_size = MldDvsec.get_size()
+        end = start + dvsec_size - 1
+        next = end + 1 + self._capability_offset
+        dvsec_options: MldDvsecOptions = {"header": {"next_capability_offset": next}}
+        self._last_offset_header = dvsec_options["header"]
+        self._fields.append(
+            StructureField(
+                "mld_dvsec",
+                start,
+                end,
+                MldDvsec,
                 options=dvsec_options,
             )
         )
