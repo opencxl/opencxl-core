@@ -48,6 +48,7 @@ class PortBinder(RunnableComponent):
         # TODO: dummy is only for keeping PortBinder running as dynamic binding (bind_vppb())
         # won't be called at this moment. This will be removed once dynamic binding is implemented.
         self._dummy = VppbPpbBindProcessor(self._vcs_id, 0, CxlConnection(), CxlConnection())
+        self._dummy_initialized = False
 
     def _create_message(self, message):
         message = f"[{self.__class__.__name__}:VCS{self._vcs_id}] {message}"
@@ -56,8 +57,10 @@ class PortBinder(RunnableComponent):
     # TODO: make bind, unbind functional with dynamic binding
     async def bind_vppb(self, dsp_device: DownstreamPortDevice, vppb_index: int):
         # TODO: L48
-        if self._dummy is not None:
+        if self._dummy is not None and not self._dummy_initialized:
             self._async_gatherer.add_task(self._dummy.run())
+            await self._dummy.wait_for_ready()
+            self._dummy_initialized = True
         if vppb_index >= len(self._bind_slots) or vppb_index < 0:
             raise Exception("vppb_index is out of bound")
 
@@ -81,8 +84,10 @@ class PortBinder(RunnableComponent):
 
     async def unbind_vppb(self, vppb_index: int):
         # TODO: L48
-        if self._dummy is not None:
+        if self._dummy is not None and not self._dummy_initialized:
             self._async_gatherer.add_task(self._dummy.run())
+            await self._dummy.wait_for_ready()
+            self._dummy_initialized = True
         if vppb_index >= len(self._bind_slots) or vppb_index < 0:
             raise Exception("vppb_index is out of bound")
 
