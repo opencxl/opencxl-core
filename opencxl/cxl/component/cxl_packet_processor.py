@@ -148,11 +148,11 @@ class CxlPacketProcessor(RunnableComponent):
             ]
 
             self._outgoing = FifoGroup(
-                cfg_space=self._cxl_connection.cfg_fifo.target_to_host,
-                mmio=self._cxl_connection.mmio_fifo.target_to_host,
-                cxl_mem=self._cxl_connection.cxl_mem_fifo.target_to_host,
+                cfg_space=self._cxl_connection[0].cfg_fifo.target_to_host,
+                mmio=self._cxl_connection[0].mmio_fifo.target_to_host,
+                cxl_mem=self._cxl_connection[0].cxl_mem_fifo.target_to_host,
                 cxl_cache=None,
-                cci_fifo=self._cxl_connection.cci_fifo.target_to_host,
+                cci_fifo=self._cxl_connection[0].cci_fifo.target_to_host,
             )
         else:
             raise Exception(f"Unsupported component type {component_type.name}")
