@@ -14,7 +14,7 @@ from asyncio import (
 )
 from dataclasses import dataclass
 from enum import StrEnum, IntEnum
-from typing import Union, cast, Optional, Dict, List
+from typing import cast, Optional, Dict, Union, List
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
