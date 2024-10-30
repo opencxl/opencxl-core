@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from typing import Optional, cast
+from typing import List, Optional, cast
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.cci.common import (
     CCI_FM_API_COMMAND_OPCODE,
@@ -26,13 +26,13 @@ class TunnelManagementCommand(CciForegroundCommand):
     def __init__(
         self,
         label: Optional[str] = None,
-        cxl_type3_devices: list[CxlType3Device] = None,
-        cxl_connections: list[CxlConnection] = None,
+        cxl_type3_devices: List[CxlType3Device] = None,
+        cxl_connections: List[CxlConnection] = None,
     ):
         super().__init__(self.OPCODE, label=label)
-        if len(cxl_type3_devices) == 0:
+        if cxl_type3_devices is None:
             cxl_type3_devices = []
-        if len(cxl_connections) == 0:
+        if cxl_connections is None:
             cxl_connections = []
         self._cxl_type3_devices = cxl_type3_devices
         self._cxl_connections = cxl_connections
