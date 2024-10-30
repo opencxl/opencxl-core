@@ -31,10 +31,7 @@ class MultiLogicalDevice(RunnableComponent):
         label = f"Port{port_index}"
         super().__init__(label)
 
-        self._cxl_type3_devices: list[CxlType3Device] = []
-        # TODO: we also need a FMLD connection for cases like
-        # TunnelManagementCommand MCTP requests/responses
-        # See Figure 7-20/7-23 for details
+        self._cxl_type3_devices: List[CxlType3Device] = []
         self._test_mode = test_mode
 
         assert (
