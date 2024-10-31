@@ -4,6 +4,8 @@ port_configs:
   - type: DSP
   - type: DSP
   - type: DSP
+  - type: DSP
+  - type: DSP
 virtual_switch_configs:
   - upstream_port_index: 0
     vppb_counts: 4
@@ -22,3 +24,16 @@ devices:
     - port_index: 4
       memory_size: 256M
       serial_number: CB6575D3D9A4FC7A
+  multi_logical_devices:
+    - port_index: 5
+      serial_number: 3FB95963144632BF
+      logical_devices:
+      - memory_size: 256M
+      - memory_size: 256M
+      - memory_size: 256M
+      - memory_size: 256M
+    - port_index: 6
+      serial_number: 8A440DABC4DBEAFB
+      logical_devices:
+      - memory_size: 512M
+      - memory_size: 512M
