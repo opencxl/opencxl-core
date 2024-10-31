@@ -38,10 +38,9 @@ def start_group(config_file):
     mlds = []
     for device_config in cxl_env.multi_logical_device_configs:
         mld = MultiLogicalDevice(
-            num_ld=len(device_config.ld_indexes),
             port_index=device_config.port_index,
-            memory_sizes=device_config.memory_size,
-            memory_files=device_config.memory_file,
+            memory_sizes=device_config.memory_sizes,
+            memory_files=device_config.memory_files,
             host=cxl_env.switch_config.host,
             port=cxl_env.switch_config.port,
         )

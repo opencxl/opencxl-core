@@ -16,13 +16,17 @@ from opencxl.apps.cxl_switch import (
     PortConfig,
 )
 from opencxl.cxl.component.cxl_component import PORT_TYPE
-from opencxl.cxl.device.config.logical_device import SingleLogicalDeviceConfig
+from opencxl.cxl.device.config.logical_device import (
+    SingleLogicalDeviceConfig,
+    MultiLogicalDeviceConfig,
+)
 
 
 @dataclass
 class CxlEnvironment:
     switch_config: CxlSwitchConfig
     single_logical_device_configs: List[SingleLogicalDeviceConfig] = field(default_factory=list)
+    multi_logical_device_configs: List[MultiLogicalDeviceConfig] = field(default_factory=list)
 
 
 def parse_switch_config(config_data) -> CxlSwitchConfig:
@@ -79,7 +83,7 @@ def parse_single_logical_device_configs(
         except KeyError as exc:
             raise ValueError("Missing 'port_index' for 'device' entry.") from exc
 
-        memory_file = device.get("memory_file", f"mem{port_index}.bin")
+        memory_file = device.get("memory_file", f"sld_mem{port_index}.bin")
 
         try:
             memory_size = humanfriendly.parse_size(device["memory_size"], binary=True)
@@ -96,12 +100,67 @@ def parse_single_logical_device_configs(
         single_logical_device_configs.append(
             SingleLogicalDeviceConfig(
                 port_index=port_index,
+                serial_number=serial_number,
                 memory_size=memory_size,
                 memory_file=memory_file,
-                serial_number=serial_number,
             )
         )
     return single_logical_device_configs
+
+
+def parse_multi_logical_device_configs(
+    devices_data,
+) -> List[MultiLogicalDeviceConfig]:
+    if not isinstance(devices_data, list):
+        raise ValueError("Invalid 'devices' configuration, expected a list.")
+
+    multi_logical_device_configs = []
+    for device in devices_data:
+        try:
+            port_index = device["port_index"]
+        except KeyError as exc:
+            raise ValueError("Missing 'port_index' for 'device' entry.") from exc
+
+        # Get memory sizes
+        memory_sizes = []
+        try:
+            for item in device.get("logical_devices", []):
+                memory_sizes.append(humanfriendly.parse_size(item["memory_size"], binary=True))
+        except KeyError as exc:
+            raise ValueError("Missing 'memory_size' for 'logical_devices' entry.") from exc
+        except humanfriendly.InvalidSize as exc:
+            raise ValueError("Invalid 'memory_size' value") from exc
+
+        # Get memory files (if not provided, default to "mld_mem{port_index}_{index}.bin")
+        memory_files = []
+        try:
+            for index, item in enumerate(device.get("logical_devices", [])):
+                if len(item) == 0:
+                    memory_file = item["memory_file"]
+                else:
+                    memory_file = f"mld_mem{port_index}_{index}.bin"
+                memory_files.append(memory_file)
+        except KeyError as exc:
+            raise ValueError("Missing 'memory_file' for 'logical_devices' entry.") from exc
+
+        assert len(memory_sizes) == len(
+            memory_files
+        ), "Mismatch between memory sizes and memory files."
+
+        try:
+            serial_number = device["serial_number"]
+        except KeyError as exc:
+            raise ValueError("Missing 'serial_number' for 'device' entry.") from exc
+
+        multi_logical_device_configs.append(
+            MultiLogicalDeviceConfig(
+                port_index=port_index,
+                serial_number=serial_number,
+                memory_sizes=memory_sizes,
+                memory_files=memory_files,
+            )
+        )
+    return multi_logical_device_configs
 
 
 def parse_cxl_environment(yaml_path: str) -> CxlEnvironment:
@@ -115,8 +174,12 @@ def parse_cxl_environment(yaml_path: str) -> CxlEnvironment:
     single_logical_device_configs = parse_single_logical_device_configs(
         config_data.get("devices", {}).get("single_logical_devices", [])
     )
+    multi_logical_device_configs = parse_multi_logical_device_configs(
+        config_data.get("devices", {}).get("multi_logical_devices", [])
+    )
 
     return CxlEnvironment(
         switch_config=switch_config,
         single_logical_device_configs=single_logical_device_configs,
+        multi_logical_device_configs=multi_logical_device_configs,
     )

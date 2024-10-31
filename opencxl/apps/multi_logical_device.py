@@ -18,7 +18,6 @@ from opencxl.cxl.component.cxl_packet_processor import FifoGroup
 class MultiLogicalDevice(RunnableComponent):
     def __init__(
         self,
-        num_ld,
         port_index: int,
         memory_sizes: List[int],
         memory_files: List[str],
@@ -32,6 +31,11 @@ class MultiLogicalDevice(RunnableComponent):
 
         self._cxl_type3_devices = []
         self._test_mode = test_mode
+
+        assert len(memory_sizes) == len(
+            memory_files
+        ), "memory_sizes, and memory_files must have the same length"
+        num_ld = len(memory_sizes)
 
         assert (
             not test_mode or cxl_connections is not None
