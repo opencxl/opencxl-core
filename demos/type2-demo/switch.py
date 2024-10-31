@@ -34,6 +34,7 @@ async def shutdown(signame=None):
     finally:
         os._exit(0)
 
+
 async def main():
     # install signal handlers
     lp = asyncio.get_event_loop()
@@ -52,7 +53,13 @@ async def main():
         PortConfig(PORT_TYPE.DSP),
     ]
     switch_configs = [
-        VirtualSwitchConfig(upstream_port_index=0, vppb_counts=2, initial_bounds=[1, 2])
+        VirtualSwitchConfig(
+            upstream_port_index=0,
+            vppb_counts=2,
+            initial_bounds=[1, 2],
+            irq_host="0.0.0.0",
+            irq_port=8500,
+        )
     ]
 
     sw_conn_manager = SwitchConnectionManager(port_configs, host="localhost", port=portno)
@@ -78,7 +85,7 @@ async def main():
 
     await asyncio.gather(*ready_tasks)
 
-    await asyncio.Event().wait() # blocks
+    await asyncio.Event().wait()  # blocks
 
 
 if __name__ == "__main__":

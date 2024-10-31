@@ -58,7 +58,7 @@ class IrqManager(RunnableComponent):
         self,
         device_name,
         addr: str = "0.0.0.0",
-        port: int = 9050,
+        port: int = 8500,
         server: bool = False,
         device_id: int = 0,
     ):
@@ -183,7 +183,8 @@ class IrqManager(RunnableComponent):
         info = f"host sending to device {device}"
         if not self._server:
             info = f"device {self._device_id} sending to host"
-        logger.debug(self._create_message(info))
+        logger.info(self._create_message(info))
+        # logger.info(self._create_message(f"device: {device} {self._connections}"))
         _, writer = self._connections[device]
         val_w_dev_id = request.value << 8 | self._device_id
         writer.write(val_w_dev_id.to_bytes(length=IRQ_WIDTH))

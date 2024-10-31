@@ -64,6 +64,9 @@ class CxlHost(RunnableComponent):
         self._cxl_memory_hub = CxlMemoryHub(self._cxl_memory_hub_config)
         self._cpu = CPU(self._cxl_memory_hub, sys_sw_app, user_app)
 
+    def get_irq_manager(self):
+        return self._irq_manager
+
     async def _run(self):
         tasks = [
             asyncio.create_task(self._irq_manager.run()),

@@ -465,7 +465,7 @@ class CxlCacheDcoh(PacketProcessor):
                 # corner case handling
                 if (
                     self._cur_state.state != COH_STATE_MACHINE.COH_STATE_INIT
-                    and packet.get_address() == self._cur_state.packet.address
+                    and packet.get_address() == self._cur_state.packet.addr
                 ):
                     assert self._cur_state.packet.type == CACHE_REQUEST_TYPE.WRITE_BACK
                     if packet.h2dreq_header.cache_opcode == CXL_CACHE_H2DREQ_OPCODE.SNP_INV:

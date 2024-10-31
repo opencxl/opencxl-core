@@ -30,7 +30,7 @@ class CPU(RunnableComponent):
         await self._cxl_mem_hub.store(addr, size, value)
 
     async def _app_run_task(self):
-        return await self._user_app(cpu=self)
+        return await self._user_app(_cpu=self, _mem_hub=self._cxl_mem_hub)
 
     async def _run(self):
         await self._sys_sw_app(self._cxl_mem_hub)

@@ -51,6 +51,8 @@ from opencxl.pci.component.config_space_manager import (
 from opencxl.cxl.component.cache_controller import (
     CacheController,
     CacheControllerConfig,
+    MemoryRange,
+    MEM_ADDR_TYPE,
 )
 from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.cxl.transport.cache_fifo import CacheFifoPair
@@ -123,7 +125,7 @@ class CxlType2Device(RunnableComponent):
         cache_num_assoc = 4
         cache_controller_config = CacheControllerConfig(
             component_name=config.device_name,
-            processor_to_cache_fifo=processor_to_cache_fifo,
+            processor_to_cache_fifo=None,
             cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
             cache_num_assoc=cache_num_assoc,
@@ -131,12 +133,20 @@ class CxlType2Device(RunnableComponent):
         )
         self._cache_controller = CacheController(cache_controller_config)
 
-        device_processor_config = DeviceLlcIoGenConfig(
-            device_name=config.device_name,
-            processor_to_cache_fifo=processor_to_cache_fifo,
-            memory_size=config.memory_size,
+        # device_processor_config = DeviceLlcIoGenConfig(
+        #     device_name=config.device_name,
+        #     processor_to_cache_fifo=processor_to_cache_fifo,
+        #     memory_size=config.memory_size,
+        # )
+        # self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
+
+    def get_memory_ranges(self):
+        return self._cache_controller.get_mem_range()
+
+    def add_mem_range(self, addr: int, size: int, addr_type: MEM_ADDR_TYPE):
+        self._cache_controller.add_mem_range(
+            MemoryRange(base_addr=addr, size=size, addr_type=addr_type)
         )
-        self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
 
     async def read_mmio(self, addr: int, size: int, bar: int = 0):
         return await self._mmio_manager.read_mmio(addr, size, bar)
@@ -250,13 +260,13 @@ class CxlType2Device(RunnableComponent):
             create_task(self._cxl_io_manager.run()),
             create_task(self._cxl_mem_dcoh.run()),
             create_task(self._cache_controller.run()),
-            create_task(self._device_simple_processor.run()),
+            # create_task(self._device_simple_processor.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
             create_task(self._cxl_mem_dcoh.wait_for_ready()),
             create_task(self._cache_controller.wait_for_ready()),
-            create_task(self._device_simple_processor.wait_for_ready()),
+            # create_task(self._device_simple_processor.wait_for_ready()),
         ]
         await gather(*wait_tasks)
         await self._change_status_to_running()
@@ -268,6 +278,6 @@ class CxlType2Device(RunnableComponent):
             create_task(self._cxl_io_manager.stop()),
             create_task(self._cxl_mem_dcoh.stop()),
             create_task(self._cache_controller.stop()),
-            create_task(self._device_simple_processor.stop()),
+            # create_task(self._device_simple_processor.stop()),
         ]
         await gather(*tasks)

@@ -54,7 +54,7 @@ class MyType1Accelerator(RunnableComponent):
         port_index: int,
         host: str = "0.0.0.0",
         port: int = 8000,
-        server_port: int = 9050,
+        irq_port: int = 8500,
         device_id: int = 0,
         host_mem_size: int = 0,
         train_data_path: str = "",
@@ -126,7 +126,7 @@ class MyType1Accelerator(RunnableComponent):
         )
 
         self._irq_manager = IrqManager(
-            addr="127.0.0.1", port=server_port, device_name=label, device_id=device_id
+            addr="127.0.0.1", port=irq_port, device_name=label, device_id=device_id
         )
 
         self._stop_signal = Event()
@@ -429,7 +429,7 @@ class MyType2Accelerator(RunnableComponent):
         memory_file: str,
         host: str = "0.0.0.0",
         port: int = 8000,
-        server_port: int = 9050,
+        irq_port: int = 8500,
         device_id: int = 0,
         train_data_path: str = None,
     ):
@@ -454,7 +454,7 @@ class MyType2Accelerator(RunnableComponent):
 
         self._irq_manager = IrqManager(
             addr="localhost",
-            port=server_port,
+            port=irq_port,
             device_name=label,
             device_id=device_id,
         )
@@ -601,6 +601,7 @@ class MyType2Accelerator(RunnableComponent):
         metadata_addr = await self._cxl_type2_device.read_mmio(metadata_addr_mmio_addr, 8)
         metadata_size = await self._cxl_type2_device.read_mmio(metadata_size_mmio_addr, 8)
 
+        logger.info(f"metadata_addr:{metadata_addr:x}, metadata_size:{metadata_size:x}")
         # round to 64
         metadata_size = ((metadata_size - 1) // 64 + 1) * 64
 
@@ -626,10 +627,25 @@ class MyType2Accelerator(RunnableComponent):
                     pbar.update(64)
 
     async def _get_test_image(self) -> Image.Image:
-        image_addr_mmio_addr = 0x1810
-        image_size_mmio_addr = 0x1818
-        image_addr = await self._cxl_type2_device.read_mmio(image_addr_mmio_addr, 8)
-        image_size = await self._cxl_type2_device.read_mmio(image_size_mmio_addr, 8)
+        hdm_offset = 0x1024
+        a = await self._cxl_type2_device.read_mmio(hdm_offset, 4)
+        b = await self._cxl_type2_device.read_mmio(hdm_offset + 4, 4)
+        c = await self._cxl_type2_device.read_mmio(hdm_offset + 8, 4)
+        d = await self._cxl_type2_device.read_mmio(hdm_offset + 12, 4)
+        logger.info(f"a:{a:x} b:{b:x} c:{c:x} d:{d:x}")
+
+        base_addr = a | (b << 32)
+        size = c | (d << 32)
+        logger.info(f"base_addr:{base_addr:x} size:{size:x}")
+
+        # await self.root_complex.write_mmio(decoder_base_low_offset, 4, decoder_base_low)
+        # await self.root_complex.write_mmio(decoder_base_high_offset, 4, decoder_base_high)
+        # await self.root_complex.write_mmio(decoder_size_low_offset, 4, decoder_size_low)
+        # await self.root_complex.write_mmio(decoder_size_high_offset, 4, decoder_size_high)
+        # decoder_base_low = hpa_base & 0xFFFFFFFF
+        # decoder_base_high = (hpa_base >> 32) & 0xFFFFFFFF
+        # decoder_size_low = hpa_size & 0xFFFFFFFF
+        # decoder_size_high = (hpa_size >> 32) & 0xFFFFFFFF
 
         im = None
         # for cacheline_offset in range(address, address + size, 64):
@@ -637,22 +653,30 @@ class MyType2Accelerator(RunnableComponent):
         #     chunk_size = min(64, (end - cacheline_offset))
         #     chunk_data = cacheline.to_bytes(64, "little")
         #     result += chunk_data[:chunk_size]
+        image_addr_mmio_addr = 0x1810
+        image_size_mmio_addr = 0x1818
+        image_addr = await self._cxl_type2_device.read_mmio(image_addr_mmio_addr, 8) + base_addr
+        image_size = await self._cxl_type2_device.read_mmio(image_size_mmio_addr, 8)
         end = image_addr + image_size
+        logger.info(f"img_addr: {image_addr:x} size:{image_size:x} end:{end:x}")
         with BytesIO() as imgbuf:
             for offset in range(image_addr, image_addr + image_size + 64, 64):
                 data = await self._cxl_type2_device.read_mem_hpa(offset, 64)
+                logger.info(f"data:{data:x} offset:{offset:x}")
                 chunk_size = min(64, (end - offset))
                 chunk_data = data.to_bytes(64, "little")
                 chunk_data = chunk_data[:chunk_size]
                 imgbuf.write(chunk_data)
+            logger.info(f"chunk_data:{chunk_data}")
             im = Image.open(imgbuf).convert("RGB")
         return im
 
     async def _validate_model(self, _):
         # pylint: disable=no-member
-        logger.debug(f"Getting test image for dev {self._device_id}")
+        logger.info(self._create_message(f"VALIDATION STARTING"))
+        logger.info(f"Getting test image for dev {self._device_id}")
         im = await self._get_test_image()
-        logger.debug(f"Got test image for dev {self._device_id}")
+        logger.info(f"Got test image for dev {self._device_id}")
         tens = cast(torch.Tensor, self._transform(im))
 
         # Model expects a 4-dimensional tensor
@@ -711,7 +735,7 @@ class MyType2Accelerator(RunnableComponent):
         # Uses CXL.cache to copy metadata from host cached memory into device local memory
         logger.info(self._create_message("Getting metadata for the image dataset"))
 
-        await self._get_metadata()
+        # await self._get_metadata()
         # If testing:
         # shutil.copy(
         #     f"{self.train_data_path}{os.path.sep}noisy_imagenette.csv",
@@ -762,6 +786,7 @@ class MyType2Accelerator(RunnableComponent):
             create_task(self._irq_manager.wait_for_ready()),
             create_task(self._irq_manager.start_connection()),
         ]
+        await gather(*self._wait_tasks)
         await self._change_status_to_running()
         await gather(*tasks)
 
