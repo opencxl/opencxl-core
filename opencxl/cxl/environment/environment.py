@@ -113,7 +113,7 @@ def parse_cxl_environment(yaml_path: str) -> CxlEnvironment:
 
     switch_config = parse_switch_config(config_data)
     single_logical_device_configs = parse_single_logical_device_configs(
-        config_data.get("devices", [])
+        config_data.get("devices", {}).get("single_logical_devices", [])
     )
 
     return CxlEnvironment(
