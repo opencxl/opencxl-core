@@ -162,7 +162,9 @@ class VcsInfoBlock:
             "vcsState": self.vcs_state.name,
             "uspId": self.usp_id,
             "numOfVppbs": self.num_of_vppbs,
-            "vppbs": [ppb_info.to_dict() for ppb_info in self.ppb_info_list],
+            # TODO: make the same change in v0.4-dev
+            # The naming for this should be coherent to the class def
+            "ppb_info_list": [ppb_info.to_dict() for ppb_info in self.ppb_info_list],
         }
 
 

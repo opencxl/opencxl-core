@@ -8,6 +8,11 @@
 import socketio
 import asyncio
 from aiohttp import web
+from opencxl.cxl.cci.fabric_manager.virtual_switch.get_virtual_cxl_switch_info import (
+    PpbInfoDict,
+    VcsInfoBlockDict,
+)
+from opencxl.cxl.component.virtual_switch.virtual_switch import PPB_BINDING_STATUS
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.mctp.mctp_cci_api_client import (
     MctpCciApiClient,
@@ -19,10 +24,11 @@ from opencxl.cxl.component.mctp.mctp_cci_api_client import (
     CciMessagePacket,
 )
 from opencxl.cxl.cci.common import (
+    CCI_RETURN_CODE,
     CCI_VENDOR_SPECIFIC_OPCODE,
     get_opcode_string,
 )
-from typing import TypedDict, Optional, Any
+from typing import List, TypedDict, Optional, Any
 from pprint import pformat
 from opencxl.util.logger import logger
 from functools import partial
@@ -34,7 +40,13 @@ class CommandResponse(TypedDict):
 
 
 class FabricManagerSocketIoServer(RunnableComponent):
-    def __init__(self, mctp_client: MctpCciApiClient, host: str = "0.0.0.0", port: int = 8200):
+    def __init__(
+        self,
+        mctp_client: MctpCciApiClient,
+        host: str = "0.0.0.0",
+        port: int = 8200,
+        test: bool = True,
+    ):
         super().__init__()
         self._mctp_client = mctp_client
         self._host = host
@@ -42,6 +54,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
         self._event_lock = asyncio.Lock()
         self._switch_identity = None
         self._stop_signal = False
+        self._vcs_info: List[VcsInfoBlockDict] = None
+        self._test = test
 
         # Create a new Aiohttp web app
         self._app = web.Application()
@@ -76,18 +90,52 @@ class FabricManagerSocketIoServer(RunnableComponent):
 
     async def _handle_event(self, event_type, _, data=None):
         async with self._event_lock:
+            if not self._vcs_info:
+                tmp_info = await self._get_virtual_switches()
+                self._vcs_info = tmp_info["result"]
             # Determine the event type and call the appropriate method
             logger.debug(self._create_message(f"Received SocketIO Request: {event_type}"))
             if event_type == "port:get":
                 response = await self._get_physical_ports()
             elif event_type == "vcs:get":
-                response = await self._get_virtual_switches()
+                if self._test:
+                    response = CommandResponse(error="", result=self._vcs_info)
+                else:
+                    response = await self._get_virtual_switches()
             elif event_type == "device:get":
                 response = await self._get_devices()
             elif event_type == "vcs:bind":
-                response = await self._bind_vppb(data)
+                if self._test:
+                    vcs_id: int = data["virtualCxlSwitchId"]
+                    vppb_id: int = data["vppbId"]
+                    physical_port_id: int = data["physicalPortId"]
+                    ld_id: int = data["ldId"]
+                    ppb_info = PpbInfoDict(
+                        vppbId=vppb_id,
+                        bindingStatus=PPB_BINDING_STATUS.BOUND_LD.name,
+                        boundPortId=physical_port_id,
+                        boundLdId=ld_id,
+                    )
+                    for i in range(0, len(self._vcs_info[vcs_id]["ppbInfoList"])):
+                        ppbInfo = self._vcs_info[vcs_id]["ppbInfoList"][i]
+                        if ppbInfo["vppbId"] == vppb_id:
+                            self._vcs_info[vcs_id]["ppbInfoList"][i] = ppb_info
+                    response = CommandResponse(error="", result=CCI_RETURN_CODE.SUCCESS)
+                else:
+                    response = await self._bind_vppb(data)
             elif event_type == "vcs:unbind":
-                response = await self._unbind_vppb(data)
+                if self._test:
+                    vcs_id = data["virtualCxlSwitchId"]
+                    vppb_id = data["vppbId"]
+                    for i in range(0, len(self._vcs_info[vcs_id]["ppbInfoList"])):
+                        ppbInfo = self._vcs_info[vcs_id]["ppbInfoList"][i]
+                        if ppbInfo["vppbId"] == vppb_id:
+                            self._vcs_info[vcs_id]["ppbInfoList"][i][
+                                "bindingStatus"
+                            ] = PPB_BINDING_STATUS.UNBOUND.name
+                    response = CommandResponse(error="", result=CCI_RETURN_CODE.SUCCESS)
+                else:
+                    response = await self._unbind_vppb(data)
             # logger.debug(self._create_message(f"Response: {pformat(response)}"))
             logger.debug(self._create_message(f"Completed SocketIO Request"))
             return response
@@ -134,6 +182,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
             vcs_id=data["virtualCxlSwitchId"],
             vppb_id=data["vppbId"],
             physical_port_id=data["physicalPortId"],
+            ld_id=data["ldId"],  # TODO: add for v0.4-dev
         )
         (return_code, response) = await self._mctp_client.bind_vppb(request)
         if response:
