@@ -54,9 +54,7 @@ class PortBinder(RunnableComponent):
         message = f"[{self.__class__.__name__}:VCS{self._vcs_id}] {message}"
         return message
 
-    # TODO: make bind, unbind functional with dynamic binding
-    async def bind_vppb(self, dsp_device: DownstreamPortDevice, vppb_index: int):
-        # TODO: L48
+    async def bind_vppb(self, dsp_device: DownstreamPortDevice, vppb_index: int, ld_id: int = 0):
         if self._dummy is not None and not self._dummy_initialized:
             self._async_gatherer.add_task(self._dummy.run())
             await self._dummy.wait_for_ready()
@@ -75,7 +73,7 @@ class PortBinder(RunnableComponent):
         bind_slot.dsp = dsp_device
         bind_slot.vppb = self._vppbs[vppb_index]
         downstream_connection = bind_slot.vppb.get_downstream_connection()
-        upstream_connection = dsp_device.get_ppb_device().get_upstream_connection()
+        upstream_connection = dsp_device.get_ppb_device().get_upstream_connection()[ld_id]
         bind_slot.processor = VppbPpbBindProcessor(
             self._vcs_id, vppb_index, downstream_connection, upstream_connection
         )
@@ -83,7 +81,6 @@ class PortBinder(RunnableComponent):
         bind_slot.status = BIND_STATUS.BOUND
 
     async def unbind_vppb(self, vppb_index: int):
-        # TODO: L48
         if self._dummy is not None and not self._dummy_initialized:
             self._async_gatherer.add_task(self._dummy.run())
             await self._dummy.wait_for_ready()
@@ -95,19 +92,11 @@ class PortBinder(RunnableComponent):
         if bind_slot.status == BIND_STATUS.UNBOUND:
             raise Exception(f"vPPB[{vppb_index}] is already unbound")
 
-        # TODO: Get config space from PPB and store in dummy
+        # Start unbound
         if bind_slot.processor is not None:
             await bind_slot.processor.stop()
+            bind_slot.processor = None
 
-        # TODO: Fix during dynamic binding implementation
-        # bind_slot.dsp = dsp_device
-        # bind_slot.vppb = self._vppbs[vppb_index]
-        # downstream_connection = bind_slot.vppb.get_downstream_connection()
-        # upstream_connection = dsp_device.get_ppb_device().get_upstream_connection()
-        # bind_slot.processor = VppbPpbBindProcessor(
-        #     self._vcs_id, vppb_index, downstream_connection, upstream_connection
-        # )
-        # self._async_gatherer.add_task(bind_slot.processor.run())
         bind_slot.status = BIND_STATUS.UNBOUND
 
     def get_bind_status(self, vppb_index: int) -> BIND_STATUS:

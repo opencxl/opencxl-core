@@ -126,10 +126,10 @@ class UpstreamPortDevice(CxlPortDevice):
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
 
-    def set_routing_table(self, routing_table: RoutingTable):
+    def set_routing_table(self, routing_table: RoutingTable, ld_id: int):
         logger.debug(f"[UpstreamPort{self.get_port_index()}] Setting routing table")
-        self._pci_bridge_component.set_routing_table(routing_table)
-        self._cxl_component.set_routing_table(routing_table)
+        self._pci_bridge_component.set_routing_table(routing_table, ld_id)
+        self._cxl_component.set_routing_table(routing_table, ld_id)
 
     def get_device_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.USP

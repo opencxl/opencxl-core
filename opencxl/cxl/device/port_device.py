@@ -90,7 +90,7 @@ class CxlPortDevice(RunnableComponent):
         return self._vppb_upstream_connection
 
     @abstractmethod
-    def set_routing_table(self, routing_table: RoutingTable):
+    def set_routing_table(self, routing_table: RoutingTable, ld_id: int):
         """This must be implemented in the child class"""
 
     @abstractmethod

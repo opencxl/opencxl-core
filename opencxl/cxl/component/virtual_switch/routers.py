@@ -13,6 +13,7 @@ from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.util.pci import bdf_to_string
 from opencxl.util.number import tlptoh16
+from opencxl.util.async_gatherer import AsyncGatherer
 from opencxl.cxl.component.cxl_connection import FifoPair
 from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BindSlot
@@ -49,9 +50,11 @@ class CxlRouter(RunnableComponent):
         self._downstream_connection_fifos: List[FifoPair]
         self._upstream_connection_fifo: FifoPair
 
+        self._routing_tasks = AsyncGatherer()
         super().__init__()
         self._vcs_id = vcs_id
         self._routing_table = routing_table
+        self._is_running = False
 
     def _create_message(self, message):
         message = f"[{self.__class__.__name__}:VCS{self._vcs_id}] {message}"
@@ -66,19 +69,23 @@ class CxlRouter(RunnableComponent):
         pass
 
     async def _run(self):
-        tasks = [create_task(self._process_host_to_target_packets())]
+        self._is_running = True
+        self._routing_tasks.add_task(self._process_host_to_target_packets())
         for downstream_connection_bind_slot in self._downstream_connections:
-            task = create_task(
+            self._routing_tasks.add_task(
                 self._process_target_to_host_packets(downstream_connection_bind_slot)
             )
-            tasks.append(task)
         await self._change_status_to_running()
-        await gather(*tasks)
+        await self._routing_tasks.wait_for_completion()
 
     async def _stop(self):
         await self._upstream_connection_fifo.host_to_target.put(None)
         for downstream_connection_fifo in self._downstream_connection_fifos:
             await downstream_connection_fifo.target_to_host.put(None)
+
+    async def stop_for_update(self, vppb_index: int):
+        if self._is_running:
+            await self._downstream_connection_fifos[vppb_index].target_to_host.put(None)
 
 
 class CxlIoRouter(RunnableComponent):
@@ -94,6 +101,10 @@ class CxlIoRouter(RunnableComponent):
             vcs_id, routing_table, upstream_vppb, port_binder
         )
         self._mmio_router = MmioRouter(vcs_id, routing_table, upstream_vppb, port_binder)
+
+    async def update_router(self, vppb_index: int):
+        await self._config_space_router.update_router(vppb_index)
+        await self._mmio_router.update_router(vppb_index)
 
     async def _run(self):
         run_tasks = [
@@ -127,6 +138,7 @@ class MmioRouter(CxlRouter):
         upstream_vppb_connection = upstream_vppb.get_downstream_connection()
 
         super().__init__(vcs_id, routing_table)
+        self._port_binder = port_binder
         self._upstream_connection_fifo = upstream_vppb_connection.mmio_fifo
         self._downstream_connections = port_binder.get_bind_slots()
         self._downstream_connection_fifos = []
@@ -188,6 +200,18 @@ class MmioRouter(CxlRouter):
             packet = CxlIoCompletionPacket.create(req_id, tag)
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
+    async def update_router(self, vppb_index: int):
+        await self.stop_for_update(vppb_index)
+        self._downstream_connections = self._port_binder.get_bind_slots()
+        self._downstream_connection_fifos[vppb_index] = (
+            self._downstream_connections[vppb_index].vppb.get_upstream_connection().mmio_fifo
+        )
+
+        if self._is_running:
+            self._routing_tasks.add_task(
+                self._process_target_to_host_packets(self._downstream_connections[vppb_index])
+            )
+
 
 class ConfigSpaceRouter(CxlRouter):
     def __init__(
@@ -199,6 +223,7 @@ class ConfigSpaceRouter(CxlRouter):
     ):
         upstream_vppb_connection = upstream_vppb.get_downstream_connection()
         super().__init__(vcs_id, routing_table)
+        self._port_binder = port_binder
         self._upstream_connection_fifo = upstream_vppb_connection.cfg_fifo
         self._downstream_connections = port_binder.get_bind_slots()
         self._downstream_connection_fifos = []
@@ -264,6 +289,18 @@ class ConfigSpaceRouter(CxlRouter):
         packet = CxlIoCompletionPacket.create(req_id, tag, CXL_IO_CPL_STATUS.UR)
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
+    async def update_router(self, vppb_index: int):
+        await self.stop_for_update(vppb_index)
+        self._downstream_connections = self._port_binder.get_bind_slots()
+        self._downstream_connection_fifos[vppb_index] = (
+            self._downstream_connections[vppb_index].vppb.get_upstream_connection().cfg_fifo
+        )
+
+        if self._is_running:
+            self._routing_tasks.add_task(
+                self._process_target_to_host_packets(self._downstream_connections[vppb_index])
+            )
+
 
 class CxlMemRouter(CxlRouter):
     def __init__(
@@ -284,6 +321,7 @@ class CxlMemRouter(CxlRouter):
         self._bi_forward_override_for_test = bi_forward_override_for_test
 
         super().__init__(vcs_id, routing_table)
+        self._port_binder = port_binder
         self._upstream_connection_fifo = upstream_vppb_connection.cxl_mem_fifo
         self._downstream_connections = port_binder.get_bind_slots()
         self._downstream_connection_fifos = []
@@ -379,6 +417,18 @@ class CxlMemRouter(CxlRouter):
                         continue
             else:
                 await self._upstream_connection_fifo.target_to_host.put(packet)
+
+    async def update_router(self, vppb_index: int):
+        await self.stop_for_update(vppb_index)
+        self._downstream_connections = self._port_binder.get_bind_slots()
+        self._downstream_connection_fifos[vppb_index] = (
+            self._downstream_connections[vppb_index].vppb.get_upstream_connection().cxl_mem_fifo
+        )
+
+        if self._is_running:
+            self._routing_tasks.add_task(
+                self._process_target_to_host_packets(self._downstream_connections[vppb_index])
+            )
 
 
 class CxlCacheRouter(CxlRouter):
@@ -483,3 +533,15 @@ class CxlCacheRouter(CxlRouter):
                     cache_id = cache_id_decoder_opt_ctl["local_cache_id"]
                     cxl_cache_packet.set_cache_id(cache_id)
             await self._upstream_connection_fifo.target_to_host.put(packet)
+
+    async def update_router(self, vppb_index: int):
+        await self.stop_for_update(vppb_index)
+        self._downstream_connections = self._port_binder.get_bind_slots()
+        self._downstream_connection_fifos[vppb_index] = (
+            self._downstream_connections[vppb_index].vppb.get_upstream_connection().cxl_cache_fifo
+        )
+
+        if self._is_running:
+            self._routing_tasks.add_task(
+                self._process_target_to_host_packets(self._downstream_connections[vppb_index])
+            )

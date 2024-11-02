@@ -104,7 +104,7 @@ class PciBridgeComponent(PciComponent):
         self._routing_table = None
         self._port_number = 0
 
-    def set_routing_table(self, routing_table: PciRoutingTable):
+    def set_routing_table(self, routing_table: PciRoutingTable, _ld_id: int = 0):
         self._routing_table = routing_table
 
     def set_port_number(self, port_number: int):

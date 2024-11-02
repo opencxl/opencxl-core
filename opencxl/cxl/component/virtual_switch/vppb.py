@@ -18,6 +18,7 @@ from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.cxl_io_manager import CxlIoManager
 from opencxl.cxl.component.cxl_mem_manager import CxlMemManager
+from opencxl.util.logger import logger
 
 
 class Vppb:
@@ -29,6 +30,8 @@ class Vppb:
         self._pci_bridge_component = None
         self._pci_registers = None
         self._cxl_component = None
+        self._ld_id = 0
+
         # Initailize with dummy cxlconnection
         self._upstream_connection = CxlConnection()
         self._downstream_connection = CxlConnection()
@@ -41,35 +44,46 @@ class Vppb:
     def get_downstream_connection(self) -> CxlConnection:
         return self._downstream_connection
 
-    def bind_to_physical_port(self, physical_port: CxlPortDevice):
-
-        if physical_port.get_device_type() == CXL_COMPONENT_TYPE.DSP:
-            physical_port = cast(DownstreamPortDevice, physical_port)
-        else:
-            physical_port = cast(UpstreamPortDevice, physical_port)
+    def bind_to_physical_port(self, physical_port: CxlPortDevice, ld_id: int = 0):
 
         # pylint: disable=protected-access
-        self._cxl_mem_manager = physical_port._cxl_mem_manager
-        self._cxl_io_manager = physical_port._cxl_io_manager
-        self._cxl_cache_manager = physical_port._cxl_cache_manager
-        self._pci_bridge_component = physical_port._pci_bridge_component
-        self._pci_registers = physical_port._pci_registers
-        self._cxl_component = physical_port._cxl_component
-        self._upstream_connection = physical_port._vppb_upstream_connection
-        self._downstream_connection = physical_port._vppb_downstream_connection
+        if physical_port.get_device_type() == CXL_COMPONENT_TYPE.DSP:
+            physical_port = cast(DownstreamPortDevice, physical_port)
+            referenced_port = physical_port.bind_to_vppb(ld_id)
+            self._cxl_mem_manager = referenced_port[0]
+            self._cxl_io_manager = referenced_port[1]
+            self._cxl_cache_manager = referenced_port[2]
+            self._pci_bridge_component = referenced_port[3]
+            self._pci_registers = referenced_port[4]
+            self._cxl_component = referenced_port[5]
+            self._upstream_connection = referenced_port[6]
+            self._downstream_connection = referenced_port[7]
+            self._ld_id = ld_id
+        else:
+            physical_port = cast(UpstreamPortDevice, physical_port)
+            self._cxl_mem_manager = physical_port._cxl_mem_manager
+            self._cxl_io_manager = physical_port._cxl_io_manager
+            self._cxl_cache_manager = physical_port._cxl_cache_manager
+            self._pci_bridge_component = physical_port._pci_bridge_component
+            self._pci_registers = physical_port._pci_registers
+            self._cxl_component = physical_port._cxl_component
+            self._upstream_connection = physical_port._vppb_upstream_connection
+            self._downstream_connection = physical_port._vppb_downstream_connection
 
-    async def unbind_from_physical_port(self):
+    async def unbind_from_physical_port(self, physical_port: CxlPortDevice):
         self._cxl_mem_manager = None
         self._cxl_io_manager = None
         self._cxl_cache_manager = None
         self._pci_bridge_component = None
         self._pci_registers = None
         self._cxl_component = None
+        self._ld_id = 0
         self._upstream_connection = CxlConnection()
         self._downstream_connection = CxlConnection()
+        logger.info(f"VPPB unbinded from physical port, type: {physical_port.get_device_type()}")
 
     @abstractmethod
-    def set_routing_table(self, routing_table: RoutingTable):
+    def set_routing_table(self, routing_table: RoutingTable, ld_id: int):
         """This must be implemented in the child class"""
 
     @abstractmethod

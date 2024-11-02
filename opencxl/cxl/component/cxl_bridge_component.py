@@ -120,7 +120,7 @@ class CxlUpstreamPortComponent(CxlComponent):
             no_targs + 1
         )
 
-    def set_routing_table(self, routing_table: RoutingTable):
+    def set_routing_table(self, routing_table: RoutingTable, _ld_id: int = 0):
         self._routing_table = routing_table
         self._routing_table.set_hdm_decoder(self._hdm_decoder_manager)
 

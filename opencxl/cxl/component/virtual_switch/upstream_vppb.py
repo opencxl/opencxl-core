@@ -29,8 +29,8 @@ class UpstreamVppb(Vppb):
         label = f"USP{self._port_index}"
         self._label = label
 
-    def get_reg_vals(self):
-        return self._cxl_io_manager.get_cfg_reg_vals()
+    def get_reg_vals(self, ld_id: int):
+        return self._cxl_io_manager[ld_id].get_cfg_reg_vals()
 
     def get_port_index(self):
         return self._port_index
@@ -38,10 +38,10 @@ class UpstreamVppb(Vppb):
     def get_downstream_connection(self) -> CxlConnection:
         return self._downstream_connection
 
-    def set_routing_table(self, routing_table: RoutingTable):
+    def set_routing_table(self, routing_table: RoutingTable, ld_id: int = 0):
         logger.debug(f"[UpstreamPort{self.get_port_index()}] Setting routing table")
-        self._pci_bridge_component.set_routing_table(routing_table)
-        self._cxl_component.set_routing_table(routing_table)
+        self._pci_bridge_component.set_routing_table(routing_table, ld_id)
+        self._cxl_component.set_routing_table(routing_table, ld_id)
 
     def get_device_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.USP
