@@ -22,7 +22,7 @@ class ACCEL_TYPE(Enum):
 
 @click.group(name="accel")
 def accel_group():
-    """Command group for managing single logical devices."""
+    """Command group for managing logical devices."""
     pass
 
 
@@ -39,7 +39,7 @@ def start_group(config_file, dev_type):
     logger.info(f"Starting CXL Accelerator Group - Config: {config_file}")
     cxl_env = parse_cxl_environment(config_file)
     accels = []
-    for device_config in cxl_env.single_logical_device_configs:
+    for device_config in cxl_env.logical_device_configs:
         if dev_type == ACCEL_TYPE.T1:
             accel = MyType1Accelerator(
                 port_index=device_config.port_index,

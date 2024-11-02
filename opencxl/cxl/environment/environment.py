@@ -17,6 +17,7 @@ from opencxl.apps.cxl_switch import (
 )
 from opencxl.cxl.component.cxl_component import PORT_TYPE
 from opencxl.cxl.device.config.logical_device import (
+    LogicalDeviceConfig,
     SingleLogicalDeviceConfig,
     MultiLogicalDeviceConfig,
 )
@@ -27,6 +28,7 @@ class CxlEnvironment:
     switch_config: CxlSwitchConfig
     single_logical_device_configs: List[SingleLogicalDeviceConfig] = field(default_factory=list)
     multi_logical_device_configs: List[MultiLogicalDeviceConfig] = field(default_factory=list)
+    logical_device_configs: List[LogicalDeviceConfig] = field(default_factory=list)
 
 
 def parse_switch_config(config_data) -> CxlSwitchConfig:
@@ -156,6 +158,7 @@ def parse_multi_logical_device_configs(
             MultiLogicalDeviceConfig(
                 port_index=port_index,
                 serial_number=serial_number,
+                ld_count=len(memory_sizes),
                 memory_sizes=memory_sizes,
                 memory_files=memory_files,
             )
@@ -182,4 +185,5 @@ def parse_cxl_environment(yaml_path: str) -> CxlEnvironment:
         switch_config=switch_config,
         single_logical_device_configs=single_logical_device_configs,
         multi_logical_device_configs=multi_logical_device_configs,
+        logical_device_configs=single_logical_device_configs + multi_logical_device_configs,
     )

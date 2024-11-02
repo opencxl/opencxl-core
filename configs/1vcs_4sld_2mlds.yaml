@@ -8,8 +8,8 @@ port_configs:
   - type: DSP
 virtual_switch_configs:
   - upstream_port_index: 0
-    vppb_counts: 4
-    initial_bounds: [1,2,3,4]
+    vppb_counts: 10
+    initial_bounds: [1,2,3,4,5,5,5,5,6,6]
 devices:
   single_logical_devices:
     - port_index: 1

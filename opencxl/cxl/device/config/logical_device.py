@@ -10,25 +10,26 @@ from typing import List
 from opencxl.pci.component.pci import EEUM_VID, SW_SLD_DID, SW_MLD_DID
 
 
-@dataclass
-class SingleLogicalDeviceConfig:
+@dataclass(kw_only=True)
+class LogicalDeviceConfig:
     serial_number: str
     port_index: int
+    device_id: int
+    vendor_id: int = EEUM_VID
+    subsystem_vendor_id: int = 0
+    subsystem_id: int = 0
+
+
+@dataclass(kw_only=True)
+class SingleLogicalDeviceConfig(LogicalDeviceConfig):
     memory_size: int  # in bytes
     memory_file: str
-    vendor_id: int = EEUM_VID
     device_id: int = SW_SLD_DID
-    subsystem_vendor_id: int = 0
-    subsystem_id: int = 0
 
 
-@dataclass
-class MultiLogicalDeviceConfig:
-    serial_number: str
-    port_index: int
+@dataclass(kw_only=True)
+class MultiLogicalDeviceConfig(LogicalDeviceConfig):
     memory_sizes: List[int]  # in bytes
     memory_files: List[str]
-    vendor_id: int = EEUM_VID
+    ld_count: int
     device_id: int = SW_MLD_DID
-    subsystem_vendor_id: int = 0
-    subsystem_id: int = 0
