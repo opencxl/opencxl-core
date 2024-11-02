@@ -38,18 +38,18 @@ from opencxl.cxl.transport.transaction import (
 @pytest.mark.asyncio
 async def test_multi_logical_device_ld_id():
     # Test 4 LDs
-    num_ld = 4
+    ld_count = 4
     # Test routing to LD-ID 2
     target_ld_id = 2
     ld_size = 256 * MB
-    logger.info(f"[PyTest] Creating {num_ld} LDs, testing LD-ID routing to {target_ld_id}")
+    logger.info(f"[PyTest] Creating {ld_count} LDs, testing LD-ID routing to {target_ld_id}")
 
     # Create MLD instance
-    cxl_connections = [CxlConnection() for _ in range(num_ld)]
+    cxl_connections = [CxlConnection() for _ in range(ld_count)]
     mld = MultiLogicalDevice(
         port_index=1,
-        memory_sizes=[ld_size] * num_ld,
-        memory_files=[f"mld_mem{i}.bin" for i in range(num_ld)],
+        memory_sizes=[ld_size] * ld_count,
+        memory_files=[f"mld_mem{i}.bin" for i in range(ld_count)],
         test_mode=True,
         cxl_connections=cxl_connections,
     )
@@ -174,7 +174,7 @@ async def test_multi_logical_device_ld_id():
         assert is_cxl_io_completion_status_ur(packet)
 
     async def setup_hdm_decoder(
-        num_ld: int, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ld_count: int, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ):
         # pylint: disable=duplicate-code
         packet_reader = PacketReader(reader, label="setup_hdm_decoder")
@@ -188,7 +188,7 @@ async def test_multi_logical_device_ld_id():
         interleaving_granularity = 0
         interleaving_way = 0
 
-        for ld_id in range(num_ld):
+        for ld_id in range(ld_count):
             # NOTE: Test Config Space Type0 Write - BAR WRITE
             packet = CxlIoCfgWrPacket.create(
                 create_bdf(0, 0, 0),
@@ -369,7 +369,7 @@ async def test_multi_logical_device_ld_id():
     # Start the tests
     await mld.wait_for_ready()
     # Test MLD LD-ID handling
-    await setup_hdm_decoder(num_ld, mld_pseudo_server_reader, mld_pseudo_server_writer)
+    await setup_hdm_decoder(ld_count, mld_pseudo_server_reader, mld_pseudo_server_writer)
     await configure_bar(target_ld_id, mld_pseudo_server_reader, mld_pseudo_server_writer)
     await test_config_space(target_ld_id, mld_pseudo_server_reader, mld_pseudo_server_writer)
     await test_mmio(target_ld_id, mld_pseudo_server_reader, mld_pseudo_server_writer)
