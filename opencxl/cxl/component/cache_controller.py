@@ -279,7 +279,13 @@ class CacheController(RunnableComponent):
 
     # For request: coherency tasks from cache controller to coh module
     async def _cache_to_coh_state_lookup(self, addr: int) -> None:
-        addr_type = self.get_mem_addr_type(addr)
+        if self._processor_to_cache_fifo == None:
+            # device-side cache controller
+            addr_type = MEM_ADDR_TYPE.CXL_CACHED_BI
+        else:
+            # host-side cache controller
+            addr_type = self.get_mem_addr_type(addr)
+
         if addr_type == MEM_ADDR_TYPE.DRAM:
             cache_fifo = self._cache_to_coh_bridge_fifo
         elif addr_type == MEM_ADDR_TYPE.CXL_CACHED_BI:
@@ -326,6 +332,7 @@ class CacheController(RunnableComponent):
         if cache_blk is not None:
             # cache hit
             data = self._cache_data_read(set, cache_blk)
+            logger.info(f"HIT: {data}")
         else:
             # cache miss
             cache_blk = self._cache_find_invalid_block(set)
@@ -344,6 +351,8 @@ class CacheController(RunnableComponent):
             # snoop_data to get mesi response
             packet = await self._memory_load(addr, size)
             data = packet.data
+
+            # logger.info(f"MISS load: {data}")
 
             cache_state = self._cache_rsp_state_lookup(packet)
             if cache_state == CacheState.CACHE_INVALID:

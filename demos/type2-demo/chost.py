@@ -130,7 +130,7 @@ async def check_training_finished_type2(_: int):
         await do_img_classification_type2()
 
 
-sample_from_each_category = 5
+sample_from_each_category = 2
 
 
 async def do_img_classification_type2():
@@ -159,7 +159,7 @@ async def do_img_classification_type2():
             for dev_id in range(accel_count):
                 event = asyncio.Event()
                 write_addr = to_dev_mem_addr(dev_id, IMAGE_WRITE_ADDR)
-                print(f"{write_addr:x} pic_data_len:{pic_data_len:x}")
+                print(f"dev_id:{dev_id} {write_addr:x} pic_data_len:{pic_data_len:x}")
                 await store(
                     write_addr,
                     pic_data_len_rounded,
@@ -177,13 +177,17 @@ async def do_img_classification_type2():
                         break
                     await asyncio.sleep(0.2)
 
+                # await load(write_addr, pic_data_len_rounded, prog_bar=True)
+
                 irq_handler.register_interrupt_handler(
                     Irq.ACCEL_VALIDATION_FINISHED,
                     save_results_type2(pic_id, event),
                     dev_id,
                 )
                 await irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
+                logger.info("about to wait")
                 await event.wait()
+                logger.info("out of wait")
 
                 # Currently we don't send the picture information to the device
                 # and to prevent race condition, we need to send pics synchronously
@@ -209,6 +213,8 @@ def save_results_type2(pic_id: int, event: asyncio.Event):
 
 
 def merge_results_type2():
+    logger.info(f"ABOUT TO MERGE!")
+
     correct_count = 0
     for pic_id in range(total_samples):
         merged_result = {}
@@ -228,10 +234,10 @@ def merge_results_type2():
         if max_k == real_category:
             correct_count += 1
 
-        print(f"Picture {pic_id} category: Real: {real_category}, validated: {max_k}")
+        logger.info(f"Picture {pic_id} category: Real: {real_category}, validated: {max_k}")
 
-    print("Validation finished. Results:")
-    print(
+    logger.info("Validation finished. Results:")
+    logger.info(
         f"Correct/Total: {correct_count}/{total_samples} "
         f"({100 * correct_count / total_samples:.2f}%)"
     )
@@ -250,6 +256,7 @@ async def load(address: int, size: int, prog_bar: bool = False) -> bytes:
     ) as pbar:
         for cacheline_offset in range(address, address + size, 64):
             cacheline = await cpu.load(cacheline_offset, 64)
+            logger.info(f"load: {cacheline:x}")
             chunk_size = min(64, (end - cacheline_offset))
             chunk_data = cacheline.to_bytes(64, "little")
             result += chunk_data[:chunk_size]
@@ -272,7 +279,7 @@ async def store(address: int, size: int, value: int, prog_bar: bool = False):
         chunk_count = 0
         while size > 0:
             low_64_byte = value & ((1 << (64 * 8)) - 1)
-            print(f"low_64_byte:{low_64_byte:x}")
+            print(f"store: {(address + (chunk_count * 64)):x} {low_64_byte:x}")
             await cpu.store(address + (chunk_count * 64), 64, low_64_byte)
             size -= 64
             chunk_count += 1

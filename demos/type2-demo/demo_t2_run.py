@@ -81,8 +81,8 @@ if __name__ == "__main__":
         ("switch", "./switch.py", (sw_port,)),
         ("host", "./chost.py", (sw_port, train_data_path)),
     ]
-    for i in range(num_accels):
-        RUN_LIST.append((f"accel{i + 1}", "./accel.py", (sw_port, f"{i + 1}", train_data_path)))
+    # for i in range(num_accels):
+    #     RUN_LIST.append((f"accel{i + 1}", "./accel.py", (sw_port, f"{i + 1}", train_data_path)))
     signal(SIGCONT, run_next_app)
     signal(SIGINT, clean_shutdown)
 

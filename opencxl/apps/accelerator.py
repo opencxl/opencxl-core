@@ -621,7 +621,7 @@ class MyType2Accelerator(RunnableComponent):
                 leave=False,
             ) as pbar:
                 for offset in range(0, metadata_size, 64):
-                    data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + offset, 64)
+                    data = await self._cxl_type2_device.read_mem_dpa(metadata_addr + offset, 64)
                     curr_written += 64
                     md_file.write(data.to_bytes(64, byteorder="little"))
                     pbar.update(64)
@@ -647,7 +647,6 @@ class MyType2Accelerator(RunnableComponent):
         # decoder_size_low = hpa_size & 0xFFFFFFFF
         # decoder_size_high = (hpa_size >> 32) & 0xFFFFFFFF
 
-        im = None
         # for cacheline_offset in range(address, address + size, 64):
         #     cacheline = await self.cxl_cache_readline(cacheline_offset)
         #     chunk_size = min(64, (end - cacheline_offset))
@@ -655,23 +654,34 @@ class MyType2Accelerator(RunnableComponent):
         #     result += chunk_data[:chunk_size]
         image_addr_mmio_addr = 0x1810
         image_size_mmio_addr = 0x1818
-        image_addr = await self._cxl_type2_device.read_mmio(image_addr_mmio_addr, 8) + base_addr
+        # image_addr = await self._cxl_type2_device.read_mmio(image_addr_mmio_addr, 8) + base_addr
+        image_addr = await self._cxl_type2_device.read_mmio(image_addr_mmio_addr, 8)
         image_size = await self._cxl_type2_device.read_mmio(image_size_mmio_addr, 8)
         end = image_addr + image_size
         logger.info(f"img_addr: {image_addr:x} size:{image_size:x} end:{end:x}")
+
+        im = None
         with BytesIO() as imgbuf:
-            for offset in range(image_addr, image_addr + image_size + 64, 64):
-                data = await self._cxl_type2_device.read_mem_hpa(offset, 64)
-                logger.info(f"data:{data:x} offset:{offset:x}")
-                chunk_size = min(64, (end - offset))
+            for addr in range(image_addr, image_addr + image_size + 64, 64):
+                data = await self._cxl_type2_device.read_mem_dpa(addr, 64)
+                logger.info(f"data:{data:x} addr:{addr:x}")
+                chunk_size = min(64, (end - addr))
                 chunk_data = data.to_bytes(64, "little")
                 chunk_data = chunk_data[:chunk_size]
                 imgbuf.write(chunk_data)
-            logger.info(f"chunk_data:{chunk_data}")
+            logger.info(f"image start")
             im = Image.open(imgbuf).convert("RGB")
+            logger.info(f"image done")
         return im
 
     async def _validate_model(self, _):
+        hdm_offset = 0x1024
+        a = await self._cxl_type2_device.read_mmio(hdm_offset, 4)
+        b = await self._cxl_type2_device.read_mmio(hdm_offset + 4, 4)
+        logger.info(f"a:{a:x} b:{b:x}")
+
+        base_addr = a | (b << 32)
+
         # pylint: disable=no-member
         logger.info(self._create_message(f"VALIDATION STARTING"))
         logger.info(f"Getting test image for dev {self._device_id}")
@@ -700,7 +710,7 @@ class MyType2Accelerator(RunnableComponent):
         curr_written = 0
         while curr_written < rounded_bytes_size:
             chunk = json_asint & ((1 << (64 * 8)) - 1)
-            await self._cxl_type2_device.write_mem_hpa(RESULTS_HPA + curr_written, chunk, 64)
+            await self._cxl_type2_device.write_mem_dpa(RESULTS_HPA + curr_written, chunk, 64)
             json_asint >>= 64 * 8
             curr_written += 64
 
@@ -743,7 +753,7 @@ class MyType2Accelerator(RunnableComponent):
         # )
 
         logger.info(self._create_message("Begin Model Training"))
-        epochs = 1
+        epochs = 0
         for epoch in range(epochs):
             logger.debug(self._create_message(f"Starting epoch: {epoch}"))
             loss_fn = torch.nn.CrossEntropyLoss()

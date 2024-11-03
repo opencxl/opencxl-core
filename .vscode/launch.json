@@ -27,6 +27,13 @@
         "request": "launch",
         "module": "poetry",
         "args": ["run", "python", "opencxl/bin/cli.py", "start", "-c", "switch", "-c", "sld-group", "--config-file", "configs/1vcs_4sld.yaml", "--log-file=log_name.log", "--log-level=debug"]
+      },
+      {
+        "name": "debug py with args", 
+        "type": "debugpy",
+        "request": "launch",
+        "module": "poetry",
+        "args": ["run", "python", "demos/type2-demo/accel.py", "22500", "1", "~/Downloads/imagenette2-small"]
       }
     ]
   }

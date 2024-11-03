@@ -47,25 +47,42 @@ async def main():
     global device
     global start_tasks
 
-    mempath = f"mem{portidx}.bin"
-    with open(mempath, "a") as _:
-        pass
-    device = MyType2Accelerator(
-        port_index=portidx,
-        memory_size=256 * MB,  # min 256MB, or will cause error for DVSEC
-        memory_file=f"mem{portidx}.bin",
-        host="localhost",
-        port=sw_portno,
-        train_data_path=train_data_path,
-        device_id=portidx - 1,
-    )
+    # debug
+    start_tasks = []
+    ready_tasks = []
+    for portidx in range(1, 3):
+        mempath = f"mem{portidx}.bin"
+        with open(mempath, "a") as _:
+            pass
+        device = MyType2Accelerator(
+            port_index=portidx,
+            memory_size=256 * MB,  # min 256MB, or will cause error for DVSEC
+            memory_file=f"mem{portidx}.bin",
+            host="localhost",
+            port=sw_portno,
+            train_data_path=train_data_path,
+            device_id=portidx - 1,
+        )
+        start_tasks.append(asyncio.create_task(device.run()))
+        ready_tasks.append(asyncio.create_task(device.wait_for_ready()))
 
-    start_tasks = [
-        asyncio.create_task(device.run()),
-    ]
-    ready_tasks = [
-        asyncio.create_task(device.wait_for_ready()),
-    ]
+    # normal
+    # start_tasks = []
+    # ready_tasks = []
+    # mempath = f"mem{portidx}.bin"
+    # with open(mempath, "a") as _:
+    #     pass
+    # device = MyType2Accelerator(
+    #     port_index=portidx,
+    #     memory_size=256 * MB,  # min 256MB, or will cause error for DVSEC
+    #     memory_file=f"mem{portidx}.bin",
+    #     host="localhost",
+    #     port=sw_portno,
+    #     train_data_path=train_data_path,
+    #     device_id=portidx - 1,
+    # )
+    # start_tasks.append(asyncio.create_task(device.run()))
+    # ready_tasks.append(asyncio.create_task(device.wait_for_ready()))
 
     os.kill(os.getppid(), SIGCONT)
 
