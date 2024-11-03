@@ -249,7 +249,7 @@ class CacheController(RunnableComponent):
         return cache_state
 
     def _get_cache_fifo(self, addr: int) -> CacheFifoPair:
-        if self._processor_to_cache_fifo == None:
+        if self._processor_to_cache_fifo is None:
             # device-side cache controller
             addr_type = MEM_ADDR_TYPE.CXL_CACHED_BI
         else:
@@ -279,7 +279,7 @@ class CacheController(RunnableComponent):
 
     # For request: coherency tasks from cache controller to coh module
     async def _cache_to_coh_state_lookup(self, addr: int) -> None:
-        if self._processor_to_cache_fifo == None:
+        if self._processor_to_cache_fifo is None:
             # device-side cache controller
             addr_type = MEM_ADDR_TYPE.CXL_CACHED_BI
         else:
@@ -332,7 +332,6 @@ class CacheController(RunnableComponent):
         if cache_blk is not None:
             # cache hit
             data = self._cache_data_read(set, cache_blk)
-            logger.info(f"HIT: {data}")
         else:
             # cache miss
             cache_blk = self._cache_find_invalid_block(set)
@@ -351,8 +350,6 @@ class CacheController(RunnableComponent):
             # snoop_data to get mesi response
             packet = await self._memory_load(addr, size)
             data = packet.data
-
-            # logger.info(f"MISS load: {data}")
 
             cache_state = self._cache_rsp_state_lookup(packet)
             if cache_state == CacheState.CACHE_INVALID:
@@ -500,5 +497,8 @@ class CacheController(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
-        await self._processor_to_cache_fifo.request.put(None)
+        if self._processor_to_cache_fifo:
+            await self._processor_to_cache_fifo.request.put(None)
+        if self._coh_bridge_to_cache_fifo:
+            await self._coh_bridge_to_cache_fifo.request.put(None)
         await self._coh_agent_to_cache_fifo.request.put(None)

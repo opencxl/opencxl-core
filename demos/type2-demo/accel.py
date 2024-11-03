@@ -3,19 +3,10 @@
 from signal import *
 import asyncio
 import sys, os
+
+from opencxl.util.logger import logger
 from opencxl.apps.accelerator import MyType2Accelerator
-
-from opencxl.cxl.component.cxl_component import PORT_TYPE, PortConfig
-from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
-from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
-from opencxl.cxl.component.virtual_switch_manager import VirtualSwitchConfig, VirtualSwitchManager
 from opencxl.util.number_const import MB
-
-device = None
-
-start_tasks = []
-
-train_data_path = None
 
 
 async def shutdown(signame=None):
@@ -28,7 +19,7 @@ async def shutdown(signame=None):
         await asyncio.gather(*stop_tasks, return_exceptions=True)
         await asyncio.gather(*start_tasks)
     except Exception as exc:
-        print("[ACCEL]", exc.__traceback__)
+        logger.info(f"[ACCEL] {exc.__traceback__}")
     finally:
         os._exit(0)
 
@@ -40,53 +31,30 @@ async def main():
 
     sw_portno = int(sys.argv[1])
     portidx = int(sys.argv[2])
-
-    global train_data_path
     train_data_path = sys.argv[3]
 
     global device
     global start_tasks
 
-    # debug
     start_tasks = []
     ready_tasks = []
-    for portidx in range(1, 3):
-        mempath = f"mem{portidx}.bin"
-        with open(mempath, "a") as _:
-            pass
-        device = MyType2Accelerator(
-            port_index=portidx,
-            memory_size=256 * MB,  # min 256MB, or will cause error for DVSEC
-            memory_file=f"mem{portidx}.bin",
-            host="localhost",
-            port=sw_portno,
-            train_data_path=train_data_path,
-            device_id=portidx - 1,
-        )
-        start_tasks.append(asyncio.create_task(device.run()))
-        ready_tasks.append(asyncio.create_task(device.wait_for_ready()))
-
-    # normal
-    # start_tasks = []
-    # ready_tasks = []
-    # mempath = f"mem{portidx}.bin"
-    # with open(mempath, "a") as _:
-    #     pass
-    # device = MyType2Accelerator(
-    #     port_index=portidx,
-    #     memory_size=256 * MB,  # min 256MB, or will cause error for DVSEC
-    #     memory_file=f"mem{portidx}.bin",
-    #     host="localhost",
-    #     port=sw_portno,
-    #     train_data_path=train_data_path,
-    #     device_id=portidx - 1,
-    # )
-    # start_tasks.append(asyncio.create_task(device.run()))
-    # ready_tasks.append(asyncio.create_task(device.wait_for_ready()))
+    mempath = f"mem{portidx}.bin"
+    with open(mempath, "a") as _:
+        pass
+    device = MyType2Accelerator(
+        port_index=portidx,
+        memory_size=256 * MB,  # min 256MB, or will cause error for DVSEC
+        memory_file=f"mem{portidx}.bin",
+        host="localhost",
+        port=sw_portno,
+        train_data_path=train_data_path,
+        device_id=portidx - 1,
+    )
+    start_tasks.append(asyncio.create_task(device.run()))
+    ready_tasks.append(asyncio.create_task(device.wait_for_ready()))
+    await asyncio.gather(*ready_tasks)
 
     os.kill(os.getppid(), SIGCONT)
-
-    await asyncio.gather(*ready_tasks)
 
     await asyncio.Event().wait()  # blocks
 

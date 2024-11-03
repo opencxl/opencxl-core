@@ -41,22 +41,22 @@ async def main():
     lp.add_signal_handler(SIGINT, lambda signame="SIGINT": asyncio.create_task(shutdown(signame)))
 
     portno = int(sys.argv[1])
+    dev_count = int(sys.argv[2])
 
     global sw_conn_manager
     global physical_port_manager
     global virtual_switch_manager
     global start_tasks
 
-    port_configs = [
-        PortConfig(PORT_TYPE.USP),
-        PortConfig(PORT_TYPE.DSP),
-        PortConfig(PORT_TYPE.DSP),
-    ]
+    port_configs = [PortConfig(PORT_TYPE.USP)]
+    for _ in range(dev_count):
+        port_configs.append(PortConfig(PORT_TYPE.DSP))
+
     switch_configs = [
         VirtualSwitchConfig(
             upstream_port_index=0,
-            vppb_counts=2,
-            initial_bounds=[1, 2],
+            vppb_counts=dev_count,
+            initial_bounds=list(range(1, dev_count + 1)),
             irq_host="0.0.0.0",
             irq_port=8500,
         )
@@ -80,10 +80,9 @@ async def main():
         asyncio.create_task(physical_port_manager.wait_for_ready()),
         asyncio.create_task(virtual_switch_manager.wait_for_ready()),
     ]
+    await asyncio.gather(*ready_tasks)
 
     os.kill(os.getppid(), SIGCONT)
-
-    await asyncio.gather(*ready_tasks)
 
     await asyncio.Event().wait()  # blocks
 

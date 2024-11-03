@@ -13,7 +13,6 @@ from typing import Callable, Awaitable
 # import websockets
 # from websockets import WebSocketClientProtocol
 
-# from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cpu import CPU
 from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, CxlMemoryHubConfig
@@ -75,7 +74,6 @@ class CxlHost(RunnableComponent):
         await self._irq_manager.wait_for_ready()
         await self._cxl_memory_hub.wait_for_ready()
         tasks.append(asyncio.create_task(self._cpu.run()))
-        await self._cpu.wait_for_ready()
         await self._change_status_to_running()
         await asyncio.gather(*tasks)
 
