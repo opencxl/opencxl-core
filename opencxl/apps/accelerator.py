@@ -737,13 +737,8 @@ class MyType2Accelerator(RunnableComponent):
         await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
 
     def _app_shutdown(self):
-        logger.info("Moving out of accelerator directory")
-        os.chdir("..")
-
-        # logger.info("Removing accelerator directory")
-        # os.rmdir(self.accel_dirname)
-        logger.info(f"self.accel_dirname: {self.accel_dirname}")
-        shutil.rmtree(self.accel_dirname)
+        logger.info(self._create_message(f"Removing tmp directory: {self.accel_dirname}"))
+        shutil.rmtree(self.accel_dirname, ignore_errors=True)
 
     async def _run(self):
         self._setup_test_env()
@@ -773,3 +768,4 @@ class MyType2Accelerator(RunnableComponent):
             create_task(self._irq_manager.stop()),
         ]
         await gather(*tasks)
+        await self._app_shutdown()
