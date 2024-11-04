@@ -6,6 +6,7 @@
 """
 
 from dataclasses import dataclass
+from typing import List
 from opencxl.pci.component.pci import EEUM_VID, SW_SLD_DID, SW_MLD_DID
 
 
@@ -25,8 +26,8 @@ class SingleLogicalDeviceConfig:
 class MultiLogicalDeviceConfig:
     serial_number: str
     port_index: int
-    memory_size: int  # in bytes
-    memory_file: str
+    memory_sizes: List[int]  # in bytes
+    memory_files: List[str]
     vendor_id: int = EEUM_VID
     device_id: int = SW_MLD_DID
     subsystem_vendor_id: int = 0

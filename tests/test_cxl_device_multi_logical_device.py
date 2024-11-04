@@ -47,7 +47,6 @@ async def test_multi_logical_device_ld_id():
     # Create MLD instance
     cxl_connections = [CxlConnection() for _ in range(num_ld)]
     mld = MultiLogicalDevice(
-        num_ld=num_ld,
         port_index=1,
         memory_sizes=[ld_size] * num_ld,
         memory_files=[f"mld_mem{i}.bin" for i in range(num_ld)],
