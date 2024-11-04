@@ -184,7 +184,6 @@ class IrqManager(RunnableComponent):
         if not self._server:
             info = f"device {self._device_id} sending to host"
         logger.debug(self._create_message(info))
-
         _, writer = self._connections[device]
         val_w_dev_id = request.value << 8 | self._device_id
         writer.write(val_w_dev_id.to_bytes(length=IRQ_WIDTH))

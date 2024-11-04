@@ -209,10 +209,8 @@ class CxlMemDcoh(PacketProcessor):
 
         addr = m2srwd_packet.get_address()
         dpa = self._memory_device_component.get_dpa(addr)
-        # logger.info(f"RwD:{dpa:x} {m2srwd_packet.data:x}")
 
         if m2srwd_packet.m2srwd_header.meta_field == CXL_MEM_META_FIELD.NO_OP:
-            logger.info("w1")
             await self._memory_device_component.write_mem_dpa(dpa, m2srwd_packet.data)
 
             packet, _ = self._create_mem_rsp_packet(CXL_MEM_S2MNDR_OPCODE.CMP, m2srwd_packet.data)
@@ -238,7 +236,6 @@ class CxlMemDcoh(PacketProcessor):
             self._snoop_filter_update(dpa, sf_update_list)
 
         if data_flush is True:
-            # logger.info("w2")
             await self._memory_device_component.write_mem_dpa(dpa, m2srwd_packet.data)
 
         ndr_packet, _ = self._create_mem_rsp_packet(rsp_code)
@@ -247,7 +244,6 @@ class CxlMemDcoh(PacketProcessor):
     # .mem m2s birsp handler
     async def _process_cxl_m2s_birsp_packet(self, m2sbirsp_packet: CxlMemM2SBIRspPacket):
         dpa = self._cur_state.packet.addr
-        # dpa = self._memory_device_component.get_dpa(addr)
         data = await self._memory_device_component.read_mem_dpa(dpa)
 
         if m2sbirsp_packet.m2sbirsp_header.opcode == CXL_MEM_M2SBIRSP_OPCODE.BIRSP_S:
@@ -271,9 +267,6 @@ class CxlMemDcoh(PacketProcessor):
 
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
             dpa = cache_packet.addr
-            # dpa = self._memory_device_component.get_dpa(addr)
-            # logger.info(self._create_message(f"addr:{addr:x} dpa:{dpa:x}"))
-
             if cache_packet.type == CACHE_REQUEST_TYPE.READ:
                 data = await self._memory_device_component.read_mem_dpa(dpa)
                 packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, data)

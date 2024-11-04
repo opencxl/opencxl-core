@@ -79,7 +79,7 @@ if __name__ == "__main__":
         ("host", "./host-t2.py", (sw_port, num_accels, train_data_path)),
     ]
     for i in range(int(num_accels)):
-        RUN_LIST.append((f"accel{i + 1}", "./accel.py", (sw_port, f"{i + 1}", train_data_path)))
+        RUN_LIST.append((f"accel{i + 1}", "./accel-t2.py", (sw_port, f"{i + 1}", train_data_path)))
     signal(SIGCONT, run_next_app)
     signal(SIGINT, clean_shutdown)
 

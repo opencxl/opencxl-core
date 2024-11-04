@@ -62,7 +62,6 @@ class MyLogger(logging.getLoggerClass()):
     def set_stdout_levels(
         self,
         loglevel: str = "INFO",
-        # loglevel: str = "DEBUG",
         show_timestamp: bool = False,
         show_loglevel: bool = False,
         show_linenumber: bool = False,
