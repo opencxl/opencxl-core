@@ -5,10 +5,10 @@
  See LICENSE for details.
 """
 
-from opencxl.cxl.component.short_msg_conn import ShortMsg, ShortMsgConn
+from opencxl.cxl.component.short_msg_conn import ShortMsgBase, ShortMsgConn
 
 
-class Irq(ShortMsg):
+class Irq(ShortMsgBase):
     NULL = 0x00
 
     # Host-side file ready to be read by device using CXL.cache
@@ -39,4 +39,12 @@ class IrqManager(ShortMsgConn):
         server: bool = False,
         device_id: int = 0,
     ):
-        super().__init__(f"{device_name}:IrqHandler", addr, port, server, device_id, msg_width=1)
+        super().__init__(
+            f"{device_name}:IrqHandler",
+            addr,
+            port,
+            server,
+            device_id,
+            msg_width=1,
+            msg_type=Irq,
+        )
