@@ -62,10 +62,10 @@ class ShortMsgConn(RunnableComponent):
         self._msg_tasks: list[Task] = []
 
     def register_interrupt_handler(
-        self, short_msg: ShortMsg, irq_recv_cb: Callable, dev_id: int = 0
+        self, short_msg: ShortMsg, msg_recv_cb: Callable, dev_id: int = 0
     ):
         """
-        Registers a callback on the arrival of a specific interrupt.
+        Registers a callback on the arrival of a specific message.
         dev_id will be locked to 0 for a client.
         """
 
@@ -75,12 +75,12 @@ class ShortMsgConn(RunnableComponent):
             device_name = "host"
 
         async def _callback(dev_id):
-            await irq_recv_cb(dev_id)
+            await msg_recv_cb(dev_id)
 
         cb_func = _callback
         logger.debug(
             self._create_message(
-                f"Registering interrupt for ShortMsg {short_msg.name} for remote {device_name}"
+                f"Registering callback for ShortMsg {short_msg.name} for remote {device_name}"
             )
         )
         if dev_id not in self._msg_to_interrupt_event:
@@ -88,7 +88,7 @@ class ShortMsgConn(RunnableComponent):
         self._msg_to_interrupt_event[dev_id][short_msg] = cb_func
 
     def register_general_handler(
-        self, short_msg: ShortMsg, irq_recv_cb: Callable, persistent: bool = True
+        self, short_msg: ShortMsg, msg_recv_cb: Callable, persistent: bool = True
     ):
         """
         Registers a callback on the arrival of a specific interrupt.
@@ -96,7 +96,7 @@ class ShortMsgConn(RunnableComponent):
         """
 
         async def _callback(dev_id):
-            await irq_recv_cb(dev_id)
+            await msg_recv_cb(dev_id)
 
         cb_func = _callback
         logger.debug(
@@ -104,14 +104,14 @@ class ShortMsgConn(RunnableComponent):
         )
         self._general_interrupt_event[short_msg] = (cb_func, persistent)
 
-    async def _irq_handler(self, reader: StreamReader, _: StreamWriter):
+    async def _msg_handler(self, reader: StreamReader, _: StreamWriter):
         this_dev_name = f"Device {self._device_id}"
         if self._server:
             this_dev_name = "Host"
         logger.debug(self._create_message(f"{this_dev_name}: Creating ShortMsg handler"))
         while True:
             if not self._run_status:
-                logger.debug(self._create_message(f"{this_dev_name} _irq_handler exiting"))
+                logger.debug(self._create_message(f"{this_dev_name} _msg_handler exiting"))
                 return
 
             msg = await reader.readexactly(self._msg_width)
@@ -125,30 +125,30 @@ class ShortMsgConn(RunnableComponent):
                 remote_dev_id = 0
                 remote_dev_name = "host"
 
-            irq_num = msg_int >> 8
-            irq = ShortMsg(irq_num)
-            logger.debug(self._create_message(f"ShortMsg received for {irq.name}"))
+            msg_num = msg_int >> 8
+            msg = ShortMsg(msg_num)
+            logger.debug(self._create_message(f"ShortMsg received for {msg.name}"))
             if remote_dev_id not in self._msg_to_interrupt_event:
-                if irq not in self._general_interrupt_event:
+                if msg not in self._general_interrupt_event:
                     raise RuntimeError(
-                        f"ShortMsg: {irq} is not registered for remote {remote_dev_name}"
+                        f"ShortMsg: {msg} is not registered for remote {remote_dev_name}"
                     )
-                func = self._general_interrupt_event[irq][0]
-                persistent = self._general_interrupt_event[irq][1]
+                func = self._general_interrupt_event[msg][0]
+                persistent = self._general_interrupt_event[msg][1]
                 if not persistent:
-                    del self._general_interrupt_event[irq]
+                    del self._general_interrupt_event[msg]
                 t = create_task(func(remote_dev_id))
                 self._msg_tasks.append(t)
                 return
 
-            if irq not in self._msg_to_interrupt_event[remote_dev_id]:
-                raise RuntimeError(f"Invalid ShortMsg: {irq} for remote {remote_dev_name}")
+            if msg not in self._msg_to_interrupt_event[remote_dev_id]:
+                raise RuntimeError(f"Invalid ShortMsg: {msg} for remote {remote_dev_name}")
 
-            t = create_task(self._msg_to_interrupt_event[remote_dev_id][irq](remote_dev_id))
+            t = create_task(self._msg_to_interrupt_event[remote_dev_id][msg](remote_dev_id))
             self._msg_tasks.append(t)
             logger.debug(
                 self._create_message(
-                    f"ShortMsg handled for {irq.name} from remote {remote_dev_name}"
+                    f"ShortMsg handled for {msg.name} from remote {remote_dev_name}"
                 )
             )
 
@@ -157,7 +157,7 @@ class ShortMsgConn(RunnableComponent):
 
         async def _new_conn(reader: StreamReader, writer: StreamWriter):
             self._connections.append((reader, writer))
-            self._msg_handlers.append(create_task(self._irq_handler(reader, writer)))
+            self._msg_handlers.append(create_task(self._msg_handler(reader, writer)))
 
         server = await start_server(_new_conn, self._addr, self._port, limit=2)
         logger.debug(self._create_message(f"Starting ShortMsg server on {self._addr}:{self._port}"))
@@ -183,7 +183,7 @@ class ShortMsgConn(RunnableComponent):
         logger.debug("Device to Host ShortMsg Connection created!")
         self._run_status = True
 
-        self._msg_handlers.append(create_task(self._irq_handler(reader, writer)))
+        self._msg_handlers.append(create_task(self._msg_handler(reader, writer)))
 
     async def shutdown(self):
         self._run_status = False
@@ -193,18 +193,13 @@ class ShortMsgConn(RunnableComponent):
             if self._server:
                 server = await self._create_server()
                 self._server_task = create_task(server.serve_forever())
-
                 self._tasks.append(self._server_task)
-                # self._tasks.append(self._handler_task)
             else:
-                # self._client_task = create_task(self._irq_handler())
-                # self._tasks.append(self._client_task)
                 pass
             await self._change_status_to_running()
             self._tasks.append(create_task(self._end_signal.wait()))
 
             await gather(*self._tasks)
-            # await gather(*self._callback_tasks)
         except CancelledError:
             logger.info(self._create_message("ShortMsg enable listener stopped"))
             for task in self._msg_tasks:
