@@ -24,12 +24,16 @@ from opencxl.util.component import RunnableComponent
 from opencxl.util.logger import logger
 
 
-class ShortMsg(Enum):
+class ShortMsgBase(Enum):
     pass
 
 
+class ShortMsgPlaceholder(ShortMsgBase):
+    NULL = 0x00
+
+
 class ShortMsgConn(RunnableComponent):
-    _msg_to_interrupt_event: dict[int, dict[ShortMsg, Callable]]
+    _msg_to_interrupt_event: dict[int, dict[ShortMsgBase, Callable]]
     _callbacks: list[Callable]
     _server_task: Task
 
@@ -41,6 +45,7 @@ class ShortMsgConn(RunnableComponent):
         server: bool = False,
         device_id: int = 0,
         msg_width: int = 2,
+        msg_type=ShortMsgPlaceholder,
     ):
         super().__init__(f"{device_name}:ShortMsgConn")
         self._addr = addr
@@ -60,9 +65,19 @@ class ShortMsgConn(RunnableComponent):
         self._device_id = device_id
         self._run_status = False
         self._msg_tasks: list[Task] = []
+        if msg_type == ShortMsgPlaceholder:
+            logger.warning(
+                self._create_message("You are using the ShortMsgPlaceholder for ShortMsgConn data.")
+            )
+            logger.warning(
+                self._create_message(
+                    "Please create a custom class extending ShortMsgBase class for custom messages."
+                )
+            )
+        self._msg_type = msg_type
 
     def register_interrupt_handler(
-        self, short_msg: ShortMsg, msg_recv_cb: Callable, dev_id: int = 0
+        self, short_msg: ShortMsgBase, msg_recv_cb: Callable, dev_id: int = 0
     ):
         """
         Registers a callback on the arrival of a specific message.
@@ -88,7 +103,7 @@ class ShortMsgConn(RunnableComponent):
         self._msg_to_interrupt_event[dev_id][short_msg] = cb_func
 
     def register_general_handler(
-        self, short_msg: ShortMsg, msg_recv_cb: Callable, persistent: bool = True
+        self, short_msg: ShortMsgBase, msg_recv_cb: Callable, persistent: bool = True
     ):
         """
         Registers a callback on the arrival of a specific interrupt.
@@ -126,8 +141,7 @@ class ShortMsgConn(RunnableComponent):
                 remote_dev_name = "host"
 
             msg_num = msg_int >> 8
-            msg = ShortMsg(msg_num)
-            logger.debug(self._create_message(f"ShortMsg received for {msg.name}"))
+            msg = self._msg_type(msg_num)
             if remote_dev_id not in self._msg_to_interrupt_event:
                 if msg not in self._general_interrupt_event:
                     raise RuntimeError(
@@ -163,7 +177,7 @@ class ShortMsgConn(RunnableComponent):
         logger.debug(self._create_message(f"Starting ShortMsg server on {self._addr}:{self._port}"))
         return server
 
-    async def send_irq_request(self, request: ShortMsg, device: int = 0):
+    async def send_irq_request(self, request: ShortMsgBase, device: int = 0):
         """
         Sends an ShortMsg request as the client.
         """
