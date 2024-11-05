@@ -93,7 +93,7 @@ class CxlVirtualSwitch(RunnableComponent):
         logger.info(f"Upstream Port Index: {upstream_port_index}")
 
         self._upstream_vppb = UpstreamVppb(upstream_port_index)
-        self._upstream_vppb.bind_to_physical_port(self._physical_ports[upstream_port_index])
+        self._upstream_vppb.bind_to_physical_usp_port(self._physical_ports[upstream_port_index])
         if self._physical_ports[upstream_port_index].get_device_type() != CXL_COMPONENT_TYPE.USP:
             raise Exception(f"physical port {upstream_port_index} is not USP")
         self._downstream_vppbs = [DownstreamVppb(idx, id) for idx in range(vppb_counts)]
@@ -199,9 +199,10 @@ class CxlVirtualSwitch(RunnableComponent):
         )
         dsp_device = cast(DownstreamPortDevice, port_device)
 
-        vppb.bind_to_physical_port(dsp_device, ld_id)
-        vppb.ld_id = ld_id
+        await dsp_device.get_ppb_device().bind(ld_id)
+        await vppb.bind_to_physical_dsp_port(dsp_device, ld_id)
 
+        vppb.set_ld_id(ld_id)
         vppb.set_routing_table(self._routing_table, ld_id)
         vppb.set_vppb_index(vppb_index)
 
@@ -235,11 +236,13 @@ class CxlVirtualSwitch(RunnableComponent):
 
         await self._call_event_handler(vppb_index, PPB_BINDING_STATUS.UNBOUND)
         if self._physical_ports_vppb_map.get(vppb_index, None) is not None:
+            ld_id = self._downstream_vppbs[vppb_index].get_ld_id()
             await self._downstream_vppbs[vppb_index].unbind_from_physical_port(
                 self._physical_ports_vppb_map[vppb_index]
             )
+            await self._physical_ports_vppb_map[vppb_index].get_ppb_device().unbind(ld_id)
             del self._physical_ports_vppb_map[vppb_index]
-        self._downstream_vppbs[vppb_index].ld_id = None
+        self._downstream_vppbs[vppb_index].set_ld_id(0)
         self._routing_table.deactivate_vppb(vppb_index)
 
         await self._cxl_mem_router.update_router(vppb_index)

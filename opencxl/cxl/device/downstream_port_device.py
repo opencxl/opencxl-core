@@ -6,9 +6,11 @@
 """
 
 from typing import Optional
-from asyncio import create_task, gather
+from asyncio import create_task, gather, Condition
 
 from opencxl.util.logger import logger
+from opencxl.util.component import RunnableComponent
+from opencxl.util.async_gatherer import AsyncGatherer
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 from opencxl.cxl.component.cxl_connection import CxlConnection
@@ -47,63 +49,74 @@ from opencxl.pci.component.config_space_manager import (
 )
 
 
+class SleepLoop(RunnableComponent):
+    def __init__(self):
+        super().__init__()
+        self._task = None
+        self._running = False
+        self._loopcond = Condition()
+
+    async def _process(self):
+        await self._loopcond.acquire()
+        try:
+            await self._change_status_to_running()
+            if self._running:
+                await self._loopcond.wait()
+        finally:
+            self._loopcond.release()
+
+    async def _run(self):
+        self._running = True
+        self._task = create_task(self._process())
+        await self.wait_for_ready()
+        await self._task
+
+    async def _stop(self):
+        self._running = False
+        await self._loopcond.acquire()
+        self._loopcond.notify()
+        self._loopcond.release()
+        await self._task
+
+
 class DownstreamPortDevice(CxlPortDevice):
     def __init__(
         self,
         transport_connection: CxlConnection,
         port_index: int = 0,
-        ld_count: int = 1,
+        max_ld: int = 1,
     ):
         super().__init__(transport_connection, port_index)
 
-        self._ld_count = ld_count
+        self._max_ld = max_ld
+        self._tasks = AsyncGatherer()
+        self._stop_tasks = []
 
         # Per LD
-        self._pci_bridge_component = []
-        self._pci_registers = []
-        self._cxl_component = []
+        self._pci_bridge_component = {}
+        self._pci_registers = {}
+        self._cxl_component = {}
 
-        self._vppb_upstream_connection = [CxlConnection() for _ in range(self._ld_count)]
-        self._vppb_downstream_connection = [CxlConnection() for _ in range(self._ld_count)]
+        self._vppb_upstream_connection = {}
+        self._vppb_downstream_connection = {}
 
         self._ppb_device: PpbDevice = None
         self._ppb_bind = None
         self._vppb_index = -1
 
-        self._cxl_io_manager = [
-            CxlIoManager(
-                self._vppb_upstream_connection[i].mmio_fifo,
-                self._vppb_downstream_connection[i].mmio_fifo,
-                self._vppb_upstream_connection[i].cfg_fifo,
-                self._vppb_downstream_connection[i].cfg_fifo,
-                device_type=PCI_DEVICE_TYPE.DOWNSTREAM_BRIDGE,
-                init_callback=self._init_device,
-                label=self._get_label(),
-            )
-            for i in range(self._ld_count)
-        ]
+        self._cxl_io_manager = {}
+        self._cxl_mem_manager = {}
+        self._cxl_cache_manager = {}
 
-        self._cxl_mem_manager = [
-            CxlMemManager(
-                upstream_fifo=self._vppb_upstream_connection[i].cxl_mem_fifo,
-                downstream_fifo=self._vppb_downstream_connection[i].cxl_mem_fifo,
-                label=self._get_label(),
-            )
-            for i in range(self._ld_count)
-        ]
-        self._cxl_cache_manager = [
-            CxlCacheManager(
-                upstream_fifo=self._vppb_upstream_connection[i].cxl_cache_fifo,
-                downstream_fifo=self._vppb_downstream_connection[i].cxl_cache_fifo,
-                label=self._get_label(),
-            )
-            for i in range(self._ld_count)
-        ]
+        # Create a dummy process to keep the component running
+        # TODO: cleaner method
+        self._dummy_process = SleepLoop()
 
     def _init_device(
         self,
         mmio_manager: MmioManager,
         config_space_manager: ConfigSpaceManager,
+        ld_id: int,
     ):
         pci_identity = PciComponentIdentity(
             vendor_id=EEUM_VID,
@@ -113,25 +126,23 @@ class DownstreamPortDevice(CxlPortDevice):
             programming_interface=0x00,
             device_port_type=PCI_DEVICE_PORT_TYPE.DOWNSTREAM_PORT_OF_PCI_EXPRESS_SWITCH,
         )
-        self._pci_bridge_component.append(
-            PciBridgeComponent(
-                identity=pci_identity,
-                type=PCI_BRIDGE_TYPE.DOWNSTREAM_PORT,
-                mmio_manager=mmio_manager,
-                label=self._get_label(),
-            )
+        self._pci_bridge_component[ld_id] = PciBridgeComponent(
+            identity=pci_identity,
+            type=PCI_BRIDGE_TYPE.DOWNSTREAM_PORT,
+            mmio_manager=mmio_manager,
+            label=self._get_label(),
         )
 
         # Create MMIO register
         cxl_component = CxlDownstreamPortComponent()
-        self._cxl_component.append(cxl_component)
+        self._cxl_component[ld_id] = cxl_component
         mmio_options = CombinedMmioRegiterOptions(cxl_component=cxl_component)
         mmio_register = CombinedMmioRegister(options=mmio_options)
         mmio_manager.set_bar_entries([BarEntry(mmio_register)])
 
         # Create Config Space Register
         pci_registers_options = CxlDownstreamPortConfigSpaceOptions(
-            pci_bridge_component=self._pci_bridge_component[-1],
+            pci_bridge_component=self._pci_bridge_component[ld_id],
             dvsec=DvsecConfigSpaceOptions(
                 device_type=CXL_DEVICE_TYPE.DSP,
                 register_locator=DvsecRegisterLocatorOptions(
@@ -139,8 +150,8 @@ class DownstreamPortDevice(CxlPortDevice):
                 ),
             ),
         )
-        self._pci_registers.append(CxlDownstreamPortConfigSpace(options=pci_registers_options))
-        config_space_manager.set_register(self._pci_registers[-1])
+        self._pci_registers[ld_id] = CxlDownstreamPortConfigSpace(options=pci_registers_options)
+        config_space_manager.set_register(self._pci_registers[ld_id])
 
     def _get_label(self) -> str:
         return f"DSP{self._port_index}"
@@ -150,6 +161,7 @@ class DownstreamPortDevice(CxlPortDevice):
         return message
 
     def get_reg_vals(self, ld_id: int = 0):
+        print(f"len: {len(self._cxl_io_manager)}")
         return self._cxl_io_manager[ld_id].get_cfg_reg_vals()
 
     def set_vppb_index(self, vppb_index: int, ld_id: int):
@@ -165,8 +177,51 @@ class DownstreamPortDevice(CxlPortDevice):
     def get_secondary_bus_number(self, ld_id: int):
         return self._pci_registers[ld_id].pci.secondary_bus_number
 
-    def bind_to_vppb(self, ld_id: int):
+    # Caller should always await this function
+    async def bind_to_vppb(self, ld_id: int):
         logger.info(self._create_message(f"Binding ld_id {ld_id} to vPPB{self._vppb_index}"))
+        if ld_id >= self._max_ld:
+            logger.info(self._create_message(f"ld_id {ld_id} is out of bound"))
+            raise Exception(f"ld_id {ld_id} is out of bound")
+        self._vppb_upstream_connection[ld_id] = CxlConnection()
+        self._vppb_downstream_connection[ld_id] = CxlConnection()
+        self._cxl_io_manager[ld_id] = CxlIoManager(
+            self._vppb_upstream_connection[ld_id].mmio_fifo,
+            self._vppb_downstream_connection[ld_id].mmio_fifo,
+            self._vppb_upstream_connection[ld_id].cfg_fifo,
+            self._vppb_downstream_connection[ld_id].cfg_fifo,
+            device_type=PCI_DEVICE_TYPE.DOWNSTREAM_BRIDGE,
+            init_callback=self._init_device,
+            label=self._get_label(),
+            ld_id=ld_id,
+        )
+        self._cxl_mem_manager[ld_id] = CxlMemManager(
+            upstream_fifo=self._vppb_upstream_connection[ld_id].cxl_mem_fifo,
+            downstream_fifo=self._vppb_downstream_connection[ld_id].cxl_mem_fifo,
+            label=self._get_label(),
+        )
+        self._cxl_cache_manager[ld_id] = CxlCacheManager(
+            upstream_fifo=self._vppb_upstream_connection[ld_id].cxl_cache_fifo,
+            downstream_fifo=self._vppb_downstream_connection[ld_id].cxl_cache_fifo,
+            label=self._get_label(),
+        )
+
+        wait_tasks = []
+
+        self._tasks.add_task(self._cxl_io_manager[ld_id].run())
+        wait_tasks.append(self._cxl_io_manager[ld_id].wait_for_ready())
+        self._stop_tasks.append(self._cxl_io_manager[ld_id])
+
+        self._tasks.add_task(self._cxl_mem_manager[ld_id].run())
+        wait_tasks.append(self._cxl_mem_manager[ld_id].wait_for_ready())
+        self._stop_tasks.append(self._cxl_mem_manager[ld_id])
+
+        self._tasks.add_task(self._cxl_cache_manager[ld_id].run())
+        wait_tasks.append(self._cxl_cache_manager[ld_id].wait_for_ready())
+        self._stop_tasks.append(self._cxl_cache_manager[ld_id])
+
+        await gather(*wait_tasks)
+
         return (
             self._cxl_mem_manager[ld_id],
             self._cxl_io_manager[ld_id],
@@ -178,7 +233,25 @@ class DownstreamPortDevice(CxlPortDevice):
             self._vppb_downstream_connection[ld_id],
         )
 
-    def unbind_from_vppb(self, ld_id: int):
+    # Caller should always await this function
+    async def unbind_from_vppb(self, ld_id: int):
+        tasks = []
+        self._vppb_downstream_connection.pop(ld_id, None)
+        self._vppb_upstream_connection.pop(ld_id, None)
+        io_task = self._cxl_io_manager.pop(ld_id, None)
+        mem_task = self._cxl_mem_manager.pop(ld_id, None)
+        cache_task = self._cxl_cache_manager.pop(ld_id, None)
+        if io_task:
+            tasks.append(create_task(io_task.stop()))
+            self._stop_tasks.remove(io_task)
+        if mem_task:
+            tasks.append(create_task(mem_task.stop()))
+            self._stop_tasks.remove(mem_task)
+        if cache_task:
+            tasks.append(create_task(cache_task.stop()))
+            self._stop_tasks.remove(cache_task)
+        await gather(*tasks)
+
         logger.info(
             self._create_message(f"Unbinding ld_id {ld_id} to vPPB{self._vppb_index} (noop)")
         )
@@ -199,32 +272,15 @@ class DownstreamPortDevice(CxlPortDevice):
 
     async def _run(self):
         logger.info(self._create_message("Starting"))
-        run_tasks = (
-            [create_task(self._cxl_io_manager[i].run()) for i in range(self._ld_count)]
-            + [create_task(self._cxl_mem_manager[i].run()) for i in range(self._ld_count)]
-            + [create_task(self._cxl_cache_manager[i].run()) for i in range(self._ld_count)]
-        )
-        wait_tasks = (
-            [create_task(self._cxl_io_manager[i].wait_for_ready()) for i in range(self._ld_count)]
-            + [
-                create_task(self._cxl_mem_manager[i].wait_for_ready())
-                for i in range(self._ld_count)
-            ]
-            + [
-                create_task(self._cxl_cache_manager[i].wait_for_ready())
-                for i in range(self._ld_count)
-            ]
-        )
-        await gather(*wait_tasks)
         await self._change_status_to_running()
-        await gather(*run_tasks)
+        self._tasks.add_task(self._dummy_process.run())
+        self._stop_tasks.append(self._dummy_process)
+        await self._dummy_process.wait_for_ready()
+        await self._tasks.wait_for_completion()
         logger.info(self._create_message("Stopped"))
 
     async def _stop(self):
         logger.info(self._create_message("Stopping"))
-        tasks = (
-            [create_task(self._cxl_io_manager[i].stop()) for i in range(self._ld_count)]
-            + [create_task(self._cxl_mem_manager[i].stop()) for i in range(self._ld_count)]
-            + [create_task(self._cxl_cache_manager[i].stop()) for i in range(self._ld_count)]
-        )
-        await gather(*tasks)
+        await self._dummy_process.wait_for_ready()
+        stop_tasks = [create_task(task.stop()) for task in self._stop_tasks]
+        await gather(*stop_tasks)

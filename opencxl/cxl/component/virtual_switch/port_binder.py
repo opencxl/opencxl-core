@@ -11,9 +11,8 @@ from enum import Enum, auto
 from typing import List, Optional
 
 from opencxl.cxl.component.bind_processor import VppbPpbBindProcessor
-from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.virtual_switch.vppb import Vppb
-from opencxl.cxl.device.downstream_port_device import DownstreamPortDevice
+from opencxl.cxl.device.downstream_port_device import DownstreamPortDevice, SleepLoop
 from opencxl.util.async_gatherer import AsyncGatherer
 from opencxl.util.component import RunnableComponent
 
@@ -45,20 +44,15 @@ class PortBinder(RunnableComponent):
             )
             self._bind_slots.append(bind_slot)
 
-        # TODO: dummy is only for keeping PortBinder running as dynamic binding (bind_vppb())
-        # won't be called at this moment. This will be removed once dynamic binding is implemented.
-        self._dummy = VppbPpbBindProcessor(self._vcs_id, 0, CxlConnection(), CxlConnection())
-        self._dummy_initialized = False
+        # Create a dummy process to keep the component running
+        # TODO: cleaner method
+        self._dummy_process = SleepLoop()
 
     def _create_message(self, message):
         message = f"[{self.__class__.__name__}:VCS{self._vcs_id}] {message}"
         return message
 
     async def bind_vppb(self, dsp_device: DownstreamPortDevice, vppb_index: int, ld_id: int = 0):
-        if self._dummy is not None and not self._dummy_initialized:
-            self._async_gatherer.add_task(self._dummy.run())
-            await self._dummy.wait_for_ready()
-            self._dummy_initialized = True
         if vppb_index >= len(self._bind_slots) or vppb_index < 0:
             raise Exception("vppb_index is out of bound")
 
@@ -81,10 +75,6 @@ class PortBinder(RunnableComponent):
         bind_slot.status = BIND_STATUS.BOUND
 
     async def unbind_vppb(self, vppb_index: int):
-        if self._dummy is not None and not self._dummy_initialized:
-            self._async_gatherer.add_task(self._dummy.run())
-            await self._dummy.wait_for_ready()
-            self._dummy_initialized = True
         if vppb_index >= len(self._bind_slots) or vppb_index < 0:
             raise Exception("vppb_index is out of bound")
 
@@ -125,6 +115,8 @@ class PortBinder(RunnableComponent):
         return self._vppbs
 
     async def _run(self):
+        self._async_gatherer.add_task(self._dummy_process.run())
+        await self._dummy_process.wait_for_ready()
         await self._change_status_to_running()
         await self._async_gatherer.wait_for_completion()
 
@@ -133,5 +125,5 @@ class PortBinder(RunnableComponent):
         for slot in self._bind_slots:
             if slot.processor is not None:
                 tasks.append(create_task(slot.processor.stop()))
-        tasks.append(create_task(self._dummy.stop()))
+        tasks.append(create_task(self._dummy_process.stop()))
         await gather(*tasks)

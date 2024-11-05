@@ -88,6 +88,7 @@ class UpstreamPortDevice(CxlPortDevice):
         self,
         mmio_manager: MmioManager,
         config_space_manager: ConfigSpaceManager,
+        _ld_id: int = 0,
     ):
         pci_identity = PciComponentIdentity(
             vendor_id=EEUM_VID,

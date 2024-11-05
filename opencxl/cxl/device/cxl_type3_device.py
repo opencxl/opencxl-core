@@ -100,6 +100,7 @@ class CxlType3Device(RunnableComponent):
         self,
         mmio_manager: MmioManager,
         config_space_manager: ConfigSpaceManager,
+        _ld_id: int = 0,
     ):
         # Create PCiComponent
         pci_identity = PciComponentIdentity(

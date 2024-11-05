@@ -138,6 +138,7 @@ class CxlType1Device(RunnableComponent):
         self,
         mmio_manager: MmioManager,
         config_space_manager: ConfigSpaceManager,
+        _ld_id: int = 0,
     ):
         self._mmio_manager = mmio_manager
         # Create PCiComponent

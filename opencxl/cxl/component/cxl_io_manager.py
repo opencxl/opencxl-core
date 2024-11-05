@@ -24,6 +24,7 @@ class CxlIoManager(RunnableComponent):
         device_type: PCI_DEVICE_TYPE,
         init_callback: Callable[[MmioManager, ConfigSpaceManager], None],
         label: Optional[str] = None,
+        ld_id: int = 0,
     ):
         super().__init__(label)
         self._mmio_manager = MmioManager(
@@ -37,7 +38,7 @@ class CxlIoManager(RunnableComponent):
             device_type=device_type,
             label=label,
         )
-        init_callback(self._mmio_manager, self._config_space_manager)
+        init_callback(self._mmio_manager, self._config_space_manager, ld_id)
 
     def get_cfg_reg_vals(self):
         return self._config_space_manager.get_register()

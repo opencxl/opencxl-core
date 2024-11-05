@@ -20,7 +20,7 @@ class DownstreamVppb(Vppb):
         super().__init__()
         self._vppb_index = vppb_index
         self._vcs_id = vcs_id
-        self.ld_id = 0
+        self._ld_id = 0
 
     def _get_label(self) -> str:
         vcs_str = f"VCS{self._vcs_id}"
@@ -49,3 +49,9 @@ class DownstreamVppb(Vppb):
 
     def get_cxl_component(self) -> CxlDownstreamPortComponent:
         return self._cxl_component
+
+    def set_ld_id(self, ld_id: int):
+        self._ld_id = ld_id
+
+    def get_ld_id(self):
+        return self._ld_id

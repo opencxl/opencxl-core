@@ -13,7 +13,7 @@ from opencxl.cxl.device.port_device import CxlPortDevice
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
 from opencxl.cxl.device.pci_to_pci_bridge_device import PpbDevice
 from opencxl.cxl.device.downstream_port_device import DownstreamPortDevice
-from opencxl.cxl.device.config.logical_device import LogicalDeviceConfig, MultiLogicalDeviceConfig
+from opencxl.cxl.device.config.logical_device import LogicalDeviceConfig
 from opencxl.cxl.component.bind_processor import PpbDspBindProcessor
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import (
@@ -58,20 +58,9 @@ class PhysicalPortManager(RunnableComponent):
                 self._port_devices.append(UpstreamPortDevice(transport_connection, port_index))
                 self._ppb_binds.append(None)
             else:
-                if self._device_configs is None:
-                    ld_count = 1
-                else:
-                    ld_count = next(
-                        (
-                            device_config.ld_count
-                            for device_config in self._device_configs
-                            if isinstance(device_config, MultiLogicalDeviceConfig)
-                            and device_config.port_index == port_index
-                        ),
-                        1,
-                    )
-                physical_port = DownstreamPortDevice(transport_connection, port_index, ld_count)
-                ppb = PpbDevice(port_index, ld_count)
+                # TODO: Make max_ld configurable
+                physical_port = DownstreamPortDevice(transport_connection, port_index, max_ld=16)
+                ppb = PpbDevice(port_index)
                 self._port_devices.append(physical_port)
                 self._ppb_devices.append(ppb)
                 bind = PpbDspBindProcessor(

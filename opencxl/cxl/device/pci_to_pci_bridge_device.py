@@ -11,6 +11,7 @@ from asyncio import Queue, create_task, gather
 
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
+from opencxl.util.async_gatherer import AsyncGatherer
 
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.transport.transaction import (
@@ -33,13 +34,11 @@ class PpbDownRouting(RunnableComponent):
         downsteam_connection: CxlConnection,
         upstream_connection: CxlConnection,
         ld_id: int = 0,
-        is_mld: bool = False,
     ):
         super().__init__()
         self._dsc = downsteam_connection
         self._usc = upstream_connection
         self._ld_id = ld_id
-        self._is_mld = is_mld
 
         self._pairs = [
             BindPair(self._usc.cfg_fifo.host_to_target, self._dsc.cfg_fifo.host_to_target),
@@ -59,9 +58,8 @@ class PpbDownRouting(RunnableComponent):
             packet = await source.get()
             if packet is None:
                 break
-            if self._is_mld:
-                packet = cast(CxlIoBasePacket, packet)
-                packet.tlp_prefix.ld_id = self._ld_id
+            packet = cast(CxlIoBasePacket, packet)
+            packet.tlp_prefix.ld_id = self._ld_id
             await destination.put(packet)
 
     async def mmio_process(self, source: Queue, destination: Queue):
@@ -69,9 +67,8 @@ class PpbDownRouting(RunnableComponent):
             packet = await source.get()
             if packet is None:
                 break
-            if self._is_mld:
-                packet = cast(CxlIoBasePacket, packet)
-                packet.tlp_prefix.ld_id = self._ld_id
+            packet = cast(CxlIoBasePacket, packet)
+            packet.tlp_prefix.ld_id = self._ld_id
             await destination.put(packet)
 
     async def mem_process(self, source: Queue, destination: Queue):
@@ -79,18 +76,17 @@ class PpbDownRouting(RunnableComponent):
             packet = await source.get()
             if packet is None:
                 break
-            if self._is_mld:
-                packet = cast(CxlMemBasePacket, packet)
-                if packet.is_m2sreq():
-                    packet.m2sreq_header.ld_id = self._ld_id
-                elif packet.is_m2srwd():
-                    packet.m2srwd_header.ld_id = self._ld_id
-                elif packet.is_s2mndr():
-                    packet.s2mndr_header.ld_id = self._ld_id
-                elif packet.is_s2mdrs():
-                    packet.s2mdrs_header.ld_id = self._ld_id
-                else:
-                    logger.warning(self._create_message("Unexpected CXL.mem packet"))
+            packet = cast(CxlMemBasePacket, packet)
+            if packet.is_m2sreq():
+                packet.m2sreq_header.ld_id = self._ld_id
+            elif packet.is_m2srwd():
+                packet.m2srwd_header.ld_id = self._ld_id
+            elif packet.is_s2mndr():
+                packet.s2mndr_header.ld_id = self._ld_id
+            elif packet.is_s2mdrs():
+                packet.s2mdrs_header.ld_id = self._ld_id
+            else:
+                logger.warning(self._create_message("Unexpected CXL.mem packet"))
             await destination.put(packet)
 
     async def cache_process(self, source: Queue, destination: Queue):
@@ -124,12 +120,10 @@ class PpbUpRouting(RunnableComponent):
         self,
         downsteam_connection: CxlConnection,
         upstream_connections: CxlConnection,
-        is_mld: bool = False,
     ):
         super().__init__()
         self._dsc = downsteam_connection
         self._usc = upstream_connections
-        self._is_mld = is_mld
 
         self._sources = [
             self._dsc.cfg_fifo.target_to_host,
@@ -148,12 +142,9 @@ class PpbUpRouting(RunnableComponent):
             packet = await source.get()
             if packet is None:
                 break
-            if self._is_mld:
-                cxl_io_packet = cast(CxlIoBasePacket, packet)
-                ld_id = cxl_io_packet.tlp_prefix.ld_id
-                await self._usc[ld_id].cfg_fifo.target_to_host.put(packet)
-            else:
-                await self._usc[0].cfg_fifo.target_to_host.put(packet)
+            cxl_io_packet = cast(CxlIoBasePacket, packet)
+            ld_id = cxl_io_packet.tlp_prefix.ld_id
+            await self._usc[ld_id].cfg_fifo.target_to_host.put(packet)
 
     async def mmio_process(self):
         source = self._dsc.mmio_fifo.target_to_host
@@ -161,12 +152,9 @@ class PpbUpRouting(RunnableComponent):
             packet = await source.get()
             if packet is None:
                 break
-            if self._is_mld:
-                cxl_io_packet = cast(CxlIoBasePacket, packet)
-                ld_id = cxl_io_packet.tlp_prefix.ld_id
-                await self._usc[ld_id].mmio_fifo.target_to_host.put(packet)
-            else:
-                await self._usc[0].mmio_fifo.target_to_host.put(packet)
+            cxl_io_packet = cast(CxlIoBasePacket, packet)
+            ld_id = cxl_io_packet.tlp_prefix.ld_id
+            await self._usc[ld_id].mmio_fifo.target_to_host.put(packet)
 
     async def mem_process(self):
         source = self._dsc.cxl_mem_fifo.target_to_host
@@ -174,19 +162,16 @@ class PpbUpRouting(RunnableComponent):
             packet = await source.get()
             if packet is None:
                 break
-            if self._is_mld:
-                cxl_mem_base_packet = cast(CxlMemBasePacket, packet)
-                if cxl_mem_base_packet.is_s2mndr():
-                    cxl_mem_packet = cast(CxlMemS2MNDRPacket, packet)
-                    ld_id = cxl_mem_packet.s2mndr_header.ld_id
-                elif cxl_mem_base_packet.is_s2mdrs():
-                    cxl_mem_packet = cast(CxlMemS2MDRSPacket, packet)
-                    ld_id = cxl_mem_packet.s2mdrs_header.ld_id
-                else:
-                    raise Exception("No packet type!!!!")
-                await self._usc[ld_id].cxl_mem_fifo.target_to_host.put(packet)
+            cxl_mem_base_packet = cast(CxlMemBasePacket, packet)
+            if cxl_mem_base_packet.is_s2mndr():
+                cxl_mem_packet = cast(CxlMemS2MNDRPacket, packet)
+                ld_id = cxl_mem_packet.s2mndr_header.ld_id
+            elif cxl_mem_base_packet.is_s2mdrs():
+                cxl_mem_packet = cast(CxlMemS2MDRSPacket, packet)
+                ld_id = cxl_mem_packet.s2mdrs_header.ld_id
             else:
-                await self._usc[0].cxl_mem_fifo.target_to_host.put(packet)
+                raise Exception("No packet type!!!!")
+            await self._usc[ld_id].cxl_mem_fifo.target_to_host.put(packet)
 
     async def cache_process(self):
         source = self._dsc.cxl_cache_fifo.target_to_host
@@ -223,21 +208,16 @@ class PpbDevice(RunnableComponent):
     def __init__(
         self,
         port_index: int = 0,
-        ld_count: int = 1,
     ):
         super().__init__()
-        self._ld_count = ld_count
         self._port_index = port_index
-        self._is_mld = ld_count > 1
+        self._routing_tasks = AsyncGatherer()
+
         self._downstream_connection = CxlConnection()
-        self._upstream_connections = [CxlConnection() for i in range(ld_count)]
-        self._up_routing = PpbUpRouting(
-            self._downstream_connection, self._upstream_connections, self._is_mld
-        )
-        self._down_routings = [
-            PpbDownRouting(self._downstream_connection, upstream, idx, self._is_mld)
-            for (idx, upstream) in enumerate(self._upstream_connections)
-        ]
+        self._upstream_connections = {}
+
+        self._up_routing = PpbUpRouting(self._downstream_connection, self._upstream_connections)
+        self._down_routings = {}
 
     def _get_label(self) -> str:
         return f"PPB{self._port_index}"
@@ -252,20 +232,24 @@ class PpbDevice(RunnableComponent):
     def get_downstream_connection(self) -> CxlConnection:
         return self._downstream_connection
 
+    async def bind(self, ld_id: int):
+        self._upstream_connections[ld_id] = CxlConnection()
+        self._down_routings[ld_id] = PpbDownRouting(
+            self._downstream_connection, self._upstream_connections[ld_id], ld_id
+        )
+        self._routing_tasks.add_task(self._down_routings[ld_id].run())
+
+    async def unbind(self, ld_id: int):
+        self._upstream_connections.pop(ld_id)
+        task = self._down_routings.pop(ld_id)
+        await task.stop()
+
     async def _run(self):
         logger.info(self._create_message("Starting"))
-        run_tasks = [create_task(self._up_routing.run())]
-        for task in self._down_routings:
-            run_tasks.append(create_task(task.run()))
+        self._routing_tasks.add_task(self._up_routing.run())
 
-        wait_tasks = [create_task(self._up_routing.wait_for_ready())]
-        for task in self._down_routings:
-            wait_tasks.append(create_task(task.wait_for_ready()))
-
-        # pylint: disable=duplicate-code
-        await gather(*wait_tasks)
         await self._change_status_to_running()
-        await gather(*run_tasks)
+        await self._routing_tasks.wait_for_completion()
         logger.info(self._create_message("Stopped"))
 
     async def _stop(self):
@@ -273,7 +257,6 @@ class PpbDevice(RunnableComponent):
         tasks = [
             create_task(self._up_routing.stop()),
         ]
-        for task in self._down_routings:
+        for task in self._down_routings.values():
             tasks.append(create_task(task.stop()))
-
         await gather(*tasks)

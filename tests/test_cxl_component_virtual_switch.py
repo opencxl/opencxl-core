@@ -188,15 +188,26 @@ async def test_virtual_switch_manager_run_and_stop():
     ]
 
     # Add PPB relation
+    ppb_devices = []
+    ppb_bind_processors = []
+
     ppb = PpbDevice(1)
     bind = PpbDspBindProcessor(CxlConnection(), CxlConnection())
     physical_ports[1].set_ppb(ppb, bind)
+    ppb_devices.append(ppb)
+    ppb_bind_processors.append(bind)
+
     ppb = PpbDevice(2)
     bind = PpbDspBindProcessor(CxlConnection(), CxlConnection())
     physical_ports[2].set_ppb(ppb, bind)
+    ppb_devices.append(ppb)
+    ppb_bind_processors.append(bind)
+
     ppb = PpbDevice(3)
     bind = PpbDspBindProcessor(CxlConnection(), CxlConnection())
     physical_ports[3].set_ppb(ppb, bind)
+    ppb_devices.append(ppb)
+    ppb_bind_processors.append(bind)
 
     vcs = CxlVirtualSwitch(
         id=vcs_id,
@@ -207,18 +218,47 @@ async def test_virtual_switch_manager_run_and_stop():
         irq_port=8500 + pytest.PORT.TEST_1,
     )
 
+    async def start_components():
+        tasks = []
+        tasks.append(create_task(vcs.run()))
+        for port in physical_ports:
+            tasks.append(create_task(port.run()))
+        for ppb_bind_processor in ppb_bind_processors:
+            tasks.append(create_task(ppb_bind_processor.run()))
+        for ppb_device in ppb_devices:
+            tasks.append(create_task(ppb_device.run()))
+        await gather(*tasks)
+
+    async def stop_components():
+        await vcs.stop()
+        for port in physical_ports:
+            await port.stop()
+        for ppb_bind_processor in ppb_bind_processors:
+            await ppb_bind_processor.stop()
+        for ppb_device in ppb_devices:
+            await ppb_device.stop()
+
     async def wait_and_stop():
-        await vcs.wait_for_ready()
+        wait_tasks = []
+        wait_tasks.append(create_task(vcs.wait_for_ready()))
+        for port in physical_ports:
+            wait_tasks.append(create_task(port.wait_for_ready()))
+        for ppb_bind_processor in ppb_bind_processors:
+            wait_tasks.append(create_task(ppb_bind_processor.wait_for_ready()))
+        for ppb_device in ppb_devices:
+            wait_tasks.append(create_task(ppb_device.wait_for_ready()))
+        await gather(*wait_tasks)
+
         with pytest.raises(Exception, match="port_index is out of bound"):
             await vcs.bind_vppb(port_index=4, vppb_index=1, ld_id=0)
         with pytest.raises(Exception, match="physical port 0 is not DSP"):
             await vcs.bind_vppb(port_index=0, vppb_index=1, ld_id=0)
         with pytest.raises(Exception, match="vppb_index is out of bound"):
             await vcs.unbind_vppb(vppb_index=4)
-        await vcs.stop()
+        await stop_components()
 
     tasks = [
-        create_task(vcs.run()),
+        create_task(start_components()),
         create_task(wait_and_stop()),
     ]
     await gather(*tasks)
@@ -266,7 +306,18 @@ async def test_virtual_switch_manager_test_cxl_topology_bind_consistency():
             await ppb_device.stop()
 
     async def wait_and_test_and_stop(bind: bool = False):
-        await vcs.wait_for_ready()
+        wait_tasks = []
+        wait_tasks.append(create_task(vcs.wait_for_ready()))
+        for port in physical_ports:
+            wait_tasks.append(create_task(port.wait_for_ready()))
+        for cxl_device in cxl_devices:
+            wait_tasks.append(create_task(cxl_device.wait_for_ready()))
+        for ppb_bind_processor in ppb_bind_processors:
+            wait_tasks.append(create_task(ppb_bind_processor.wait_for_ready()))
+        for ppb_device in ppb_devices:
+            wait_tasks.append(create_task(ppb_device.wait_for_ready()))
+        await gather(*wait_tasks)
+
         if bind:
             await vcs.bind_vppb(1, 0, 0)
             await vcs.bind_vppb(2, 1, 0)
@@ -383,7 +434,18 @@ async def test_virtual_switch_manager_test_cfg_routing():
             await ppb_device.stop()
 
     async def wait_and_test_and_stop():
-        await vcs.wait_for_ready()
+        wait_tasks = []
+        wait_tasks.append(create_task(vcs.wait_for_ready()))
+        for port in physical_ports:
+            wait_tasks.append(create_task(port.wait_for_ready()))
+        for cxl_device in cxl_devices:
+            wait_tasks.append(create_task(cxl_device.wait_for_ready()))
+        for ppb_bind_processor in ppb_bind_processors:
+            wait_tasks.append(create_task(ppb_bind_processor.wait_for_ready()))
+        for ppb_device in ppb_devices:
+            wait_tasks.append(create_task(ppb_device.wait_for_ready()))
+        await gather(*wait_tasks)
+
         await root_port_device.enumerate(base_address)
         await test_read_request(root_port_device)
         await stop_components()
@@ -456,7 +518,18 @@ async def test_virtual_switch_manager_test_cfg_routing_oob():
             await ppb_device.stop()
 
     async def wait_and_test_and_stop():
-        await vcs.wait_for_ready()
+        wait_tasks = []
+        wait_tasks.append(create_task(vcs.wait_for_ready()))
+        for port in physical_ports:
+            wait_tasks.append(create_task(port.wait_for_ready()))
+        for cxl_device in cxl_devices:
+            wait_tasks.append(create_task(cxl_device.wait_for_ready()))
+        for ppb_bind_processor in ppb_bind_processors:
+            wait_tasks.append(create_task(ppb_bind_processor.wait_for_ready()))
+        for ppb_device in ppb_devices:
+            wait_tasks.append(create_task(ppb_device.wait_for_ready()))
+        await gather(*wait_tasks)
+
         await root_port_device.enumerate(base_address)
         await test_oob_request(root_port_device)
         await stop_components()
@@ -535,7 +608,18 @@ async def test_virtual_switch_manager_test_mmio_routing():
             await ppb_device.stop()
 
     async def wait_and_test_and_stop():
-        await vcs.wait_for_ready()
+        wait_tasks = []
+        wait_tasks.append(create_task(vcs.wait_for_ready()))
+        for port in physical_ports:
+            wait_tasks.append(create_task(port.wait_for_ready()))
+        for cxl_device in cxl_devices:
+            wait_tasks.append(create_task(cxl_device.wait_for_ready()))
+        for ppb_bind_processor in ppb_bind_processors:
+            wait_tasks.append(create_task(ppb_bind_processor.wait_for_ready()))
+        for ppb_device in ppb_devices:
+            wait_tasks.append(create_task(ppb_device.wait_for_ready()))
+        await gather(*wait_tasks)
+
         exception = None
         try:
             await root_port_device.enumerate(base_address)
@@ -641,7 +725,18 @@ async def test_virtual_switch_manager_test_mmio_routing_oob():
             await ppb_device.stop()
 
     async def wait_and_test_and_stop():
-        await vcs.wait_for_ready()
+        wait_tasks = []
+        wait_tasks.append(create_task(vcs.wait_for_ready()))
+        for port in physical_ports:
+            wait_tasks.append(create_task(port.wait_for_ready()))
+        for cxl_device in cxl_devices:
+            wait_tasks.append(create_task(cxl_device.wait_for_ready()))
+        for ppb_bind_processor in ppb_bind_processors:
+            wait_tasks.append(create_task(ppb_bind_processor.wait_for_ready()))
+        for ppb_device in ppb_devices:
+            wait_tasks.append(create_task(ppb_device.wait_for_ready()))
+        await gather(*wait_tasks)
+
         exception = None
         try:
             mmio_enum_info = await root_port_device.enumerate(base_address)
@@ -711,7 +806,18 @@ async def test_virtual_switch_manager_test_bind_and_unbind():
         await vcs.unbind_vppb(2)
 
     async def wait_and_test_and_stop(vcs: CxlVirtualSwitch):
-        await vcs.wait_for_ready()
+        wait_tasks = []
+        wait_tasks.append(create_task(vcs.wait_for_ready()))
+        for port in physical_ports:
+            wait_tasks.append(create_task(port.wait_for_ready()))
+        for cxl_device in cxl_devices:
+            wait_tasks.append(create_task(cxl_device.wait_for_ready()))
+        for ppb_bind_processor in ppb_bind_processors:
+            wait_tasks.append(create_task(ppb_bind_processor.wait_for_ready()))
+        for ppb_device in ppb_devices:
+            wait_tasks.append(create_task(ppb_device.wait_for_ready()))
+        await gather(*wait_tasks)
+
         exception = None
         try:
             await root_port_device.enumerate(base_address)
@@ -789,7 +895,18 @@ async def test_virtual_switch_manager_test_cxl_mem():
         await vcs.unbind_vppb(2)
 
     async def wait_and_test_and_stop(vcs: CxlVirtualSwitch):
-        await vcs.wait_for_ready()
+        wait_tasks = []
+        wait_tasks.append(create_task(vcs.wait_for_ready()))
+        for port in physical_ports:
+            wait_tasks.append(create_task(port.wait_for_ready()))
+        for cxl_device in cxl_devices:
+            wait_tasks.append(create_task(cxl_device.wait_for_ready()))
+        for ppb_bind_processor in ppb_bind_processors:
+            wait_tasks.append(create_task(ppb_bind_processor.wait_for_ready()))
+        for ppb_device in ppb_devices:
+            wait_tasks.append(create_task(ppb_device.wait_for_ready()))
+        await gather(*wait_tasks)
+
         exception = None
         try:
             await bind_vppbs(vcs)
@@ -802,15 +919,15 @@ async def test_virtual_switch_manager_test_cxl_mem():
             cxl_hpa_base = 0x100000000
             await root_port_device.configure_hdm_decoder_single_device(usp, cxl_hpa_base)
 
-            cxl_devices = usp.get_all_cxl_devices()
+            _cxl_devices = usp.get_all_cxl_devices()
             test_address = cxl_hpa_base
-            for cxl_device in cxl_devices:
+            for cxl_device in _cxl_devices:
                 await root_port_device.cxl_mem_write(test_address, 0xDEADBEEF)
                 data = await root_port_device.cxl_mem_read(test_address)
                 assert data is not None, f"Failed to read from 0x{test_address:x}"
                 logger.info(f"[PyTest] CXL.mem Read: 0x{data:x} from 0x{test_address:x}")
                 test_address += cxl_device.cxl_device_size
-            for cxl_device in cxl_devices:
+            for cxl_device in _cxl_devices:
                 await root_port_device.cxl_mem_birsp(CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, bi_id=3)
                 await root_port_device.cxl_mem_birsp(CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, bi_id=4)
                 await root_port_device.cxl_mem_birsp(CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, bi_id=5)
