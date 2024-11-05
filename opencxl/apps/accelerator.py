@@ -54,7 +54,7 @@ class MyType1Accelerator(RunnableComponent):
         port_index: int,
         host: str = "0.0.0.0",
         port: int = 8000,
-        server_port: int = 9050,
+        irq_port: int = 8500,
         device_id: int = 0,
         host_mem_size: int = 0,
         train_data_path: str = "",
@@ -126,7 +126,7 @@ class MyType1Accelerator(RunnableComponent):
         )
 
         self._irq_manager = IrqManager(
-            addr="127.0.0.1", port=server_port, device_name=label, device_id=device_id
+            addr="127.0.0.1", port=irq_port, device_name=label, device_id=device_id
         )
 
         self._stop_signal = Event()
@@ -429,7 +429,7 @@ class MyType2Accelerator(RunnableComponent):
         memory_file: str,
         host: str = "0.0.0.0",
         port: int = 8000,
-        server_port: int = 9050,
+        irq_port: int = 8500,
         device_id: int = 0,
         train_data_path: str = None,
     ):
@@ -454,7 +454,7 @@ class MyType2Accelerator(RunnableComponent):
 
         self._irq_manager = IrqManager(
             addr="localhost",
-            port=server_port,
+            port=irq_port,
             device_name=label,
             device_id=device_id,
         )
@@ -620,28 +620,24 @@ class MyType2Accelerator(RunnableComponent):
                 leave=False,
             ) as pbar:
                 for offset in range(0, metadata_size, 64):
-                    data = await self._cxl_type2_device.read_mem_hpa(metadata_addr + offset, 64)
+                    data = await self._cxl_type2_device.read_mem_dpa(metadata_addr + offset, 64)
                     curr_written += 64
                     md_file.write(data.to_bytes(64, byteorder="little"))
                     pbar.update(64)
 
     async def _get_test_image(self) -> Image.Image:
+        logger.debug(self._create_message("Getting test image"))
         image_addr_mmio_addr = 0x1810
         image_size_mmio_addr = 0x1818
         image_addr = await self._cxl_type2_device.read_mmio(image_addr_mmio_addr, 8)
         image_size = await self._cxl_type2_device.read_mmio(image_size_mmio_addr, 8)
+        end = image_addr + image_size
 
         im = None
-        # for cacheline_offset in range(address, address + size, 64):
-        #     cacheline = await self.cxl_cache_readline(cacheline_offset)
-        #     chunk_size = min(64, (end - cacheline_offset))
-        #     chunk_data = cacheline.to_bytes(64, "little")
-        #     result += chunk_data[:chunk_size]
-        end = image_addr + image_size
         with BytesIO() as imgbuf:
-            for offset in range(image_addr, image_addr + image_size + 64, 64):
-                data = await self._cxl_type2_device.read_mem_hpa(offset, 64)
-                chunk_size = min(64, (end - offset))
+            for addr in range(image_addr, image_addr + image_size + 64, 64):
+                data = await self._cxl_type2_device.read_mem_dpa(addr, 64)
+                chunk_size = min(64, (end - addr))
                 chunk_data = data.to_bytes(64, "little")
                 chunk_data = chunk_data[:chunk_size]
                 imgbuf.write(chunk_data)
@@ -650,9 +646,8 @@ class MyType2Accelerator(RunnableComponent):
 
     async def _validate_model(self, _):
         # pylint: disable=no-member
-        logger.debug(f"Getting test image for dev {self._device_id}")
         im = await self._get_test_image()
-        logger.debug(f"Got test image for dev {self._device_id}")
+        logger.debug(self._create_message("Test image received."))
         tens = cast(torch.Tensor, self._transform(im))
 
         # Model expects a 4-dimensional tensor
@@ -671,28 +666,28 @@ class MyType2Accelerator(RunnableComponent):
         bytes_size = len(json_asenc)
 
         json_asint = int.from_bytes(json_asenc, "little")
-        RESULTS_HPA = 0x900  # Arbitrarily chosen
+        RESULTS_OFFSET = 0x900  # Arbitrarily chosen
         rounded_bytes_size = math.ceil(bytes_size / 64) * 64
         curr_written = 0
         while curr_written < rounded_bytes_size:
             chunk = json_asint & ((1 << (64 * 8)) - 1)
-            await self._cxl_type2_device.write_mem_hpa(RESULTS_HPA + curr_written, chunk, 64)
+            await self._cxl_type2_device.write_mem_dpa(RESULTS_OFFSET + curr_written, chunk, 64)
             json_asint >>= 64 * 8
             curr_written += 64
 
         HOST_VECTOR_ADDR = 0x1820
         HOST_VECTOR_SIZE = 0x1828
 
-        await self._cxl_type2_device.write_mmio(HOST_VECTOR_ADDR, 8, RESULTS_HPA)
+        await self._cxl_type2_device.write_mmio(HOST_VECTOR_ADDR, 8, RESULTS_OFFSET)
         await self._cxl_type2_device.write_mmio(HOST_VECTOR_SIZE, 8, bytes_size)
 
         while True:
             json_addr_rb = await self._cxl_type2_device.read_mmio(HOST_VECTOR_ADDR, 8)
             json_size_rb = await self._cxl_type2_device.read_mmio(HOST_VECTOR_SIZE, 8)
 
-            if json_addr_rb == RESULTS_HPA and json_size_rb == bytes_size:
+            if json_addr_rb == RESULTS_OFFSET and json_size_rb == bytes_size:
                 break
-            await sleep(0.2)
+            await sleep(0.1)
         logger.debug(f"Sending irq ACCEL_VALIDATION_FINISHED from dev {self._device_id}")
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
@@ -741,16 +736,13 @@ class MyType2Accelerator(RunnableComponent):
         logger.info(self._create_message("Done Model Training"))
         await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
 
-    async def _app_shutdown(self):
-        logger.info("Moving out of accelerator directory")
-        os.chdir("..")
-
-        # logger.info("Removing accelerator directory")
-        # os.rmdir(self.accel_dirname)
+    def _app_shutdown(self):
+        logger.info(self._create_message(f"Removing tmp directory: {self.accel_dirname}"))
+        shutil.rmtree(self.accel_dirname, ignore_errors=True)
 
     async def _run(self):
         self._setup_test_env()
-        tasks = [
+        start_tasks = [
             create_task(self._sw_conn_client.run()),
             create_task(self._cxl_type2_device.run()),
             create_task(self._irq_manager.run()),
@@ -762,8 +754,9 @@ class MyType2Accelerator(RunnableComponent):
             create_task(self._irq_manager.wait_for_ready()),
             create_task(self._irq_manager.start_connection()),
         ]
+        await gather(*self._wait_tasks)
         await self._change_status_to_running()
-        await gather(*tasks)
+        await gather(*start_tasks)
 
     async def _stop(self):
         for task in self._wait_tasks:
