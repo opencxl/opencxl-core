@@ -28,10 +28,6 @@ class ShortMsgBase(Enum):
     pass
 
 
-class ShortMsgPlaceholder(ShortMsgBase):
-    NULL = 0x00
-
-
 class ShortMsgConn(RunnableComponent):
     _msg_to_interrupt_event: dict[int, dict[ShortMsgBase, Callable]]
     _callbacks: list[Callable]
@@ -45,7 +41,7 @@ class ShortMsgConn(RunnableComponent):
         server: bool = False,
         device_id: int = 0,
         msg_width: int = 2,
-        msg_type=ShortMsgPlaceholder,
+        msg_type=ShortMsgBase,
     ):
         super().__init__(f"{device_name}:ShortMsgConn")
         self._addr = addr
@@ -65,15 +61,6 @@ class ShortMsgConn(RunnableComponent):
         self._device_id = device_id
         self._run_status = False
         self._msg_tasks: list[Task] = []
-        if msg_type == ShortMsgPlaceholder:
-            logger.warning(
-                self._create_message("You are using the ShortMsgPlaceholder for ShortMsgConn data.")
-            )
-            logger.warning(
-                self._create_message(
-                    "Please create a custom class extending ShortMsgBase class for custom messages."
-                )
-            )
         self._msg_type = msg_type
 
     def register_interrupt_handler(
