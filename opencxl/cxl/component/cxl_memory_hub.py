@@ -45,9 +45,9 @@ class CxlMemoryHubConfig:
     host_name: str
     root_bus: int
     sys_mem_controller: SystemMemControllerConfig
+    irq_handler: IrqManager
     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
     root_ports: List[RootPortClientConfig] = field(default_factory=list)
-    irq_handler: IrqManager
 
 
 class CxlMemoryHub(RunnableComponent):
