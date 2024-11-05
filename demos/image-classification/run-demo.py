@@ -64,22 +64,35 @@ if __name__ == "__main__":
         help="The number of accelerators.",
         metavar="NUM_ACCELS",
     )
+    parser.add_argument(
+        "-t",
+        "--accel-type",
+        dest="at",
+        default=2,
+        action="store",
+        help="Accelerator CXL device type.",
+        metavar="ACCEL_TYPE",
+    )
 
     args = vars(parser.parse_args())
     train_data_path = args["ifp"]
     num_accels = args["na"]
+    accel_type = args["at"]
     sw_port = "22500"
 
     if not os.path.exists(train_data_path) or not os.path.isdir(train_data_path):
         logger.info(f"Path {train_data_path} does not exist, or is not a folder.")
         quit(1)
 
+    host_file = f"./host-t{accel_type}.py"
+    accel_file = f"./accel-t{accel_type}.py"
+
     RUN_LIST = [
         ("switch", "./switch.py", (sw_port, num_accels)),
-        ("host", "./host-t2.py", (sw_port, num_accels, train_data_path)),
+        ("host", host_file, (sw_port, num_accels, train_data_path)),
     ]
     for i in range(int(num_accels)):
-        RUN_LIST.append((f"accel{i + 1}", "./accel-t2.py", (sw_port, f"{i + 1}", train_data_path)))
+        RUN_LIST.append((f"accel{i + 1}", accel_file, (sw_port, f"{i + 1}", train_data_path)))
     signal(SIGCONT, run_next_app)
     signal(SIGINT, clean_shutdown)
 

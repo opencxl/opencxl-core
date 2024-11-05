@@ -76,20 +76,6 @@ async def main():
     root_ports = [RootPortClientConfig(0, "localhost", sw_portno)]
     memory_ranges = [MemoryRange(MEM_ADDR_TYPE.DRAM, 0x0, host_mem_size)]
 
-    config = CxlImageClassificationHostConfig(
-        host_name,
-        0,
-        root_port_switch_type,
-        train_data_path,
-        memory_controller,
-        memory_ranges,
-        root_ports,
-        coh_type=COH_POLICY_TYPE.DotCache,
-        device_type=CXL_COMPONENT_TYPE.T1,
-    )
-
-    host = CxlImageClassificationHost(config)
-
     pci_bus_driver = PciBusDriver(host.get_root_complex())
     cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
     cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())

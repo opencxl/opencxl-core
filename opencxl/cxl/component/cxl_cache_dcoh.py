@@ -390,7 +390,7 @@ class CxlCacheDcoh(PacketProcessor):
             return
 
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
-            addr = cache_packet.address
+            addr = cache_packet.addr
 
             if cache_packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
                 cxl_packet = CxlCacheCacheD2HReqPacket.create(
