@@ -288,7 +288,7 @@ class CxlPacketProcessor(RunnableComponent):
                         continue
                     logger.debug(self._create_message(f"Received {self._incoming_dir} CCI packet"))
                     cci_packet = cast(CciBasePacket, packet)
-                    cci_packet_payload = cast(CciMessagePacket, cci_packet.data)
+                    cci_packet_payload = cci_packet.get_packet()
                     await self._incoming.cci_fifo.put(cci_packet_payload)
                 else:
                     message = f"Received unexpected {self._incoming_dir} packet"
