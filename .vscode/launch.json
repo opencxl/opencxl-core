@@ -29,4 +29,4 @@
         "args": ["run", "python", "opencxl/bin/cli.py", "start", "-c", "switch", "-c", "sld-group", "--config-file", "configs/1vcs_4sld.yaml", "--log-file=log_name.log", "--log-level=debug"]
       }
     ]
-  }
+}

@@ -35,7 +35,7 @@ class IrqManager(ShortMsgConn):
         self,
         device_name,
         addr: str = "0.0.0.0",
-        port: int = 9050,
+        port: int = 8500,
         server: bool = False,
         device_id: int = 0,
     ):

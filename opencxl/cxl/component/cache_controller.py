@@ -249,7 +249,13 @@ class CacheController(RunnableComponent):
         return cache_state
 
     def _get_cache_fifo(self, addr: int) -> CacheFifoPair:
-        addr_type = self.get_mem_addr_type(addr)
+        if self._processor_to_cache_fifo is None:
+            # device-side cache controller
+            addr_type = MEM_ADDR_TYPE.CXL_CACHED_BI
+        else:
+            # host-side cache controller
+            addr_type = self.get_mem_addr_type(addr)
+
         match addr_type:
             case MEM_ADDR_TYPE.DRAM:
                 return self._cache_to_coh_bridge_fifo
@@ -273,7 +279,13 @@ class CacheController(RunnableComponent):
 
     # For request: coherency tasks from cache controller to coh module
     async def _cache_to_coh_state_lookup(self, addr: int) -> None:
-        addr_type = self.get_mem_addr_type(addr)
+        if self._processor_to_cache_fifo is None:
+            # device-side cache controller
+            addr_type = MEM_ADDR_TYPE.CXL_CACHED_BI
+        else:
+            # host-side cache controller
+            addr_type = self.get_mem_addr_type(addr)
+
         if addr_type == MEM_ADDR_TYPE.DRAM:
             cache_fifo = self._cache_to_coh_bridge_fifo
         elif addr_type == MEM_ADDR_TYPE.CXL_CACHED_BI:
@@ -461,7 +473,7 @@ class CacheController(RunnableComponent):
                     self._create_message("Stop processing coh agent request scheduler fifo")
                 )
                 break
-            self._run_coh_request(packet)
+            await self._run_coh_request(packet)
 
     async def _coh_bridge_request_scheduler(self):
         while True:
@@ -471,18 +483,22 @@ class CacheController(RunnableComponent):
                     self._create_message("Stop processing coh bridge request scheduler fifo")
                 )
                 break
-            self._run_coh_request(packet)
+            await self._run_coh_request(packet)
 
     async def _run(self):
         tasks = [
-            create_task(self._processor_request_scheduler()),
             create_task(self._coh_agent_request_scheduler()),
         ]
+        if self._processor_to_cache_fifo:
+            tasks.append(create_task(self._processor_request_scheduler()))
         if self._cache_to_coh_bridge_fifo:
             tasks.append(create_task(self._coh_bridge_request_scheduler()))
         await self._change_status_to_running()
         await gather(*tasks)
 
     async def _stop(self):
-        await self._processor_to_cache_fifo.request.put(None)
+        if self._processor_to_cache_fifo:
+            await self._processor_to_cache_fifo.request.put(None)
+        if self._coh_bridge_to_cache_fifo:
+            await self._coh_bridge_to_cache_fifo.request.put(None)
         await self._coh_agent_to_cache_fifo.request.put(None)
