@@ -9,13 +9,12 @@ import re
 
 from opencxl.util.logger import logger
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
-from opencxl.cxl.component.virtual_switch.vppb import Vppb
+from opencxl.cxl.component.virtual_switch.vppb import Vppb, VppbRoutingInfo
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.cxl_bridge_component import (
     CxlUpstreamPortComponent,
     HDM_DECODER_COUNT,
 )
-from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 
 
 # UpstreamVppb class will have many similar methods to UpstreamPortDevice class
@@ -38,10 +37,10 @@ class UpstreamVppb(Vppb):
     def get_downstream_connection(self) -> CxlConnection:
         return self._downstream_connection
 
-    def set_routing_table(self, routing_table: RoutingTable, ld_id: int = 0):
+    def set_routing_table(self, vppb_routing_info: VppbRoutingInfo):
         logger.debug(f"[UpstreamPort{self.get_port_index()}] Setting routing table")
-        self._pci_bridge_component.set_routing_table(routing_table, ld_id)
-        self._cxl_component.set_routing_table(routing_table, ld_id)
+        self._pci_bridge_component.set_routing_table(vppb_routing_info)
+        self._cxl_component.set_routing_table(vppb_routing_info)
 
     def get_device_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.USP

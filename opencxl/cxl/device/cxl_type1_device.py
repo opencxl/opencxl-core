@@ -13,6 +13,7 @@ from asyncio import (
 from dataclasses import dataclass
 from typing import Optional
 
+from opencxl.cxl.component.cxl_io_callback_data import CxlIoCallbackData
 from opencxl.cxl.config_space.dvsec.cxl_devices import (
     DvsecCxlCacheableRangeOptions,
     DvsecCxlCapabilityOptions,
@@ -44,7 +45,7 @@ from opencxl.pci.component.pci import (
     PCI_CLASS,
     MEMORY_CONTROLLER_SUBCLASS,
 )
-from opencxl.pci.component.mmio_manager import MmioManager, BarEntry
+from opencxl.pci.component.mmio_manager import BarEntry
 from opencxl.pci.component.config_space_manager import (
     ConfigSpaceManager,
     PCI_DEVICE_TYPE,
@@ -136,11 +137,9 @@ class CxlType1Device(RunnableComponent):
 
     def _init_device(
         self,
-        mmio_manager: MmioManager,
-        config_space_manager: ConfigSpaceManager,
-        _ld_id: int = 0,
+        cxl_io_callback_data: CxlIoCallbackData,
     ):
-        self._mmio_manager = mmio_manager
+        self._mmio_manager = cxl_io_callback_data.mmio_manager
         # Create PCiComponent
         pci_identity = PciComponentIdentity(
             vendor_id=EEUM_VID,
@@ -149,7 +148,7 @@ class CxlType1Device(RunnableComponent):
             sub_class_coce=MEMORY_CONTROLLER_SUBCLASS.CXL_MEMORY_DEVICE,
             programming_interface=0x10,
         )
-        pci_component = PciComponent(pci_identity, mmio_manager)
+        pci_component = PciComponent(pci_identity, self._mmio_manager)
 
         # Create CxlMemoryDeviceComponent
         logger.debug(f"Total Capacity = {self._memory_size:x}")
@@ -171,7 +170,7 @@ class CxlType1Device(RunnableComponent):
         mmio_register = CombinedMmioRegister(options=options, parent_name="mmio")
 
         # Update MmioManager with new bar entires
-        mmio_manager.set_bar_entries([BarEntry(register=mmio_register)])
+        self._mmio_manager.set_bar_entries([BarEntry(register=mmio_register)])
         cache_size_unit = 0
         if self._cache_line_size == 64 * KB:
             cache_size_unit = 0x1
@@ -213,7 +212,7 @@ class CxlType1Device(RunnableComponent):
         # ------------------------------
 
         # Update ConfigSpaceManager with config space register
-        config_space_manager.set_register(config_space_register)
+        cxl_io_callback_data.config_space_manager.set_register(config_space_register)
 
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()

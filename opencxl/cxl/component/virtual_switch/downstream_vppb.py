@@ -6,11 +6,10 @@
 """
 
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
-from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
+from opencxl.cxl.component.virtual_switch.vppb import Vppb, VppbRoutingInfo
 from opencxl.cxl.component.cxl_bridge_component import (
     CxlDownstreamPortComponent,
 )
-from opencxl.cxl.component.virtual_switch.vppb import Vppb
 
 
 # DownstreamVppb class will have many similar methods to DownstreamPortDevice class
@@ -41,8 +40,8 @@ class DownstreamVppb(Vppb):
     def get_device_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.DSP
 
-    def set_routing_table(self, routing_table: RoutingTable, ld_id: int = 0):
-        self._pci_bridge_component.set_routing_table(routing_table, ld_id)
+    def set_routing_table(self, vppb_routing_info: VppbRoutingInfo):
+        self._pci_bridge_component.set_routing_table(vppb_routing_info)
 
     def get_secondary_bus_number(self):
         return self._pci_registers.pci.secondary_bus_number

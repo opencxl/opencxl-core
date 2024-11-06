@@ -8,13 +8,14 @@
 from typing import Optional
 from asyncio import create_task, gather, Condition
 
+from opencxl.cxl.component.cxl_io_callback_data import CxlIoCallbackData
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.util.async_gatherer import AsyncGatherer
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
 from opencxl.cxl.component.cxl_connection import CxlConnection
-from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
+from opencxl.cxl.component.virtual_switch.vppb_routing_info import VppbRoutingInfo
 from opencxl.cxl.component.cxl_mem_manager import CxlMemManager
 from opencxl.cxl.component.cxl_io_manager import CxlIoManager
 from opencxl.cxl.component.cxl_bridge_component import (
@@ -42,11 +43,8 @@ from opencxl.pci.component.pci import (
     EEUM_VID,
     SW_DSP_DID,
 )
-from opencxl.pci.component.mmio_manager import MmioManager, BarEntry
-from opencxl.pci.component.config_space_manager import (
-    ConfigSpaceManager,
-    PCI_DEVICE_TYPE,
-)
+from opencxl.pci.component.mmio_manager import BarEntry
+from opencxl.pci.component.config_space_manager import PCI_DEVICE_TYPE
 
 
 class SleepLoop(RunnableComponent):
@@ -112,10 +110,9 @@ class DownstreamPortDevice(CxlPortDevice):
 
     def _init_device(
         self,
-        mmio_manager: MmioManager,
-        config_space_manager: ConfigSpaceManager,
-        ld_id: int,
+        cxl_io_callback_data: CxlIoCallbackData,
     ):
+        ld_id = cxl_io_callback_data.ld_id
         pci_identity = PciComponentIdentity(
             vendor_id=EEUM_VID,
             device_id=SW_DSP_DID,
@@ -127,7 +124,7 @@ class DownstreamPortDevice(CxlPortDevice):
         self._pci_bridge_component[ld_id] = PciBridgeComponent(
             identity=pci_identity,
             type=PCI_BRIDGE_TYPE.DOWNSTREAM_PORT,
-            mmio_manager=mmio_manager,
+            mmio_manager=cxl_io_callback_data.mmio_manager,
             label=self._get_label(),
         )
 
@@ -136,7 +133,7 @@ class DownstreamPortDevice(CxlPortDevice):
         self._cxl_component[ld_id] = cxl_component
         mmio_options = CombinedMmioRegiterOptions(cxl_component=cxl_component)
         mmio_register = CombinedMmioRegister(options=mmio_options)
-        mmio_manager.set_bar_entries([BarEntry(mmio_register)])
+        cxl_io_callback_data.mmio_manager.set_bar_entries([BarEntry(mmio_register)])
 
         # Create Config Space Register
         pci_registers_options = CxlDownstreamPortConfigSpaceOptions(
@@ -149,7 +146,7 @@ class DownstreamPortDevice(CxlPortDevice):
             ),
         )
         self._pci_registers[ld_id] = CxlDownstreamPortConfigSpace(options=pci_registers_options)
-        config_space_manager.set_register(self._pci_registers[ld_id])
+        cxl_io_callback_data.config_space_manager.set_register(self._pci_registers[ld_id])
 
     def _get_label(self) -> str:
         return f"DSP{self._port_index}"
@@ -169,8 +166,8 @@ class DownstreamPortDevice(CxlPortDevice):
     def get_device_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.DSP
 
-    def set_routing_table(self, routing_table: RoutingTable, ld_id: int):
-        self._pci_bridge_component[ld_id].set_routing_table(routing_table, ld_id)
+    def set_routing_table(self, vppb_routing_info: VppbRoutingInfo):
+        self._pci_bridge_component[vppb_routing_info.ld_id].set_routing_table(vppb_routing_info)
 
     def get_secondary_bus_number(self, ld_id: int):
         return self._pci_registers[ld_id].pci.secondary_bus_number

@@ -13,7 +13,7 @@ from opencxl.cxl.device.port_device import CxlPortDevice
 from opencxl.cxl.device.downstream_port_device import DownstreamPortDevice
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
 
-from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
+from opencxl.cxl.component.virtual_switch.vppb_routing_info import VppbRoutingInfo
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.cxl_io_manager import CxlIoManager
@@ -83,7 +83,7 @@ class Vppb:
         logger.info(f"VPPB unbinded from physical port, type: {physical_port.get_device_type()}")
 
     @abstractmethod
-    def set_routing_table(self, routing_table: RoutingTable, ld_id: int):
+    def set_routing_table(self, vppb_routing_info: VppbRoutingInfo):
         """This must be implemented in the child class"""
 
     @abstractmethod

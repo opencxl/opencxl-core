@@ -11,6 +11,7 @@ from enum import IntEnum
 from typing import List, Optional, cast, Callable, Coroutine, Any
 
 from opencxl.cxl.component.irq_manager import Irq, IrqManager
+from opencxl.cxl.component.virtual_switch.vppb_routing_info import VppbRoutingInfo
 from opencxl.util.logger import logger
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.virtual_switch.port_binder import PortBinder, BIND_STATUS
@@ -98,7 +99,7 @@ class CxlVirtualSwitch(RunnableComponent):
             raise Exception(f"physical port {upstream_port_index} is not USP")
         self._downstream_vppbs = [DownstreamVppb(idx, id) for idx in range(vppb_counts)]
 
-        self._upstream_vppb.set_routing_table(self._routing_table)
+        self._upstream_vppb.set_routing_table(VppbRoutingInfo(self._routing_table))
 
         # NOTE: Make PortBinder
         self._port_binder = PortBinder(self._id, self._downstream_vppbs)
@@ -203,7 +204,7 @@ class CxlVirtualSwitch(RunnableComponent):
         await vppb.bind_to_physical_dsp_port(dsp_device, ld_id)
 
         vppb.set_ld_id(ld_id)
-        vppb.set_routing_table(self._routing_table, ld_id)
+        vppb.set_routing_table(VppbRoutingInfo(self._routing_table, ld_id))
         vppb.set_vppb_index(vppb_index)
 
         # Create physical port to vppb mapping
