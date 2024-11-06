@@ -58,8 +58,7 @@ class PhysicalPortManager(RunnableComponent):
                 self._port_devices.append(UpstreamPortDevice(transport_connection, port_index))
                 self._ppb_binds.append(None)
             else:
-                # TODO: Make max_ld configurable
-                physical_port = DownstreamPortDevice(transport_connection, port_index, max_ld=16)
+                physical_port = DownstreamPortDevice(transport_connection, port_index)
                 ppb = PpbDevice(port_index)
                 self._port_devices.append(physical_port)
                 self._ppb_devices.append(ppb)

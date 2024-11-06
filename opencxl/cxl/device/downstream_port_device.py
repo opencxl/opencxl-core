@@ -84,11 +84,9 @@ class DownstreamPortDevice(CxlPortDevice):
         self,
         transport_connection: CxlConnection,
         port_index: int = 0,
-        max_ld: int = 1,
     ):
         super().__init__(transport_connection, port_index)
 
-        self._max_ld = max_ld
         self._tasks = AsyncGatherer()
         self._stop_tasks = []
 
@@ -180,9 +178,6 @@ class DownstreamPortDevice(CxlPortDevice):
     # Caller should always await this function
     async def bind_to_vppb(self, ld_id: int):
         logger.info(self._create_message(f"Binding ld_id {ld_id} to vPPB{self._vppb_index}"))
-        if ld_id >= self._max_ld:
-            logger.info(self._create_message(f"ld_id {ld_id} is out of bound"))
-            raise Exception(f"ld_id {ld_id} is out of bound")
         self._vppb_upstream_connection[ld_id] = CxlConnection()
         self._vppb_downstream_connection[ld_id] = CxlConnection()
         self._cxl_io_manager[ld_id] = CxlIoManager(
