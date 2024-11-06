@@ -919,15 +919,15 @@ async def test_virtual_switch_manager_test_cxl_mem():
             cxl_hpa_base = 0x100000000
             await root_port_device.configure_hdm_decoder_single_device(usp, cxl_hpa_base)
 
-            _cxl_devices = usp.get_all_cxl_devices()
+            usp_cxl_devices = usp.get_all_cxl_devices()
             test_address = cxl_hpa_base
-            for cxl_device in _cxl_devices:
+            for cxl_device in usp_cxl_devices:
                 await root_port_device.cxl_mem_write(test_address, 0xDEADBEEF)
                 data = await root_port_device.cxl_mem_read(test_address)
                 assert data is not None, f"Failed to read from 0x{test_address:x}"
                 logger.info(f"[PyTest] CXL.mem Read: 0x{data:x} from 0x{test_address:x}")
                 test_address += cxl_device.cxl_device_size
-            for cxl_device in _cxl_devices:
+            for cxl_device in usp_cxl_devices:
                 await root_port_device.cxl_mem_birsp(CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, bi_id=3)
                 await root_port_device.cxl_mem_birsp(CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, bi_id=4)
                 await root_port_device.cxl_mem_birsp(CXL_MEM_M2SBIRSP_OPCODE.BIRSP_E, bi_id=5)
