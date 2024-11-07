@@ -72,6 +72,11 @@ class PciDevice(RunnableComponent):
             create_task(self._mmio_manager.run()),
             create_task(self._config_space_manager.run()),
         ]
+        wait_tasks = [
+            create_task(self._mmio_manager.wait_for_ready()),
+            create_task(self._config_space_manager.wait_for_ready()),
+        ]
+        await gather(*wait_tasks)
         await self._change_status_to_running()
         await gather(*tasks)
 

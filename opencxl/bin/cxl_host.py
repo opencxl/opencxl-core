@@ -63,3 +63,4 @@ def start_host_manager():
     logger.info(f"Starting CXL HostManager")
     host_manager = CxlHostManager()
     asyncio.run(host_manager.run())
+    asyncio.run(host_manager.wait_for_ready())

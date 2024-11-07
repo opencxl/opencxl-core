@@ -16,6 +16,7 @@ from asyncio import (
     open_connection,
     Lock,
 )
+import asyncio
 from asyncio.exceptions import CancelledError
 from enum import Enum
 from typing import Callable
@@ -194,6 +195,8 @@ class ShortMsgConn(RunnableComponent):
             if self._server:
                 server = await self._create_server()
                 self._server_task = create_task(server.serve_forever())
+                while not server.is_serving():
+                    await asyncio.sleep(0.1)
                 self._tasks.append(self._server_task)
             else:
                 pass

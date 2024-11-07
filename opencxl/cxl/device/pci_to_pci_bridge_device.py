@@ -238,6 +238,7 @@ class PpbDevice(RunnableComponent):
             self._downstream_connection, self._upstream_connections[ld_id], ld_id
         )
         self._routing_tasks.add_task(self._down_routings[ld_id].run())
+        await self._down_routings[ld_id].wait_for_ready()
 
     async def unbind(self, ld_id: int):
         self._upstream_connections.pop(ld_id)
@@ -247,6 +248,7 @@ class PpbDevice(RunnableComponent):
     async def _run(self):
         logger.info(self._create_message("Starting"))
         self._routing_tasks.add_task(self._up_routing.run())
+        await self._up_routing.wait_for_ready()
 
         await self._change_status_to_running()
         await self._routing_tasks.wait_for_completion()
