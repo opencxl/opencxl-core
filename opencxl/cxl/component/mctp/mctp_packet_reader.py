@@ -44,10 +44,10 @@ class MctpPacketReader(LabeledComponent):
         message_header = await self._get_cci_message_header()
         payload_length = message_header.get_message_payload_length()
         if payload_length > 0:
-            message_payload = await self._read_payload(payload_length)
+            payload_data = await self._read_payload(payload_length)
         else:
-            message_payload = bytes()
-        packet = CciMessagePacket(header=message_header, payload=message_payload)
+            payload_data = bytes()
+        packet = CciMessagePacket.create(header=message_header, data=payload_data)
         return packet
 
     async def _get_cci_message_header(self) -> CciMessageHeaderPacket:

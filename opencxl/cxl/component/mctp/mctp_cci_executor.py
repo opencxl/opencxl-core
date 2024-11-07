@@ -47,7 +47,7 @@ class MctpCciExecutor(RunnableComponent):
         header.background_operation = 1 if response.bo_flag else 0
         header.return_code = response.return_code
         header.vendor_specific_extended_status = response.vendor_specific_status
-        response_packet = CciMessagePacket(header, response.payload)
+        response_packet = CciMessagePacket.create(header, response.payload)
         await self._mctp_connection.ep_to_controller.put(response_packet)
 
     async def _process_incoming_requests(self):

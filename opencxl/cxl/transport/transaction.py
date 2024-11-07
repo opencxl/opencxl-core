@@ -1906,7 +1906,7 @@ CCI_HEADER_START = SYSTEM_HEADER_END + 1
 CCI_HEADER_END = CCI_HEADER_START + CciHeaderPacket.get_size() - 1
 
 
-class CciMessageDefPacket(UnalignedBitStructure):
+class CciMessageBasePacket(UnalignedBitStructure):
     header: CciMessageHeaderPacket
     data: int
 
@@ -1927,7 +1927,7 @@ class CciMessageDefPacket(UnalignedBitStructure):
         return self.header.get_message_payload_length()
 
 
-class CciMessagePacket(CciMessageDefPacket):
+class CciMessagePacket(CciMessageBasePacket):
     @staticmethod
     def create(header: CciMessageHeaderPacket, data: bytes) -> "CciMessagePacket":
         packet = CciMessagePacket()
