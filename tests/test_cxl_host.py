@@ -150,6 +150,7 @@ async def test_cxl_host_manager_send_util_and_recv_host():
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
+    await host_manager.wait_for_ready()
     host_client, util_client = await init_clients(host_port, util_port)
 
     cmd = request_json("UTIL_CXL_MEM_READ", params={"port": 0, "addr": 0x40})
@@ -179,6 +180,7 @@ async def test_cxl_host_manager_handle_res():
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
+    await host_manager.wait_for_ready()
     host = DummyHost()
     asyncio.create_task(host.conn_open(port=host_port))
     util_client = SimpleJsonClient(port=util_port)
@@ -217,6 +219,7 @@ async def test_cxl_host_manager_handle_err():
 
     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
+    await host_manager.wait_for_ready()
     dummy_host = DummyHost()
     asyncio.create_task(dummy_host.conn_open(port=host_port))
     util_client = SimpleJsonClient(port=util_port)

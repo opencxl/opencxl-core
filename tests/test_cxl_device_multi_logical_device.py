@@ -81,6 +81,7 @@ async def test_multi_logical_device_ld_id():
         label="ClientPortMld",
     )
     mld_packet_processor_task = create_task(mld_packet_processor.run())
+    await mld_packet_processor.wait_for_ready()
 
     memory_base_address = 0xFE000000
     bar_size = 131072  # Empirical value

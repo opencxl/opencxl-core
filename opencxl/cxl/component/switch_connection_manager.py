@@ -6,7 +6,7 @@
 """
 
 import asyncio
-from asyncio import CancelledError
+from asyncio import CancelledError, create_task, gather
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Optional, List, Callable, Coroutine, Any, cast
@@ -207,7 +207,9 @@ class SwitchConnectionManager(RunnableComponent):
             label=f"SwitchPort{port_index}",
         )
         self._ports[port_index].packet_processor = packet_processor
-        await packet_processor.run()
+        tasks = [create_task(packet_processor.run())]
+        await packet_processor.wait_for_ready()
+        await gather(*tasks)
         self._ports[port_index].packet_processor = None
 
     def get_cxl_connection(self, port: int) -> CxlConnection:

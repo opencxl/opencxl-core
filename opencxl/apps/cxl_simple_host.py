@@ -115,6 +115,7 @@ class CxlSimpleHost(RunnableComponent):
         ]
         if self._hm_mode:
             tasks.append(asyncio.create_task(self._host_manager_conn_client.run()))
+            await self._host_manager_conn_client.wait_for_ready()
         await self._sw_conn_client.wait_for_ready()
         await self._root_port_device.wait_for_ready()
         await self._change_status_to_running()
@@ -154,9 +155,11 @@ class CxlHostManager(RunnableComponent):
             asyncio.create_task(self._host_conn_server.run()),
             asyncio.create_task(self._util_conn_server.run()),
         ]
-        # TODO: Fix workaround
-        for _ in range(100):
-            await asyncio.sleep(0)
+        wait_tasks = [
+            asyncio.create_task(self._host_conn_server.wait_for_ready()),
+            asyncio.create_task(self._util_conn_server.wait_for_ready()),
+        ]
+        await asyncio.gather(*wait_tasks)
         await self._change_status_to_running()
         await asyncio.gather(*tasks)
 

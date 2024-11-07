@@ -79,8 +79,14 @@ class CxlFabricManager(RunnableComponent):
             create_task(self._socketio_server.run()),
             create_task(self._api_client.run()),
         ]
+        wait_tasks = [
+            create_task(self._connection_manager.wait_for_ready()),
+            create_task(self._socketio_server.wait_for_ready()),
+            create_task(self._api_client.wait_for_ready()),
+        ]
         if self._use_test_runner:
             tasks.append(create_task(self._run_test()))
+        await gather(*wait_tasks)
         await self._change_status_to_running()
         await gather(*tasks)
 
