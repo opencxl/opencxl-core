@@ -77,11 +77,11 @@ def disconnect():
 
 
 # Bind & unbind
-async def bind(vcs: int, vppb: int, physical_port: int):
+async def bind(vcs: int, vppb: int, physical_port: int, ld_id: int = 0):
     await sio.connect("http://0.0.0.0:8200")
     await send(
         "vcs:bind",
-        {"virtualCxlSwitchId": vcs, "vppbId": vppb, "physicalPortId": physical_port},
+        {"virtualCxlSwitchId": vcs, "vppbId": vppb, "physicalPortId": physical_port, "ldId": ld_id},
     )
 
 
