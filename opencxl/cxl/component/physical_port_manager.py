@@ -139,6 +139,7 @@ class PhysicalPortManager(RunnableComponent):
         for ppb_bind in self._ppb_binds:
             if ppb_bind is not None:
                 run_tasks.append(create_task(ppb_bind.run()))
+                wait_tasks.append(create_task(ppb_bind.wait_for_ready()))
 
         await gather(*wait_tasks)
         await self._change_status_to_running()

@@ -40,7 +40,7 @@ class CxlSimpleHost(RunnableComponent):
         label = f"Port{port_index}"
         super().__init__(label)
         self._test_mode = test_mode
-        self._switch_conn_client = SwitchConnectionClient(
+        self._sw_conn_client = SwitchConnectionClient(
             port_index, CXL_COMPONENT_TYPE.R, host=switch_host, port=switch_port
         )
         self._methods = {
@@ -60,7 +60,7 @@ class CxlSimpleHost(RunnableComponent):
                 )
             )
         self._root_port_device = CxlRootPortDevice(
-            downstream_connection=self._switch_conn_client.get_cxl_connection(),
+            downstream_connection=self._sw_conn_client.get_cxl_connection(),
             label=label,
             test_mode=self._test_mode,
         )
@@ -110,19 +110,20 @@ class CxlSimpleHost(RunnableComponent):
 
     async def _run(self):
         tasks = [
-            asyncio.create_task(self._switch_conn_client.run()),
+            asyncio.create_task(self._sw_conn_client.run()),
             asyncio.create_task(self._root_port_device.run()),
         ]
         if self._hm_mode:
             tasks.append(asyncio.create_task(self._host_manager_conn_client.run()))
-        await self._switch_conn_client.wait_for_ready()
+            await self._host_manager_conn_client.wait_for_ready()
+        await self._sw_conn_client.wait_for_ready()
         await self._root_port_device.wait_for_ready()
         await self._change_status_to_running()
         await asyncio.gather(*tasks)
 
     async def _stop(self):
         tasks = [
-            asyncio.create_task(self._switch_conn_client.stop()),
+            asyncio.create_task(self._sw_conn_client.stop()),
             asyncio.create_task(self._root_port_device.stop()),
         ]
         if self._hm_mode:
@@ -154,9 +155,11 @@ class CxlHostManager(RunnableComponent):
             asyncio.create_task(self._host_conn_server.run()),
             asyncio.create_task(self._util_conn_server.run()),
         ]
-        # TODO: Fix workaround
-        for _ in range(100):
-            await asyncio.sleep(0)
+        wait_tasks = [
+            asyncio.create_task(self._host_conn_server.wait_for_ready()),
+            asyncio.create_task(self._util_conn_server.wait_for_ready()),
+        ]
+        await asyncio.gather(*wait_tasks)
         await self._change_status_to_running()
         await asyncio.gather(*tasks)
 

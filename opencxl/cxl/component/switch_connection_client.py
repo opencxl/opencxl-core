@@ -133,8 +133,10 @@ class SwitchConnectionClient(RunnableComponent):
             self._component_type,
             label=f"ClientPort{self._port_index}",
         )
+        tasks = [asyncio.create_task(self._packet_processor.run())]
+        await self._packet_processor.wait_for_ready()
         await self._change_status_to_running()
-        await self._packet_processor.run()
+        await asyncio.gather(*tasks)
 
     async def _stop(self):
         self._stop_signal = True
