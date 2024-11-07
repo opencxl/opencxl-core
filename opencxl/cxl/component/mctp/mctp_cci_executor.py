@@ -88,7 +88,7 @@ class MctpCciExecutor(RunnableComponent):
         header.message_category = CCI_MCTP_MESSAGE_CATEGORY.REQUEST
         header.set_message_payload_length(len(request.payload))
         header.command_opcode = request.opcode
-        message_packet = CciMessagePacket(header, request.payload)
+        message_packet = CciMessagePacket.create(header, request.payload)
         opcode_str = get_opcode_string(request.opcode)
         logger.debug(self._create_message(f"Sending {opcode_str}"))
         await self._mctp_connection.ep_to_controller.put(message_packet)
