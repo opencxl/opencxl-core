@@ -34,8 +34,15 @@ def start(use_test_runner):
 @click.argument("vcs", nargs=1, type=BASED_INT)
 @click.argument("vppb", nargs=1, type=BASED_INT)
 @click.argument("physical", nargs=1, type=BASED_INT)
-def fm_bind(vcs: int, vppb: int, physical: int):
-    asyncio.run(socketio_client.bind(vcs, vppb, physical))
+@click.argument(
+    "ld_id",
+    nargs=1,
+    type=BASED_INT,
+    default=0,
+    help="Optional logical device ID field, used for MLD devices.",
+)
+def fm_bind(vcs: int, vppb: int, physical: int, ld_id: int):
+    asyncio.run(socketio_client.bind(vcs, vppb, physical, ld_id))
 
 
 @fabric_manager_group.command(name="unbind")

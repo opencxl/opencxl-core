@@ -72,6 +72,7 @@ class PortBinder(RunnableComponent):
             self._vcs_id, vppb_index, downstream_connection, upstream_connection
         )
         self._async_gatherer.add_task(bind_slot.processor.run())
+        await bind_slot.processor.wait_for_ready()
         bind_slot.status = BIND_STATUS.BOUND
 
     async def unbind_vppb(self, vppb_index: int):

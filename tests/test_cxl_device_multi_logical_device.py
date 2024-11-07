@@ -66,8 +66,8 @@ async def test_multi_logical_device_ld_id():
     server = await asyncio.start_server(handle_client, "127.0.0.1", 8000)
     # This is cleaned up via 'server.wait_closed()' below
     asyncio.create_task(server.serve_forever())
-
-    await server.start_serving()
+    while not server.is_serving():
+        await asyncio.sleep(0.1)
 
     # Setup CxlPacketProcessor for MLD - connect to 127.0.0.1:8000
     mld_packet_processor_reader, mld_packet_processor_writer = await asyncio.open_connection(
@@ -81,6 +81,7 @@ async def test_multi_logical_device_ld_id():
         label="ClientPortMld",
     )
     mld_packet_processor_task = create_task(mld_packet_processor.run())
+    await mld_packet_processor.wait_for_ready()
 
     memory_base_address = 0xFE000000
     bar_size = 131072  # Empirical value

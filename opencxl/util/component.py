@@ -44,6 +44,7 @@ class RunnableComponent(LabeledComponent):
         super().__init__(label)
         self._condition = Condition()
         self._status = COMPONENT_STATUS.STOPPED
+        self._ready_waited = True  # Changed to False upon run()
 
     async def run(self):
         stop_when_exception_occurred = True
@@ -61,6 +62,7 @@ class RunnableComponent(LabeledComponent):
             self._condition.notify_all()
             self._condition.release()
 
+            self._ready_waited = False
             await self._run()
 
             logger.debug(self._create_message("Stopped"))
@@ -76,6 +78,9 @@ class RunnableComponent(LabeledComponent):
             raise e
 
     async def stop(self):
+        if not self._ready_waited:
+            raise Exception("wait_for_ready() was not called after run()")
+
         await self._condition.acquire()
         if self._status != COMPONENT_STATUS.RUNNING:
             self._condition.release()
@@ -114,3 +119,4 @@ class RunnableComponent(LabeledComponent):
             logger.debug(self._create_message("Not running yet. Waiting"))
             await self._condition.wait()
         self._condition.release()
+        self._ready_waited = True

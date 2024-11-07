@@ -47,6 +47,8 @@ class MctpConnectionManager(RunnableComponent):
             server = await self._create_server()
             self._server_task = asyncio.create_task(server.serve_forever())
             logger.info(self._create_message("Starting TCP server task"))
+            while not server.is_serving():
+                await asyncio.sleep(0.1)
             await self._change_status_to_running()
             await self._server_task
         except Exception as e:
