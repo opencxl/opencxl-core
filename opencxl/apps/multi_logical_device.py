@@ -20,6 +20,7 @@ class MultiLogicalDevice(RunnableComponent):
     def __init__(
         self,
         port_index: int,
+        ld_count: int,
         memory_sizes: List[int],
         memory_files: List[str],
         host: str = "0.0.0.0",
@@ -36,7 +37,7 @@ class MultiLogicalDevice(RunnableComponent):
         assert len(memory_sizes) == len(
             memory_files
         ), "memory_sizes, and memory_files must have the same length"
-        num_ld = len(memory_sizes)
+        assert ld_count == len(memory_sizes), "ld_count must be equal to the number of memory_sizes"
 
         assert (
             not test_mode or cxl_connections is not None
@@ -49,7 +50,7 @@ class MultiLogicalDevice(RunnableComponent):
             self._cxl_connections = cxl_connections
         else:
             self._sw_conn_client = SwitchConnectionClient(
-                port_index, CXL_COMPONENT_TYPE.LD, num_ld=num_ld, host=host, port=port
+                port_index, CXL_COMPONENT_TYPE.LD, ld_count=ld_count, host=host, port=port
             )
             self._cxl_connections = self._sw_conn_client.get_cxl_connection()
 
@@ -63,8 +64,8 @@ class MultiLogicalDevice(RunnableComponent):
 
         # Share the outgoing queue across multiple LDs
         # TODO: avoid creation at all
-        if num_ld > 1:
-            for i in range(1, num_ld):
+        if ld_count > 1:
+            for i in range(1, ld_count):
                 connection = self._cxl_connections[i]
                 connection.cfg_fifo.target_to_host = base_outgoing.cfg_space
                 connection.mmio_fifo.target_to_host = base_outgoing.mmio
@@ -72,7 +73,7 @@ class MultiLogicalDevice(RunnableComponent):
                 connection.cxl_cache_fifo.target_to_host = base_outgoing.cxl_cache
                 connection.cci_fifo.target_to_host = base_outgoing.cci_fifo
 
-        for ld in range(num_ld):
+        for ld in range(ld_count):
             cxl_type3_device = CxlType3Device(
                 transport_connection=self._cxl_connections[ld],
                 memory_size=memory_sizes[ld],

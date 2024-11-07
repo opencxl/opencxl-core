@@ -26,7 +26,7 @@ from opencxl.cxl.component.hdm_decoder import (
     HdmDecoderCapabilities,
     HDM_DECODER_COUNT,
 )
-from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
+from opencxl.cxl.component.virtual_switch.vppb_routing_info import VppbRoutingInfo
 from opencxl.cxl.component.cache_route_table import (
     CacheIdRTCommitTimeout,
     CacheIdTargetNOptions,
@@ -120,8 +120,8 @@ class CxlUpstreamPortComponent(CxlComponent):
             no_targs + 1
         )
 
-    def set_routing_table(self, routing_table: RoutingTable):
-        self._routing_table = routing_table
+    def set_routing_table(self, vppb_routing_info: VppbRoutingInfo):
+        self._routing_table = vppb_routing_info.routing_table
         self._routing_table.set_hdm_decoder(self._hdm_decoder_manager)
 
 
