@@ -8,6 +8,7 @@
 import asyncio
 from typing import Optional, Callable
 
+from opencxl.cxl.component.cxl_io_callback_data import CxlIoCallbackData
 from opencxl.pci.component.mmio_manager import MmioManager
 from opencxl.pci.component.config_space_manager import ConfigSpaceManager, PCI_DEVICE_TYPE
 from opencxl.pci.component.fifo_pair import FifoPair
@@ -22,8 +23,9 @@ class CxlIoManager(RunnableComponent):
         cfg_upstream_fifo: FifoPair,
         cfg_downstream_fifo: Optional[FifoPair],
         device_type: PCI_DEVICE_TYPE,
-        init_callback: Callable[[MmioManager, ConfigSpaceManager], None],
+        init_callback: Callable[[CxlIoCallbackData], None],
         label: Optional[str] = None,
+        ld_id: int = 0,
     ):
         super().__init__(label)
         self._mmio_manager = MmioManager(
@@ -37,7 +39,7 @@ class CxlIoManager(RunnableComponent):
             device_type=device_type,
             label=label,
         )
-        init_callback(self._mmio_manager, self._config_space_manager)
+        init_callback(CxlIoCallbackData(self._mmio_manager, self._config_space_manager, ld_id))
 
     def get_cfg_reg_vals(self):
         return self._config_space_manager.get_register()

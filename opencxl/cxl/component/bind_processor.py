@@ -55,6 +55,8 @@ class GenericBindProcessor(RunnableComponent):
         message = f"[{self.__class__.__name__}] {message}"
         return message
 
+    # Similar code with pci_to_pci_bridge_device.py:*_process()
+    # pylint: disable=duplicate-code
     async def _process(self, source: Queue, destination: Queue):
         while True:
             packet = await source.get()

@@ -8,6 +8,7 @@
 import re
 
 from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
+from opencxl.cxl.component.cxl_io_callback_data import CxlIoCallbackData
 from opencxl.util.logger import logger
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.device.port_device import CxlPortDevice
@@ -27,7 +28,7 @@ from opencxl.cxl.component.cxl_bridge_component import (
     CxlUpstreamPortComponent,
     HDM_DECODER_COUNT,
 )
-from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
+from opencxl.cxl.component.virtual_switch.vppb_routing_info import VppbRoutingInfo
 from opencxl.cxl.component.cxl_mem_manager import CxlMemManager
 from opencxl.cxl.component.cxl_io_manager import CxlIoManager
 from opencxl.pci.component.pci import (
@@ -40,11 +41,8 @@ from opencxl.pci.component.pci import (
     PCI_BRIDGE_SUBCLASS,
     PCI_DEVICE_PORT_TYPE,
 )
-from opencxl.pci.component.mmio_manager import MmioManager, BarEntry
-from opencxl.pci.component.config_space_manager import (
-    ConfigSpaceManager,
-    PCI_DEVICE_TYPE,
-)
+from opencxl.pci.component.mmio_manager import BarEntry
+from opencxl.pci.component.config_space_manager import PCI_DEVICE_TYPE
 
 
 # Shares code between DownstreamPortDevice
@@ -86,8 +84,7 @@ class UpstreamPortDevice(CxlPortDevice):
 
     def _init_device(
         self,
-        mmio_manager: MmioManager,
-        config_space_manager: ConfigSpaceManager,
+        cxl_io_callback_data: CxlIoCallbackData,
     ):
         pci_identity = PciComponentIdentity(
             vendor_id=EEUM_VID,
@@ -100,13 +97,13 @@ class UpstreamPortDevice(CxlPortDevice):
         self._pci_bridge_component = PciBridgeComponent(
             identity=pci_identity,
             type=PCI_BRIDGE_TYPE.UPSTREAM_PORT,
-            mmio_manager=mmio_manager,
+            mmio_manager=cxl_io_callback_data.mmio_manager,
         )
 
         # NOTE: Create MMIO Register
         mmio_options = CombinedMmioRegiterOptions(cxl_component=self._cxl_component)
         mmio_register = CombinedMmioRegister(options=mmio_options)
-        mmio_manager.set_bar_entries([BarEntry(mmio_register)])
+        cxl_io_callback_data.mmio_manager.set_bar_entries([BarEntry(mmio_register)])
 
         # NOTE: Create Config Space Register
         doe_options = CxlDoeExtendedCapabilityOptions(cdat_entries=[])
@@ -121,15 +118,15 @@ class UpstreamPortDevice(CxlPortDevice):
             doe=doe_options,
         )
         self._pci_registers = CxlUpstreamPortConfigSpace(options=pci_registers_options)
-        config_space_manager.set_register(self._pci_registers)
+        cxl_io_callback_data.config_space_manager.set_register(self._pci_registers)
 
     def get_reg_vals(self):
         return self._cxl_io_manager.get_cfg_reg_vals()
 
-    def set_routing_table(self, routing_table: RoutingTable):
+    def set_routing_table(self, vppb_routing_info: VppbRoutingInfo):
         logger.debug(f"[UpstreamPort{self.get_port_index()}] Setting routing table")
-        self._pci_bridge_component.set_routing_table(routing_table)
-        self._cxl_component.set_routing_table(routing_table)
+        self._pci_bridge_component.set_routing_table(vppb_routing_info)
+        self._cxl_component.set_routing_table(vppb_routing_info)
 
     def get_device_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.USP

@@ -13,7 +13,7 @@ from opencxl.cxl.device.port_device import CxlPortDevice
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
 from opencxl.cxl.device.pci_to_pci_bridge_device import PpbDevice
 from opencxl.cxl.device.downstream_port_device import DownstreamPortDevice
-from opencxl.cxl.device.config.logical_device import SingleLogicalDeviceConfig
+from opencxl.cxl.device.config.logical_device import LogicalDeviceConfig
 from opencxl.cxl.component.bind_processor import PpbDspBindProcessor
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import (
@@ -43,7 +43,7 @@ class PhysicalPortManager(RunnableComponent):
         port_configs: List[PortConfig],
         # TODO: CE-35, device enumeration from DSP is not supported yet.
         # Read device configs from an environment file directly as a workaround.
-        device_configs: Optional[List[SingleLogicalDeviceConfig]] = None,
+        device_configs: Optional[List[LogicalDeviceConfig]] = None,
     ):
         super().__init__()
         self._port_devices: List[CxlPortDevice] = []
@@ -100,7 +100,7 @@ class PhysicalPortManager(RunnableComponent):
         # TODO: CE-35, device enumeration from DSP is not supported yet.
         # This is a temporary implementation that finds connected device's info
         # from an environment file.
-        device_configs_by_port_id: Dict[int, SingleLogicalDeviceConfig] = {}
+        device_configs_by_port_id: Dict[int, LogicalDeviceConfig] = {}
         for device_config in self._device_configs:
             device_configs_by_port_id[device_config.port_index] = device_config
 

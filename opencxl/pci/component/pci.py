@@ -8,11 +8,11 @@
 from dataclasses import dataclass
 from enum import Enum, IntEnum, auto
 from typing import Optional
+from opencxl.cxl.component.virtual_switch.vppb_routing_info import VppbRoutingInfo
 from opencxl.util.logger import logger
 
 # TODO: Move mmio manager under pci directory
 from opencxl.pci.component.mmio_manager import MmioManager
-from opencxl.pci.component.routing_table import PciRoutingTable
 from opencxl.util.component import LabeledComponent
 
 EEUM_VID = 0x1DC5  # Note: 1DC5 is for FADU
@@ -104,8 +104,8 @@ class PciBridgeComponent(PciComponent):
         self._routing_table = None
         self._port_number = 0
 
-    def set_routing_table(self, routing_table: PciRoutingTable):
-        self._routing_table = routing_table
+    def set_routing_table(self, vppb_routing_info: VppbRoutingInfo):
+        self._routing_table = vppb_routing_info.routing_table
 
     def set_port_number(self, port_number: int):
         if self._type == PCI_BRIDGE_TYPE.UPSTREAM_PORT:
