@@ -10,13 +10,13 @@ from asyncio import create_task, gather
 from enum import IntEnum
 
 from opencxl.cxl.component.cxl_cache_manager import CxlCacheManager
+from opencxl.cxl.component.virtual_switch.vppb_routing_info import VppbRoutingInfo
 from opencxl.util.logger import logger
 from opencxl.util.unaligned_bit_structure import (
     UnalignedBitStructure,
     BitField,
     FIELD_ATTR,
 )
-from opencxl.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.util.component import RunnableComponent
@@ -90,7 +90,7 @@ class CxlPortDevice(RunnableComponent):
         return self._vppb_upstream_connection
 
     @abstractmethod
-    def set_routing_table(self, routing_table: RoutingTable):
+    def set_routing_table(self, vppb_routing_info: VppbRoutingInfo):
         """This must be implemented in the child class"""
 
     @abstractmethod

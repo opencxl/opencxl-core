@@ -21,7 +21,8 @@ from opencxl.cxl.component.switch_connection_manager import SwitchConnectionMana
 BASE_TEST_PORT = 9000
 
 
-def test_physical_port_manager_init(get_gold_std_reg_vals):
+@pytest.mark.asyncio
+async def test_physical_port_manager_init(get_gold_std_reg_vals):
     # pylint: disable=duplicate-code
     # CE-94
     port_configs = [
@@ -37,15 +38,18 @@ def test_physical_port_manager_init(get_gold_std_reg_vals):
     )
     for port_index, port_config in enumerate(port_configs):
         port_device = physical_port_manager.get_port_device(port_index)
-        reg_vals = str(port_device.get_reg_vals())
         if port_config.type == PORT_TYPE.USP:
+            reg_vals = str(port_device.get_reg_vals())
             assert isinstance(port_device, UpstreamPortDevice)
             reg_vals_expected = get_gold_std_reg_vals("USP")
             assert reg_vals == reg_vals_expected
-        else:
+        else:  # vPPB binding required for DSP
+            await port_device.bind_to_vppb(0)
+            reg_vals = str(port_device.get_reg_vals())
             assert isinstance(port_device, DownstreamPortDevice)
             reg_vals_expected = get_gold_std_reg_vals("DSP")
             assert reg_vals == reg_vals_expected
+            await port_device.unbind_from_vppb(0)
 
     with pytest.raises(Exception):
         physical_port_manager.get_port_device(len(port_configs))
