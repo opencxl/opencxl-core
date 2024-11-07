@@ -134,6 +134,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
             vcs_id=data["virtualCxlSwitchId"],
             vppb_id=data["vppbId"],
             physical_port_id=data["physicalPortId"],
+            ld_id=data["ldId"],
         )
         (return_code, response) = await self._mctp_client.bind_vppb(request)
         if response:
