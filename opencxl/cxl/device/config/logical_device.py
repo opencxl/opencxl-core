@@ -12,7 +12,6 @@ from opencxl.pci.component.pci import EEUM_VID, SW_SLD_DID, SW_MLD_DID
 
 @dataclass(kw_only=True)
 class LogicalDeviceConfig:
-    serial_number: str
     port_index: int
     device_id: int
     vendor_id: int = EEUM_VID

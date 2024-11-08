@@ -51,6 +51,7 @@ async def test_multi_logical_device_ld_id():
         ld_count=ld_count,
         memory_sizes=[ld_size] * ld_count,
         memory_files=[f"mld_mem{i}.bin" for i in range(ld_count)],
+        serial_numbers=["CCCCCCCCCCCCCCCC"] * ld_count,
         test_mode=True,
         cxl_connections=cxl_connections,
     )

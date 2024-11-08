@@ -308,6 +308,7 @@ async def test_cxl_host_type3_ete():
         port_index=1,
         memory_size=0x1000000,
         memory_file=f"mem{switch_port}.bin",
+        serial_number="DDDDDDDDDDDDDDDD",
         port=switch_port,
     )
 
