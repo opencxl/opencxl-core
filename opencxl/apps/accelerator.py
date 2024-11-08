@@ -372,9 +372,9 @@ class MyType1Accelerator(RunnableComponent):
             print(self._create_message("Runapp Cancelled"))
             return
 
-    async def _app_shutdown(self):
-        logger.info(self._create_message("Removing accelerator directory"))
-        shutil.rmtree(self.accel_dirname)
+    def _app_shutdown(self):
+        logger.info(self._create_message(f"Removing tmp directory: {self.accel_dirname}"))
+        shutil.rmtree(self.accel_dirname, ignore_errors=True)
 
     async def _run(self):
         tasks = [

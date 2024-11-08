@@ -100,6 +100,8 @@ class CxlVirtualSwitch(RunnableComponent):
         self._downstream_vppbs = [DownstreamVppb(idx, id) for idx in range(vppb_counts)]
 
         self._upstream_vppb.set_routing_table(VppbRoutingInfo(self._routing_table))
+        for idx in range(len(self._physical_ports)):
+            self._upstream_vppb.get_cxl_component().add_cache_route_target(idx)
 
         # NOTE: Make PortBinder
         self._port_binder = PortBinder(self._id, self._downstream_vppbs)

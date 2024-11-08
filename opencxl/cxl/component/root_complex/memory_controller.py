@@ -43,8 +43,6 @@ class MemoryController(RunnableComponent):
                 logger.debug(self._create_message("Stopped processing memory access requests"))
                 break
 
-            # TODO: PARAM base
-            # addr = packet.addr - 0xFFFF888000000000
             addr = packet.addr
             if packet.type == MEMORY_REQUEST_TYPE.WRITE:
                 await self._file_accessor.write(addr, packet.data, packet.size)
