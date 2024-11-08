@@ -24,6 +24,7 @@ class LogicalDeviceConfig:
 class SingleLogicalDeviceConfig(LogicalDeviceConfig):
     memory_size: int  # in bytes
     memory_file: str
+    serial_number: str
     device_id: int = SW_SLD_DID
 
 
@@ -31,5 +32,6 @@ class SingleLogicalDeviceConfig(LogicalDeviceConfig):
 class MultiLogicalDeviceConfig(LogicalDeviceConfig):
     memory_sizes: List[int]  # in bytes
     memory_files: List[str]
+    serial_numbers: List[str]
     ld_count: int
     device_id: int = SW_MLD_DID

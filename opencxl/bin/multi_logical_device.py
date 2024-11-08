@@ -42,6 +42,7 @@ def start_group(config_file):
             ld_count=device_config.ld_count,
             memory_sizes=device_config.memory_sizes,
             memory_files=device_config.memory_files,
+            serial_numbers=device_config.serial_numbers,
             host=cxl_env.switch_config.host,
             port=cxl_env.switch_config.port,
         )

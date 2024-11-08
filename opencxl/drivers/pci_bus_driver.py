@@ -82,6 +82,7 @@ class PciDeviceInfo:
     vendor_id: int = 0
     device_id: int = 0
     class_code: int = 0
+    serial_number: str = "0000000000000000"
     bars: List[PciBarInfo] = field(default_factory=list)
     is_bridge: bool = False
     parent: Optional["PciDeviceInfo"] = None
@@ -490,6 +491,25 @@ class PciBusDriver(LabeledComponent):
         await self.scan_pci_cap_helper(bdf, pci_cap_pointer, device_info)
         await self.scan_pcie_cap_helper(bdf, PCIE_CONFIG_BASE, device_info)
 
+    async def _scan_sn(self, pci_device_info: PciDeviceInfo):
+        for capability in pci_device_info.capabilities:
+            is_sn = (
+                capability.id == PCI_EXTENDED_CAPABILITY_ID.DEVICE_SERIAL_NUMBER
+                and capability.version == 0x1
+            )
+            if not is_sn:
+                continue
+
+            bdf = pci_device_info.bdf
+            offset = capability.offset
+
+            sn_low = await self._root_complex.read_config(bdf, offset + 0x04, 4)
+            sn_high = await self._root_complex.read_config(bdf, offset + 0x08, 4)
+
+            sn_int = (sn_high << 32) | sn_low
+            sn_str = f"{sn_int:016x}"
+            pci_device_info.serial_number = sn_str
+
     async def _scan_bus(
         self, bus: int, memory_start: int, parent_device_info: Optional[PciDeviceInfo] = None
     ) -> Tuple[int, int]:
@@ -535,6 +555,7 @@ class PciBusDriver(LabeledComponent):
 
             # Scan PCI capabilities
             await self._scan_pci_capabilities(bdf, pci_device_info)
+            await self._scan_sn(pci_device_info)
 
             # Set memory base and memory limit
             size = await self._check_bar_size_and_set(bdf, memory_start, pci_device_info)

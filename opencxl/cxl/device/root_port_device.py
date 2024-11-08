@@ -93,6 +93,7 @@ class PciDvsecCapabilities:
 @dataclass
 class PciCapabilities:
     dvsec: PciDvsecCapabilities = field(default_factory=PciDvsecCapabilities)
+    serial_number: str = "0000000000000000"
 
 
 @dataclass
@@ -593,6 +594,14 @@ class CxlRootPortDevice(RunnableComponent):
         if vendor_id == 0x1E98 and revision_id == 0x0 and dvsec_id == 0x0008:
             await self.scan_dvsec_register_locator(bdf, cap_offset, length, capabilities)
 
+    async def scan_sn(self, bdf: int, cap_offset: int, capabilities: PciCapabilities):
+        sn_low = await self.read_config(bdf, cap_offset + 0x04, 4)
+        sn_high = await self.read_config(bdf, cap_offset + 0x08, 4)
+        sn_int = (sn_high << 32) | sn_low
+        sn_str = f"{sn_int:016x}"
+        logger.info(self._create_message(f"Found Device SN - {sn_str}"))
+        capabilities.serial_number = sn_str
+
     async def scan_pcie_cap_helper(self, bdf: int, offset: int, capabilities: PciCapabilities):
         data = await self.read_config(bdf, offset, 4)
         if data is None:
@@ -605,6 +614,10 @@ class CxlRootPortDevice(RunnableComponent):
         is_dvsec_cap = cap_id == 0x0023 and cap_version == 0x1
         if is_dvsec_cap:
             await self.scan_dvsec(bdf, offset, capabilities)
+
+        is_sn_cap = cap_id == 0x0003 and cap_version == 0x1
+        if is_sn_cap:
+            await self.scan_sn(bdf, offset, capabilities)
 
         if next_cap_offset != 0:
             await self.scan_pcie_cap_helper(bdf, next_cap_offset, capabilities)
