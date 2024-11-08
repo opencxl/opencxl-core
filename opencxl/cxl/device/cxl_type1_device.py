@@ -81,7 +81,6 @@ class CxlType1Device(RunnableComponent):
         self._label = lambda class_name: f"{config.device_name}:{class_name}"
         super().__init__(self._label)
 
-        processor_to_cache_fifo = MemoryFifoPair()
         cache_to_coh_agent_fifo = CacheFifoPair()
         coh_agent_to_cache_fifo = CacheFifoPair()
         self._mmio_manager = None

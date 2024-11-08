@@ -446,7 +446,7 @@ class CacheController(RunnableComponent):
                 case _:
                     assert False
 
-    async def _run_coh_request(self, packet: CacheRequest):
+    async def _run_coh_request(self, packet: CacheRequest, cache_fifo: CacheFifoPair):
         cache_blk, data = await self._coh_to_cache_state_lookup(packet.type, packet.addr)
         if cache_blk is None:
             packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
@@ -460,7 +460,7 @@ class CacheController(RunnableComponent):
             packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V, data)
         else:
             assert False
-        await self._coh_agent_to_cache_fifo.response.put(packet)
+        await cache_fifo.response.put(packet)
 
     # registered event loop for coh module's cache loopup operations
     async def _coh_agent_request_scheduler(self):
@@ -471,7 +471,7 @@ class CacheController(RunnableComponent):
                     self._create_message("Stop processing coh agent request scheduler fifo")
                 )
                 break
-            await self._run_coh_request(packet)
+            await self._run_coh_request(packet, self._coh_agent_to_cache_fifo)
 
     async def _coh_bridge_request_scheduler(self):
         while True:
@@ -481,7 +481,7 @@ class CacheController(RunnableComponent):
                     self._create_message("Stop processing coh bridge request scheduler fifo")
                 )
                 break
-            await self._run_coh_request(packet)
+            await self._run_coh_request(packet, self._coh_bridge_to_cache_fifo)
 
     async def _run(self):
         tasks = [
