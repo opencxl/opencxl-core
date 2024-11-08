@@ -39,7 +39,6 @@ def start(use_test_runner):
     nargs=1,
     type=BASED_INT,
     default=0,
-    help="Optional logical device ID field, used for MLD devices.",
 )
 def fm_bind(vcs: int, vppb: int, physical: int, ld_id: int):
     asyncio.run(socketio_client.bind(vcs, vppb, physical, ld_id))

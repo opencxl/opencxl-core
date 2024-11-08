@@ -33,6 +33,14 @@ class CxlMemDriver(LabeledComponent):
     def get_devices(self):
         return self._devices
 
+    def get_port_number(self, device: CxlDeviceInfo):
+        downstream_port = device.parent
+        if not downstream_port.is_downstream_port():
+            bdf_str = downstream_port.pci_device_info.get_bdf_string()
+            logger.warning(self._create_message(f"{bdf_str} is not upstream port"))
+            return -1
+        return downstream_port.pci_device_info.get_port_number()
+
     async def attach_single_mem_device(
         self, device: CxlDeviceInfo, hpa_base: int, size: int
     ) -> bool:
@@ -44,11 +52,9 @@ class CxlMemDriver(LabeledComponent):
             return False
 
         downstream_port = device.parent
-        if not downstream_port.is_downstream_port():
-            bdf_str = downstream_port.pci_device_info.get_bdf_string()
-            logger.warning(self._create_message(f"{bdf_str} is not upstream port"))
+        port_number = self.get_port_number(device)
+        if port_number < 0:
             return False
-        port_number = downstream_port.pci_device_info.get_port_number()
 
         upstream_port = downstream_port.parent
         upstream_port.log_prefix = "CxlMemDriver"

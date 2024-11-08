@@ -151,10 +151,9 @@ def parse_multi_logical_device_configs(
 
         serial_numbers = []
         try:
-            for item in device.get("logical_devices", []):
-                serial_numbers.append(item["serial_number"])
+            serial_numbers = [device["serial_number"]] * len(device.get("logical_devices", []))
         except KeyError as exc:
-            raise ValueError("Missing 'serial_number' for 'logical_devices' entry.") from exc
+            raise ValueError("Missing 'serial_number' for 'device' entry.") from exc
 
         multi_logical_device_configs.append(
             MultiLogicalDeviceConfig(

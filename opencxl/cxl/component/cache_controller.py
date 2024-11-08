@@ -34,7 +34,7 @@ class MEM_ADDR_TYPE(Enum):
     MMIO = auto()
     CXL_CACHED = auto()
     CXL_CACHED_BI = auto()
-    CXL_UNCACHED = auto
+    CXL_UNCACHED = auto()
     OOB = auto()
 
 
