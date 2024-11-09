@@ -11,12 +11,12 @@ import sys
 import threading
 import logging
 
+from importlib import import_module
 from opencxl.util.logger import logger
 from opencxl.bin import fabric_manager
 from opencxl.bin import cxl_switch
 from opencxl.bin import single_logical_device as sld
 from opencxl.bin import multi_logical_device as mld
-from opencxl.bin import accelerator as accel
 from opencxl.bin import cxl_simple_host
 from opencxl.bin import mem
 
@@ -130,6 +130,7 @@ def start(
         t_switch.start()
 
     if "t1accel-group" in comp:
+        accel = import_module("opencxl.bin.accelerator")
         t_at1group = threading.Thread(
             target=start_accel_group, args=(ctx, config_file, accel.ACCEL_TYPE.T1)
         )
@@ -137,6 +138,7 @@ def start(
         t_at1group.start()
 
     if "t2accel-group" in comp:
+        accel = import_module("opencxl.bin.accelerator")
         t_at2group = threading.Thread(
             target=start_accel_group, args=(ctx, config_file, accel.ACCEL_TYPE.T2)
         )
@@ -259,6 +261,7 @@ def start_mld_group(ctx, config_file):
 
 
 def start_accel_group(ctx, config_file, dev_type):
+    accel = import_module("opencxl.bin.accelerator")
     ctx.invoke(accel.start_group, config_file=config_file, dev_type=dev_type)
 
 
