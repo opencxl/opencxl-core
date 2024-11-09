@@ -1908,7 +1908,7 @@ CCI_HEADER_END = CCI_HEADER_START + CciHeaderPacket.get_size() - 1
 
 class CciMessageBasePacket(UnalignedBitStructure):
     header: CciMessageHeaderPacket
-    data: int
+    _data: int  # Every caller should use get_payload()
 
     _fields = [
         StructureField(
@@ -1926,6 +1926,9 @@ class CciMessageBasePacket(UnalignedBitStructure):
     def get_payload_size(self) -> int:
         return self.header.get_message_payload_length()
 
+    def get_payload(self) -> bytes:
+        return int.to_bytes(self._data, self.get_payload_size(), "little")
+
 
 class CciMessagePacket(CciMessageBasePacket):
     @staticmethod
@@ -1933,7 +1936,8 @@ class CciMessagePacket(CciMessageBasePacket):
         packet = CciMessagePacket()
         packet.set_dynamic_field_length(len(data))
         packet.header = header
-        packet.data = int.from_bytes(data, "little")
+        # pylint: disable=protected-access
+        packet._data = int.from_bytes(data, "little")
         return packet
 
 

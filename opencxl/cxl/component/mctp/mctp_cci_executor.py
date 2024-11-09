@@ -36,7 +36,7 @@ class MctpCciExecutor(RunnableComponent):
             self._cci_executor.register_command(command.get_opcode(), command)
 
     def _packet_to_request(self, packet: CciMessagePacket) -> CciRequest:
-        return CciRequest(opcode=packet.header.command_opcode, payload=packet.payload)
+        return CciRequest(opcode=packet.header.command_opcode, payload=packet.get_payload())
 
     async def _send_response(self, response: CciResponse, message_tag: int):
         header = CciMessageHeaderPacket()
