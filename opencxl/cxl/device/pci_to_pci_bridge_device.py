@@ -50,10 +50,6 @@ class PpbDownRouting(RunnableComponent):
             ),
         ]
 
-    def _create_message(self, message):
-        message = "ppb bind"
-        return message
-
     async def cfg_process(self, source: Queue, destination: Queue):
         while True:
             packet = await source.get()
@@ -82,10 +78,9 @@ class PpbDownRouting(RunnableComponent):
                 packet.m2sreq_header.ld_id = self._ld_id
             elif packet.is_m2srwd():
                 packet.m2srwd_header.ld_id = self._ld_id
-            elif packet.is_s2mndr():
-                packet.s2mndr_header.ld_id = self._ld_id
-            elif packet.is_s2mdrs():
-                packet.s2mdrs_header.ld_id = self._ld_id
+            elif packet.is_m2sbirsp():
+                # no LD-ID on BI packets
+                pass
             else:
                 logger.warning(self._create_message("Unexpected CXL.mem packet"))
             await destination.put(packet)
@@ -132,10 +127,6 @@ class PpbUpRouting(RunnableComponent):
             self._dsc.cxl_mem_fifo.target_to_host,
             self._dsc.cxl_cache_fifo.target_to_host,
         ]
-
-    def _create_message(self, message):
-        message = "ppb bind"
-        return message
 
     async def cfg_process(self):
         source = self._dsc.cfg_fifo.target_to_host
