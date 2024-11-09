@@ -73,7 +73,6 @@ async def connect():
 @sio.event
 def disconnect():
     print("Disconnected from server")
-    sys.exit()
 
 
 # Bind & unbind
@@ -83,6 +82,7 @@ async def bind(vcs: int, vppb: int, physical_port: int, ld_id: int = 0):
         "vcs:bind",
         {"virtualCxlSwitchId": vcs, "vppbId": vppb, "physicalPortId": physical_port, "ldId": ld_id},
     )
+    await sio.disconnect()
 
 
 async def unbind(vcs: int, vppb: int):
@@ -91,6 +91,7 @@ async def unbind(vcs: int, vppb: int):
         "vcs:unbind",
         {"virtualCxlSwitchId": vcs, "vppbId": vppb},
     )
+    await sio.disconnect()
 
 
 # Main asynchronous function to start the client
@@ -102,6 +103,7 @@ async def start_client():
 # Stop the client gracefully
 async def stop_client():
     await sio.disconnect()
+    sys.exit()
 
 
 # Run the client
