@@ -120,6 +120,7 @@ class CxlType1Device(RunnableComponent):
         )
         self._cache_controller = CacheController(cache_controller_config)
 
+        # DEBUG tool
         # device_processor_config = DeviceLlcIoGenConfig(
         #     device_name=config.device_name,
         #     processor_to_cache_fifo=processor_to_cache_fifo,
