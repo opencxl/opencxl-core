@@ -19,6 +19,7 @@ from opencxl.cxl.transport.transaction import (
     CxlMemBasePacket,
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
+    CxlMemS2MBISnpPacket,
 )
 
 
@@ -169,6 +170,9 @@ class PpbUpRouting(RunnableComponent):
             elif cxl_mem_base_packet.is_s2mdrs():
                 cxl_mem_packet = cast(CxlMemS2MDRSPacket, packet)
                 ld_id = cxl_mem_packet.s2mdrs_header.ld_id
+            elif cxl_mem_base_packet.is_s2mbisnp():
+                cxl_mem_packet = cast(CxlMemS2MBISnpPacket, packet)
+                ld_id = 0
             else:
                 raise Exception("No packet type!!!!")
             await self._usc[ld_id].cxl_mem_fifo.target_to_host.put(packet)
