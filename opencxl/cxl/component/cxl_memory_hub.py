@@ -85,7 +85,7 @@ class CxlMemoryHub(RunnableComponent):
             root_ports=root_complex_root_ports,
         )
         self._root_complex = RootComplex(root_complex_config)
-
+        self._root_port = config.root_bus
         cache_controller_config = CacheControllerConfig(
             component_name=config.host_name,
             processor_to_cache_fifo=self._processor_to_cache_fifo,
@@ -205,6 +205,9 @@ class CxlMemoryHub(RunnableComponent):
 
     def get_root_complex(self):
         return self._root_complex
+
+    def get_root_port(self):
+        return self._root_port
 
     async def write_config(self, bdf: int, offset: int, size: int, value: int):
         await self._root_complex.write_config(bdf, offset, size, value)

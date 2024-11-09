@@ -161,7 +161,9 @@ class MctpCciApiClient(RunnableComponent):
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = BackgroundOperationStatusCommand.parse_response_payload(
-            response_message_packet.payload
+            int.to_bytes(
+                response_message_packet.data, response_message_packet.get_payload_size(), "little"
+            )
         )
         # logger.debug(self._create_message(response.get_pretty_print()))
         return (return_code, response)
@@ -209,7 +211,9 @@ class MctpCciApiClient(RunnableComponent):
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = GetVirtualCxlSwitchInfoCommand.parse_response_payload(
-            response_message_packet.payload,
+            int.to_bytes(
+                response_message_packet.data, response_message_packet.get_payload_size(), "little"
+            ),
             request.start_vppb,
             request.vppb_list_limit,
         )
