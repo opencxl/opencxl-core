@@ -86,15 +86,19 @@ class SwitchConnectionManager(RunnableComponent):
         except CancelledError:
             logger.info(self._create_message("Stopped TCP server"))
 
+    async def _stop(self):
+        logger.info(self._create_message("Cancelling TCP server task"))
+        self._server_task.cancel()
+        try:
+            await self._server_task
+        except CancelledError:
+            logger.info(self._create_message("Cancelled TCP server"))
+
         for port_index, port in enumerate(self._ports):
             if port.packet_processor is not None:
                 logger.info(self._create_message(f"Stopping PacketProcessor for port {port_index}"))
                 await port.packet_processor.stop()
                 logger.info(self._create_message(f"Stopped PacketProcessor for port {port_index}"))
-
-    async def _stop(self):
-        logger.info(self._create_message("Canceling TCP server task"))
-        self._server_task.cancel()
 
     async def _create_server(self):
         async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
