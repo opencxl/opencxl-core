@@ -7,14 +7,13 @@
 
 import asyncio
 from dataclasses import dataclass
-from typing import List
 
 from opencxl.cxl.component.fabric_manager.socketio_server import HostFMMsg
 from opencxl.cxl.component.short_msg_conn import ShortMsgConn
 from opencxl.util.logger import logger
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver
-from opencxl.drivers.pci_bus_driver import PciBusDriver, PciDeviceInfo
+from opencxl.drivers.pci_bus_driver import PciBusDriver
 from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
 from opencxl.cxl.component.cxl_host import CxlHost
 from opencxl.cpu import CPU
@@ -59,8 +58,8 @@ class CxlDeviceMemTracker:
         else:
             logger.warning(f"No record for device @ port {device_port}")
 
-    def print(self):
-        print(self._ld_tracker)
+    def __str__(self):
+        return str(self._ld_tracker)
 
 
 @dataclass
@@ -85,7 +84,6 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     await pci_bus_driver.init(pci_mmio_base_addr)
 
     # CXL Device
-    cxl_devices: List[PciDeviceInfo] = []
     cxl_bus_driver = CxlBusDriver(pci_bus_driver, root_complex)
     cxl_mem_driver = CxlMemDriver(cxl_bus_driver, root_complex)
     await cxl_bus_driver.init()
@@ -93,6 +91,18 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
 
     pci_cfg_size = 0x10000000  # assume bus bits n = 8
     memory_base_tracker = MemoryBaseTracker(cxl_hpa_base_addr, pci_cfg_base_addr)
+
+    for device in pci_bus_driver.get_devices():
+        if not device.is_bridge:
+            continue
+
+        cxl_memory_hub.add_mem_range(memory_base_tracker.cfg_base, pci_cfg_size, MEM_ADDR_TYPE.CFG)
+        memory_base_tracker.cfg_base += pci_cfg_size
+        for bar_info in device.bars:
+            if bar_info.base_address == 0:
+                continue
+            cxl_memory_hub.add_mem_range(bar_info.base_address, bar_info.size, MEM_ADDR_TYPE.MMIO)
+
     for device in cxl_mem_driver.get_devices():
         size = device.get_memory_size()
         successful = await cxl_mem_driver.attach_single_mem_device(
@@ -103,8 +113,7 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
         if not successful:
             logger.info(f"[SYS-SW] Failed to attach device {device}")
             continue
-        print(f"[SYS-SW] Attached to device, SN: {sn}, port: {vppb}")
-        cxl_devices.append(device.pci_device_info)
+        logger.info(f"[SYS-SW] Attached to device, SN: {sn}, port: {vppb}")
 
         mem_tracker.add_mem_range(
             vppb, memory_base_tracker.cfg_base, pci_cfg_size, MEM_ADDR_TYPE.CFG
@@ -126,19 +135,6 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
                 vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_UNCACHED
             )
         memory_base_tracker.hpa_base += size
-
-    for device in pci_bus_driver.get_devices():
-        if device in cxl_devices:
-            logger.warning(
-                f"[SYS-SW] Skipping previously added CXL device SN: {device.serial_number}"
-            )
-            continue
-        cxl_memory_hub.add_mem_range(memory_base_tracker.cfg_base, pci_cfg_size, MEM_ADDR_TYPE.CFG)
-        memory_base_tracker.cfg_base += pci_cfg_size
-        for bar_info in device.bars:
-            if bar_info.base_address == 0:
-                continue
-            cxl_memory_hub.add_mem_range(bar_info.base_address, bar_info.size, MEM_ADDR_TYPE.MMIO)
 
     # System Memory
     sys_mem_size = root_complex.get_sys_mem_size()
