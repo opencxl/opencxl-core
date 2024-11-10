@@ -56,7 +56,6 @@ class MyType1Accelerator(RunnableComponent):
         port: int = 8000,
         irq_port: int = 8500,
         device_id: int = 0,
-        host_mem_size: int = 0,
         train_data_path: str = "",
     ):
         label = f"Port{port_index}"
@@ -73,7 +72,6 @@ class MyType1Accelerator(RunnableComponent):
                 transport_connection=self._sw_conn_client.get_cxl_connection(),
                 device_name=label,
                 device_id=device_id,
-                host_mem_size=host_mem_size,
             )
         )
         self._wait_tasks = []
@@ -374,9 +372,9 @@ class MyType1Accelerator(RunnableComponent):
             print(self._create_message("Runapp Cancelled"))
             return
 
-    async def _app_shutdown(self):
-        logger.info(self._create_message("Removing accelerator directory"))
-        shutil.rmtree(self.accel_dirname)
+    def _app_shutdown(self):
+        logger.info(self._create_message(f"Removing tmp directory: {self.accel_dirname}"))
+        shutil.rmtree(self.accel_dirname, ignore_errors=True)
 
     async def _run(self):
         tasks = [
