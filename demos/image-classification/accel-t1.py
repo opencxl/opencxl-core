@@ -49,9 +49,8 @@ async def main():
     device = MyType1Accelerator(
         port_index=portidx,
         port=sw_portno,
-        server_port=9050,
+        irq_port=8500,
         device_id=portidx - 1,
-        host="localhost",
         train_data_path=train_data_path,
     )
 
