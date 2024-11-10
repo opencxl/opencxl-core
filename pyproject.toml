@@ -69,7 +69,13 @@ disable = [
   "disallowed-name",
   "too-many-statements",
 ]
+enable = [
+  "missing-exception-logger-error",
+]
 jobs = 4
+
+[tool.pylint.MASTER]
+load-plugins = "linter.exception_logger"
 
 [tool.black]
 line-length = 100

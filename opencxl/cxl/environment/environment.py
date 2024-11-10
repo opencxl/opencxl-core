@@ -22,6 +22,8 @@ from opencxl.cxl.device.config.logical_device import (
     MultiLogicalDeviceConfig,
 )
 
+# pylint: disable=missing-exception-logger-error
+
 
 @dataclass
 class CxlEnvironment:

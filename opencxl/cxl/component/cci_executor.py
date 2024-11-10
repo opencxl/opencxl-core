@@ -62,8 +62,11 @@ class CciForegroundCommand(CciCommand):
         try:
             return await self._execute(request)
         except Exception as e:
-            logger.debug(self._create_message(f"Exception: {str(e)}"))
-            logger.debug(traceback.format_exc())
+            logger.error(
+                self._create_message(
+                    f"{self.__class__.__name__} error: {str(e)}, {traceback.format_exc()}"
+                )
+            )
             response = CciResponse(bo_flag=False, return_code=CCI_RETURN_CODE.INTERNAL_ERROR)
             return response
 
@@ -80,8 +83,11 @@ class CciBackgroundCommand(CciCommand):
         try:
             return await self._execute(request, callback)
         except Exception as e:
-            logger.debug(self._create_message(f"Exception: {str(e)}"))
-            logger.debug(traceback.format_exc())
+            logger.error(
+                self._create_message(
+                    f"{self.__class__.__name__} error: {str(e)}, {traceback.format_exc()}"
+                )
+            )
             await callback(100)
             response = CciResponse(return_code=CCI_RETURN_CODE.INTERNAL_ERROR)
             return response

@@ -5,6 +5,7 @@
  See LICENSE for details.
 """
 
+import traceback
 from typing import List
 import socket
 from opencxl.util.logger import logger
@@ -29,7 +30,7 @@ class SocketServerTransport:
             connection.setblocking(False)
             self._incoming_connections.add(connection)
         except Exception as e:
-            logger.error(f"check_incoming_connections error: {e}")
+            logger.error(f"check_incoming_connections error: {str(e)}: {traceback.format_exc()}")
 
     def get_incoming_connections(self) -> List[socket.socket]:
         return list(self._incoming_connections)
@@ -49,7 +50,7 @@ class SocketServerTransport:
             error_code = connection.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
             return error_code == 0
         except Exception as e:
-            logger.error(f"is_active_connection error: {e}")
+            logger.error(f"is_active_connection error: {str(e)}: {traceback.format_exc()}")
             return False
 
     def unclaim_connection(self, connection: socket.socket) -> bool:

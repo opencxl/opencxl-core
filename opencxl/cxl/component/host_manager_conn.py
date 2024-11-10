@@ -170,6 +170,7 @@ class HostManagerConnClient(RunnableComponent):
         self._event = asyncio.Event()
         self._ws = None
 
+    # pylint: disable=missing-exception-logger-error
     async def _open_connection(self, port: int):
         logger.info(self._create_message("Connecting to HostManager"))
         while True:
