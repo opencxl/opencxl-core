@@ -81,7 +81,7 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
         if not successful:
             logger.info(f"[SYS-SW] Failed to attach device {device}")
             continue
-        # if await device.get_bi_enable():
+
         cxl_memory_hub.add_mem_range(hpa_base, size, MEM_ADDR_TYPE.CXL_CACHED_BI)
         accel_info.hpa_base_addr[dev_id] = hpa_base
         dev_id += 1
@@ -93,11 +93,12 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
 
     for range in cxl_memory_hub.get_memory_ranges():
         logger.info(
-            f"[SYS-SW] MemoryRange: base: 0x{range.base_addr:X}, size: 0x{range.size:X}, type: {str(range.addr_type)}"
+            f"[SYS-SW] MemoryRange: base: 0x{range.base_addr:X}, "
+            f"size: 0x{range.size:X}, type: {str(range.addr_type)}"
         )
 
-    global irq_handler
-    irq_handler = host.get_irq_manager()
+    global host_irq_handler
+    host_irq_handler = host.get_irq_manager()
 
 
 def to_accel_mem_addr(dev_id: int, addr: int) -> int:
@@ -156,19 +157,20 @@ async def do_img_classification_type2():
                         break
                     await asyncio.sleep(0.1)
 
-                irq_handler.register_interrupt_handler(
+                host_irq_handler.register_interrupt_handler(
                     Irq.ACCEL_VALIDATION_FINISHED,
                     save_results_type2(pic_id, event),
                     dev_id,
                 )
-                await irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
+                await host_irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
                 await event.wait()
 
                 # Currently we don't send the picture information to the device
                 # and to prevent race condition, we need to send pics synchronously
             pic_id += 1
             f.close()
-    merge_results_type2()
+
+    merge_validation_results()
     stop_signal.set()
 
 
@@ -187,7 +189,7 @@ def save_results_type2(pic_id: int, event: asyncio.Event):
     return _func
 
 
-def merge_results_type2():
+def merge_validation_results():
     correct_count = 0
     for pic_id in range(total_samples):
         merged_result = {}
@@ -250,14 +252,14 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
                 break
             await asyncio.sleep(0.1)
 
-        irq_handler.register_interrupt_handler(
+        host_irq_handler.register_interrupt_handler(
             Irq.ACCEL_TRAINING_FINISHED, check_training_finished_type2, dev_id
         )
 
     # kick off accel training
     logger.info("[APP] Notifying Host Ready to Accelerators")
     for dev_id in range(config.accel_count):
-        await irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
+        await host_irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
 
     await stop_signal.wait()
 

@@ -81,10 +81,6 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
         if not successful:
             logger.info(f"[SYS-SW] Failed to attach device {device}")
             continue
-        # if device.device_dvsec:
-        #     if device.device_dvsec.cache_capable:
-        #         cache_dev_count += 1
-
     root_complex.set_cache_coh_dev_count(config.accel_count)
 
     # System Memory
@@ -93,11 +89,12 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
 
     for range in cxl_memory_hub.get_memory_ranges():
         logger.info(
-            f"[SYS-SW] MemoryRange: base: 0x{range.base_addr:X}, size: 0x{range.size:X}, type: {str(range.addr_type)}"
+            f"[SYS-SW] MemoryRange: base: 0x{range.base_addr:X}, "
+            f"size: 0x{range.size:X}, type: {str(range.addr_type)}"
         )
 
-    global irq_handler
-    irq_handler = host.get_irq_manager()
+    global host_irq_handler
+    host_irq_handler = host.get_irq_manager()
 
 
 def to_sys_mem_addr(addr: int) -> int:
@@ -158,7 +155,7 @@ async def do_img_classification_type1():
                 ):
                     event = asyncio.Event()
                     pic_events.append(event)
-                    irq_handler.register_interrupt_handler(
+                    host_irq_handler.register_interrupt_handler(
                         Irq.ACCEL_VALIDATION_FINISHED,
                         save_validation_result_type1(pic_id, event),
                         dev_id,
@@ -177,7 +174,7 @@ async def do_img_classification_type1():
                             break
                         await asyncio.sleep(0.1)
 
-                    await irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
+                    await host_irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
                     await event.wait()
                 pic_data_mem_loc += pic_data_len
                 pic_data_mem_loc = (((pic_data_mem_loc - 1) // 64) + 1) * 64
@@ -239,7 +236,7 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
 
     # Pass init-info mem location to the remote using MMIO
     logger.info("Host main process waiting...")
-    # await start_signal.wait()
+    await start_signal.wait()
     logger.info("Host main process running!")
 
     with open(f"{config.train_data_path}/noisy_imagenette.csv", "rb") as f:
@@ -268,12 +265,12 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
                 break
             await asyncio.sleep(0.1)
 
-        irq_handler.register_interrupt_handler(
+        host_irq_handler.register_interrupt_handler(
             Irq.ACCEL_TRAINING_FINISHED, check_training_finished_type1, dev_id
         )
 
     for dev_id in range(config.accel_count):
-        await irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
+        await host_irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
 
     await stop_signal.wait()
 
