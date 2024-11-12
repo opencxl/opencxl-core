@@ -275,7 +275,7 @@ class CacheCoherencyBridge(RunnableComponent):
             return
 
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
-            addr = cache_packet.address
+            addr = cache_packet.addr
 
             if cache_packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
                 mem_packet = MemoryRequest(

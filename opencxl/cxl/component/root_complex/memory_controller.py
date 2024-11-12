@@ -43,11 +43,12 @@ class MemoryController(RunnableComponent):
                 logger.debug(self._create_message("Stopped processing memory access requests"))
                 break
 
+            addr = packet.addr
             if packet.type == MEMORY_REQUEST_TYPE.WRITE:
-                await self._file_accessor.write(packet.address, packet.data, packet.size)
+                await self._file_accessor.write(addr, packet.data, packet.size)
                 response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
             elif packet.type == MEMORY_REQUEST_TYPE.READ:
-                data = await self._file_accessor.read(packet.address, packet.size)
+                data = await self._file_accessor.read(addr, packet.size)
                 response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
             await self._memory_consumer_fifos.response.put(response)
 

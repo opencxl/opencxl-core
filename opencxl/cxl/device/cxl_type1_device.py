@@ -71,7 +71,6 @@ class CxlType1DeviceConfig:
     cache_line_count: int = 32
     cache_line_size: int = 64 * KB
     device_id: int = 0
-    host_mem_size: int = 0
 
 
 class CxlType1Device(RunnableComponent):
@@ -82,7 +81,6 @@ class CxlType1Device(RunnableComponent):
         self._label = lambda class_name: f"{config.device_name}:{class_name}"
         super().__init__(self._label)
 
-        processor_to_cache_fifo = MemoryFifoPair()
         cache_to_coh_agent_fifo = CacheFifoPair()
         coh_agent_to_cache_fifo = CacheFifoPair()
         self._mmio_manager = None
@@ -114,7 +112,7 @@ class CxlType1Device(RunnableComponent):
         cache_num_assoc = 4
         cache_controller_config = CacheControllerConfig(
             component_name=config.device_name,
-            processor_to_cache_fifo=processor_to_cache_fifo,
+            processor_to_cache_fifo=None,
             cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
             cache_num_assoc=cache_num_assoc,
@@ -122,12 +120,13 @@ class CxlType1Device(RunnableComponent):
         )
         self._cache_controller = CacheController(cache_controller_config)
 
-        device_processor_config = DeviceLlcIoGenConfig(
-            device_name=config.device_name,
-            processor_to_cache_fifo=processor_to_cache_fifo,
-            memory_size=config.host_mem_size,
-        )
-        self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
+        # DEBUG tool
+        # device_processor_config = DeviceLlcIoGenConfig(
+        #     device_name=config.device_name,
+        #     processor_to_cache_fifo=processor_to_cache_fifo,
+        #     memory_size=config.host_mem_size,
+        # )
+        # self._device_simple_processor = DeviceLlcIoGen(device_processor_config)
 
     async def read_mmio(self, addr: int, size: int, bar: int = 0):
         return await self._mmio_manager.read_mmio(addr, size, bar)
@@ -255,13 +254,11 @@ class CxlType1Device(RunnableComponent):
             create_task(self._cxl_io_manager.run()),
             create_task(self._cxl_cache_dcoh.run()),
             create_task(self._cache_controller.run()),
-            create_task(self._device_simple_processor.run()),
         ]
         wait_tasks = [
             create_task(self._cxl_io_manager.wait_for_ready()),
             create_task(self._cxl_cache_dcoh.wait_for_ready()),
             create_task(self._cache_controller.wait_for_ready()),
-            create_task(self._device_simple_processor.wait_for_ready()),
         ]
         await gather(*wait_tasks)
         await self._change_status_to_running()
@@ -273,6 +270,5 @@ class CxlType1Device(RunnableComponent):
             create_task(self._cxl_io_manager.stop()),
             create_task(self._cxl_cache_dcoh.stop()),
             create_task(self._cache_controller.stop()),
-            create_task(self._device_simple_processor.stop()),
         ]
         await gather(*tasks)
