@@ -10,6 +10,7 @@ from asyncio import CancelledError, gather, create_task, Event, sleep
 import glob
 from io import BytesIO
 import math
+import traceback
 from typing import cast
 import shutil
 from pathlib import Path
@@ -369,7 +370,7 @@ class MyType1Accelerator(RunnableComponent):
             logger.info(self._create_message("Done Model Training"))
             await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
         except CancelledError:
-            print(self._create_message("Runapp Cancelled"))
+            logger.error(self._create_message(f"Runapp Cancelled: {traceback.format_exc()}"))
             return
 
     def _app_shutdown(self):

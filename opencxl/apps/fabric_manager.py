@@ -86,8 +86,11 @@ class CxlFabricManager(RunnableComponent):
                 BindVppbRequestPayload(vcs_id=0, vppb_id=3, physical_port_id=4)
             )
         except Exception as e:
-            logger.debug(str(e))
-            logger.debug(traceback.format_exc())
+            logger.error(
+                self._create_message(
+                    f"{self.__class__.__name__} error: {str(e)}, {traceback.format_exc()}"
+                )
+            )
 
     async def _run(self):
         tasks = [
