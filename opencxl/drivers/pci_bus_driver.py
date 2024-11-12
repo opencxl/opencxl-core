@@ -169,12 +169,23 @@ class PciBusDriver(LabeledComponent):
         super().__init__(label)
         self._root_complex = root_complex
         self._devices: List[PciDeviceInfo] = []
+        self._existing_bdfs: list[int] = []
+        self._current_enum_bdfs: list[int] = []
 
     async def init(self, mmio_base_address: int):
-        await self._scan_pci_devices(mmio_base_address)
+        self._current_enum_bdfs = []
+        (_, memory_end) = await self._scan_pci_devices(mmio_base_address)
         await self._init_pci_devices()
-        self._devices = sorted(self._devices, key=lambda x: x.bdf)
+        filtered_devices = []
+        new_bdfs = []
+        for device in self._devices:
+            if device.bdf in self._current_enum_bdfs:
+                filtered_devices.append(device)
+                new_bdfs.append(device.bdf)
+        self._existing_bdfs = new_bdfs
+        self._devices = sorted(filtered_devices, key=lambda x: x.bdf)
         self.display_devices()
+        return memory_end
 
     def get_devices(self):
         return self._devices
@@ -188,7 +199,7 @@ class PciBusDriver(LabeledComponent):
 
     async def _scan_pci_devices(self, mmio_base_address: int):
         root_bus = self._root_complex.get_root_bus()
-        await self._scan_bus(root_bus, mmio_base_address)
+        return await self._scan_bus(root_bus, mmio_base_address)
 
     async def _init_pci_devices(self):
         pass
@@ -550,6 +561,11 @@ class PciBusDriver(LabeledComponent):
 
             for _ in range(NUM_BARS_BRIDGE if is_bridge else NUM_BARS_ENDPOINT):
                 pci_device_info.bars.append(PciBarInfo())
+
+            self._current_enum_bdfs.append(bdf)
+            if bdf in self._existing_bdfs:
+                (bus, memory_end) = await self._scan_bus(bus + 1, memory_start, pci_device_info)
+                continue
 
             self._devices.append(pci_device_info)
 

@@ -66,6 +66,7 @@ class CxlDeviceMemTracker:
 class MemoryBaseTracker:
     hpa_base: int
     cfg_base: int
+    mmio_base: int
 
 
 async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
@@ -81,7 +82,7 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     root_complex = cxl_memory_hub.get_root_complex()
     root_port = cxl_memory_hub.get_root_port()
     pci_bus_driver = PciBusDriver(root_complex)
-    await pci_bus_driver.init(pci_mmio_base_addr)
+    mmio_base = await pci_bus_driver.init(pci_mmio_base_addr)
 
     # CXL Device
     cxl_bus_driver = CxlBusDriver(pci_bus_driver, root_complex)
@@ -90,7 +91,7 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     await cxl_mem_driver.init()
 
     pci_cfg_size = 0x10000000  # assume bus bits n = 8
-    memory_base_tracker = MemoryBaseTracker(cxl_hpa_base_addr, pci_cfg_base_addr)
+    memory_base_tracker = MemoryBaseTracker(cxl_hpa_base_addr, pci_cfg_base_addr, mmio_base)
 
     for device in pci_bus_driver.get_devices():
         if not device.is_bridge:
@@ -162,9 +163,11 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
                     f"is not for this host (root_port {root_port})."
                 )
                 return
-            await pci_bus_driver.init(pci_mmio_base_addr)
+            mmio_base = await pci_bus_driver.init(memory_base_tracker.mmio_base)
             await cxl_bus_driver.init()
             await cxl_mem_driver.init()
+            memory_base_tracker.mmio_base = mmio_base
+
             for device in cxl_mem_driver.get_devices():
                 enum_vppb = cxl_mem_driver.get_port_number(device)
                 if enum_vppb == data.vppb:
@@ -220,6 +223,10 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
                 return
             logger.info(f"[SYS-SW] FM unbind device @ port: {data.vppb}")
             mem_tracker.remove_mem_range(data.vppb)
+            # Remove removed devices
+            await pci_bus_driver.init(memory_base_tracker.mmio_base)
+            await cxl_bus_driver.init()
+            await cxl_mem_driver.init()
             confirmation = HostFMMsg.create(data.vppb, root_port, True, False)
             await host_fm_conn_client.send_irq_request(confirmation)
 
