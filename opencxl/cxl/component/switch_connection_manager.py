@@ -82,7 +82,11 @@ class SwitchConnectionManager(RunnableComponent):
             await self._change_status_to_running()
             await self._server_task
         except Exception as e:
-            logger.debug(self._create_message(f"Exception: {str(e)}"))
+            logger.error(
+                self._create_message(
+                    f"{self.__class__.__name__} error: {str(e)}, {traceback.format_exc()}"
+                )
+            )
         except CancelledError:
             logger.info(self._create_message("Stopped TCP server"))
 
@@ -113,8 +117,11 @@ class SwitchConnectionManager(RunnableComponent):
                 await self._update_connection_status(port_index, connected=True)
                 await self._start_packet_processor(reader, writer, port_index)
             except Exception as e:
-                logger.warning(self._create_message(str(e)))
-                logger.debug(traceback.format_exc())
+                logger.error(
+                    self._create_message(
+                        f"{self.__class__.__name__} error: {str(e)}, {traceback.format_exc()}"
+                    )
+                )
 
             if port_index is None:
                 await self._send_rejection(writer)
@@ -139,7 +146,11 @@ class SwitchConnectionManager(RunnableComponent):
         try:
             await writer.wait_closed()
         except Exception as e:
-            logger.warning(self._create_message(str(e)))
+            logger.error(
+                self._create_message(
+                    f"{self.__class__.__name__} error: {str(e)}, {traceback.format_exc()}"
+                )
+            )
 
         if port_index is None:
             logger.info(self._create_message("Closed connection"))

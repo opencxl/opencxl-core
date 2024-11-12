@@ -14,6 +14,7 @@ from asyncio import (
 )
 from dataclasses import dataclass
 from enum import StrEnum, IntEnum
+import traceback
 from typing import cast, Optional, Dict, Union, List
 
 from opencxl.util.logger import logger
@@ -295,7 +296,11 @@ class CxlPacketProcessor(RunnableComponent):
                     logger.debug(self._create_message(message))
                     raise Exception(message)
             except Exception as e:
-                logger.debug(self._create_message(str(e)))
+                logger.error(
+                    self._create_message(
+                        f"{self.__class__.__name__} error: {str(e)}, {traceback.format_exc()}"
+                    )
+                )
                 notification_packet = BaseSidebandPacket.create(
                     SIDEBAND_TYPES.CONNECTION_DISCONNECTED
                 )
