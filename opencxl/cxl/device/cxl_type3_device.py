@@ -15,6 +15,7 @@ from opencxl.cxl.config_space.dvsec.cxl_devices import (
     DvsecCxlCacheableRangeOptions,
     DvsecCxlCapabilityOptions,
 )
+from opencxl.cxl.config_space.serial_number.common import DeviceSNCapabilityOptions
 from opencxl.cxl.transport.transaction import (
     CXL_MEM_S2MBISNP_OPCODE,
     CxlMemBISnpPacket,
@@ -64,6 +65,7 @@ class CxlType3Device(RunnableComponent):
         transport_connection: CxlConnection,
         memory_size: int,
         memory_file: str,
+        serial_number: str,
         dev_type: CXL_T3_DEV_TYPE,
         decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_4,
         label: Optional[str] = None,
@@ -72,6 +74,7 @@ class CxlType3Device(RunnableComponent):
         super().__init__(label)
         self._memory_size = memory_size
         self._memory_file = memory_file
+        self._serial_number = serial_number
         self._dev_type = dev_type
         self._decoder_count = decoder_count
         self._cxl_memory_device_component = None
@@ -151,6 +154,7 @@ class CxlType3Device(RunnableComponent):
             doe=CxlDoeExtendedCapabilityOptions(
                 cdat_entries=self._cxl_memory_device_component.get_cdat_entries()
             ),
+            serial_number=DeviceSNCapabilityOptions(sn=self._serial_number),
         )
         config_space_register = CxlType3SldConfigSpace(
             options=config_space_register_options, parent_name="cfgspace"

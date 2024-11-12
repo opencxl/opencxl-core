@@ -26,7 +26,9 @@ from opencxl.util.logger import logger
 
 
 class ShortMsgBase(Enum):
-    pass
+    @property
+    def real_val(self):
+        return self.value
 
 
 class ShortMsgConn(RunnableComponent):
@@ -52,7 +54,7 @@ class ShortMsgConn(RunnableComponent):
         self._msg_to_interrupt_event = {}
         self._general_interrupt_event = {}
         self._server = server
-        self._connections: list[tuple[StreamReader, StreamWriter]] = []
+        self._connections: dict[int, tuple[StreamReader, StreamWriter]] = {}
         self._tasks: list[Task] = []
         self._msg_handlers: list[Task] = []
         self._lock = Lock()
@@ -98,8 +100,8 @@ class ShortMsgConn(RunnableComponent):
         Handlers registered here will be triggered disregard of the device.
         """
 
-        async def _callback(dev_id):
-            await msg_recv_cb(dev_id)
+        async def _callback(dev_id, data):
+            await msg_recv_cb(dev_id, data)
 
         cb_func = _callback
         logger.debug(
@@ -139,9 +141,9 @@ class ShortMsgConn(RunnableComponent):
                 persistent = self._general_interrupt_event[msg][1]
                 if not persistent:
                     del self._general_interrupt_event[msg]
-                t = create_task(func(remote_dev_id))
+                t = create_task(func(remote_dev_id, msg))
                 self._msg_tasks.append(t)
-                return
+                continue
 
             if msg not in self._msg_to_interrupt_event[remote_dev_id]:
                 raise RuntimeError(f"Invalid ShortMsg: {msg} for remote {remote_dev_name}")
@@ -158,7 +160,9 @@ class ShortMsgConn(RunnableComponent):
         self._run_status = True
 
         async def _new_conn(reader: StreamReader, writer: StreamWriter):
-            self._connections.append((reader, writer))
+            remote_dev_id = await reader.readexactly(16)
+            remote_dev_id_int = int.from_bytes(remote_dev_id, "little")
+            self._connections[remote_dev_id_int] = (reader, writer)
             self._msg_handlers.append(create_task(self._msg_handler(reader, writer)))
 
         server = await start_server(_new_conn, self._addr, self._port, limit=2)
@@ -174,18 +178,21 @@ class ShortMsgConn(RunnableComponent):
             info = f"device {self._device_id} sending to host"
         logger.debug(self._create_message(info))
         _, writer = self._connections[device]
-        val_w_dev_id = request.value << 8 | self._device_id
+        val_w_dev_id = request.real_val << 8 | self._device_id
         writer.write(val_w_dev_id.to_bytes(length=self._msg_width))
         await writer.drain()
 
     async def start_connection(self):
-        logger.debug("Device to Host ShortMsg Connection started!")
-        reader, writer = await open_connection(self._addr, self._port, limit=2)
-        self._connections.append((reader, writer))
-        logger.debug("Device to Host ShortMsg Connection created!")
+        reader, writer = await open_connection(self._addr, self._port)
+        writer.write(int.to_bytes(self._device_id, 16, "little"))
+        await writer.drain()
+        self._connections[0] = (reader, writer)
         self._run_status = True
 
         self._msg_handlers.append(create_task(self._msg_handler(reader, writer)))
+
+    def num_connections(self):
+        return len(self._connections.items())
 
     async def shutdown(self):
         self._run_status = False

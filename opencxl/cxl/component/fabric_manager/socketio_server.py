@@ -8,6 +8,7 @@
 import socketio
 import asyncio
 from aiohttp import web
+from opencxl.cxl.component.short_msg_conn import ShortMsgBase, ShortMsgConn
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.mctp.mctp_cci_api_client import (
     MctpCciApiClient,
@@ -33,10 +34,115 @@ class CommandResponse(TypedDict):
     result: Any
 
 
+class HostFMMsg(ShortMsgBase):
+    UNBIND = 0x00
+    BIND = 0x01
+    CONFIRM = 0x02
+    EXTRA = 0x03
+
+    def __init__(self, arg):
+        super().__init__(self, arg)
+        self.data = 0x00
+
+    @property
+    def real_val(self):
+        return self.data
+
+    @classmethod
+    def _missing_(cls, value):
+        inst = cls.parse(value)
+        inst.data = value
+        return inst
+
+    @classmethod
+    def create(cls, vppb: int, root_port: int, confirmation: bool, bind: bool):
+        data = (root_port << 8) | (vppb << 4) | (int(confirmation) << 1) | int(bind)
+        inst = cls(data)
+        inst.data = data
+        return inst
+
+    @classmethod
+    def parse(cls, data):
+        bind = data & 0b1
+        confirmation = data & 0b10
+        if confirmation:
+            new_cls = cls(confirmation)
+        else:
+            new_cls = cls(bind)
+        return new_cls
+
+    @property
+    def is_confirmation(self) -> bool:
+        return bool(self.data & 0b10)
+
+    @property
+    def is_bind(self) -> bool:
+        return bool(self.data & 0b1)
+
+    @property
+    def root_port(self) -> int:
+        return self.data >> 8
+
+    @property
+    def vppb(self) -> bool:
+        return (self.data >> 4) & 0xF
+
+    @property
+    def readable(self):
+        data = ""
+        if self.is_confirmation:
+            data = "Host confirmation for "
+        if self.is_bind:
+            data += "Binding "
+        else:
+            data += "Unbinding "
+        return data + f"Root Port: {self.root_port}, vPPB: {self.vppb}"
+
+
+class HostFMConnManager:
+    def __init__(self, api_client: MctpCciApiClient, host_fm_conn_server: ShortMsgConn):
+        self._api_client = api_client
+        self._host_fm_conn_server = host_fm_conn_server
+
+    async def notify_host_bind(self, device_vppb: int, vcs_id: int):
+        root_port = await self.get_usp_by_vcs_id(vcs_id)
+        req = HostFMMsg.create(device_vppb, root_port, False, True)
+        logger.info(
+            f"Host bind notification root_port {root_port}, device_vppb {device_vppb}, val {req.real_val}"
+        )
+        await self._host_fm_conn_server.send_irq_request(req, root_port)
+
+    async def notify_host_unbind(self, device_vppb: int, vcs_id: int):
+        root_port = await self.get_usp_by_vcs_id(vcs_id)
+        req = HostFMMsg.create(device_vppb, root_port, False, False)
+        logger.info(
+            f"Host unbind notification root_port {root_port}, device_vppb {device_vppb}, val {req.real_val}"
+        )
+        await self._host_fm_conn_server.send_irq_request(req, root_port)
+
+    async def get_usp_by_vcs_id(self, vcs_id: int):
+        vcs_info_tuple = await self._api_client.get_virtual_cxl_switch_info(
+            GetVirtualCxlSwitchInfoRequestPayload(
+                start_vppb=0, vppb_list_limit=255, vcs_id_list=[vcs_id]
+            )
+        )
+        vcs_info_list = vcs_info_tuple[1]
+        for vcs_info in vcs_info_list.vcs_info_list:
+            if vcs_id == vcs_info.vcs_id:
+                return vcs_info.usp_id
+
+
 class FabricManagerSocketIoServer(RunnableComponent):
-    def __init__(self, mctp_client: MctpCciApiClient, host: str = "0.0.0.0", port: int = 8200):
+    def __init__(
+        self,
+        mctp_client: MctpCciApiClient,
+        host_fm_conn_manager: HostFMConnManager,
+        host: str = "0.0.0.0",
+        port: int = 8200,
+    ):
         super().__init__()
         self._mctp_client = mctp_client
+        self._host_fm_conn_manager = host_fm_conn_manager
         self._host = host
         self._port = port
         self._event_lock = asyncio.Lock()
@@ -140,12 +246,18 @@ class FabricManagerSocketIoServer(RunnableComponent):
         if response:
             return CommandResponse(error="", result=response.name)
         else:
+            await self._host_fm_conn_manager.notify_host_bind(
+                data["vppbId"], data["virtualCxlSwitchId"]
+            )
             return CommandResponse(error="", result=return_code.name)
 
     async def _unbind_vppb(self, data) -> CommandResponse:
         request = UnbindVppbRequestPayload(
             vcs_id=data["virtualCxlSwitchId"],
             vppb_id=data["vppbId"],
+        )
+        await self._host_fm_conn_manager.notify_host_unbind(
+            data["vppbId"], data["virtualCxlSwitchId"]
         )
         (return_code, response) = await self._mctp_client.unbind_vppb(request)
         if response:

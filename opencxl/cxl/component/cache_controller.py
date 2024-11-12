@@ -34,7 +34,7 @@ class MEM_ADDR_TYPE(Enum):
     MMIO = auto()
     CXL_CACHED = auto()
     CXL_CACHED_BI = auto()
-    CXL_UNCACHED = auto
+    CXL_UNCACHED = auto()
     OOB = auto()
 
 
@@ -143,6 +143,9 @@ class CacheController(RunnableComponent):
         return self._memory_ranges
 
     def add_mem_range(self, addr: int, size: int, addr_type: MEM_ADDR_TYPE):
+        logger.info(
+            self._create_message(f"Adding MemoryRange addr: 0x{addr:x} addr_type: {addr_type.name}")
+        )
         self._memory_ranges.append(MemoryRange(base_addr=addr, size=size, addr_type=addr_type))
 
     def remove_mem_range(self, base_addr: int, size: int, addr_type: MEM_ADDR_TYPE):

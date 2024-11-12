@@ -18,6 +18,7 @@ class MultiHeadedSingleLogicalDevice(RunnableComponent):
         num_ports,
         memory_size: int,
         memory_file: str,
+        serial_number: str,
         host: str = "0.0.0.0",
         port: int = 8000,
         port_indexes: List[int] = None,
@@ -37,6 +38,7 @@ class MultiHeadedSingleLogicalDevice(RunnableComponent):
                 SingleLogicalDevice(
                     memory_size=memory_size,
                     memory_file=_memory_file,
+                    serial_number=serial_number,
                     host=host,
                     port=port,
                     port_index=port_indexes[i],

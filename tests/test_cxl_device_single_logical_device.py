@@ -24,6 +24,7 @@ def test_single_logical_device():
     SingleLogicalDevice(
         memory_size=memory_size,
         memory_file=memory_file,
+        serial_number="BBBBBBBBBBBBBBBB",
         test_mode=True,
         cxl_connection=transport_connection,
     )
@@ -37,6 +38,7 @@ async def test_single_logical_device_run_stop(get_gold_std_reg_vals):
     device = SingleLogicalDevice(
         memory_size=memory_size,
         memory_file=memory_file,
+        serial_number="AAAAAAAAAAAAAAAA",
         test_mode=True,
         cxl_connection=transport_connection,
     )
@@ -63,6 +65,7 @@ async def test_single_logical_device_enumeration():
     device = SingleLogicalDevice(
         memory_size=memory_size,
         memory_file=memory_file,
+        serial_number="BBBBBBBBBBBBBBBB",
         test_mode=True,
         cxl_connection=transport_connection,
     )

@@ -91,6 +91,7 @@ def create_cxl_topology(bind: bool = False, memory_size: int = 0x100000) -> Tupl
             transport_connection=connection,
             memory_size=memory_size,
             memory_file=f"mem{port_index}.bin",
+            serial_number="EEEEEEEEEEEEEEEE",
             dev_type=CXL_T3_DEV_TYPE.SLD,
         )
         cxl_devices.append(sld)

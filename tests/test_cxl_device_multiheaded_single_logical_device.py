@@ -25,6 +25,7 @@ def test_multiheaded_single_logical_device():
         num_ports,
         memory_size=memory_size,
         memory_file=memory_file,
+        serial_number="AAAAAAAAAAAAAAAA",
         test_mode=True,
         cxl_connection=transport_connection,
     )
@@ -39,6 +40,7 @@ async def test_multiheaded_single_logical_device_run_stop(get_gold_std_reg_vals)
         num_ports,
         memory_size=memory_size,
         memory_file=memory_file,
+        serial_number="AAAAAAAAAAAAAAAA",
         test_mode=True,
         cxl_connection=transport_connection,
     )
@@ -67,6 +69,7 @@ async def test_multiheaded_single_logical_device_enumeration():
         num_ports,
         memory_size=memory_size,
         memory_file=memory_file,
+        serial_number="AAAAAAAAAAAAAAAA",
         test_mode=True,
         cxl_connection=transport_connection,
     )

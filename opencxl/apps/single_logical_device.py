@@ -18,6 +18,7 @@ class SingleLogicalDevice(RunnableComponent):
         self,
         memory_size: int,
         memory_file: str,
+        serial_number: str,
         host: str = "0.0.0.0",
         port: int = 8000,
         port_index: int = -1,
@@ -48,6 +49,7 @@ class SingleLogicalDevice(RunnableComponent):
             transport_connection=self._cxl_connection,
             memory_size=memory_size,
             memory_file=memory_file,
+            serial_number=serial_number,
             dev_type=CXL_T3_DEV_TYPE.SLD,
             label=label,
         )

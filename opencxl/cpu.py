@@ -29,7 +29,7 @@ class CPU(RunnableComponent):
         if size < 64:
             data = await self._cxl_mem_hub.load(addr, size)
         else:
-            data_bytes = self.load_bytes(addr, size)
+            data_bytes = await self.load_bytes(addr, size)
             data = int.from_bytes(data_bytes, "little")
         return data
 

@@ -19,7 +19,10 @@ from opencxl.cxl.component.mctp.mctp_cci_api_client import (
 )
 from opencxl.cxl.component.fabric_manager.socketio_server import (
     FabricManagerSocketIoServer,
+    HostFMConnManager,
+    HostFMMsg,
 )
+from opencxl.cxl.component.short_msg_conn import ShortMsgConn
 from opencxl.util.component import RunnableComponent
 from opencxl.util.logger import logger
 
@@ -35,11 +38,24 @@ class CxlFabricManager(RunnableComponent):
     ):
         super().__init__()
         self._connection_manager = MctpConnectionManager(mctp_host, mctp_port)
+
         self._api_client = MctpCciApiClient(self._connection_manager.get_mctp_connection())
-        self._socketio_server = FabricManagerSocketIoServer(
-            self._api_client, socketio_host, socketio_port
+        self._host_fm_conn_server = ShortMsgConn(
+            "FM_Server", port=8700, server=True, msg_width=16, msg_type=HostFMMsg
         )
+        self._host_fm_conn_manager = HostFMConnManager(self._api_client, self._host_fm_conn_server)
+        self._socketio_server = FabricManagerSocketIoServer(
+            self._api_client, self._host_fm_conn_manager, socketio_host, socketio_port
+        )
+
+        self._host_fm_conn_server.register_general_handler(HostFMMsg.CONFIRM, self._host_callback())
         self._use_test_runner = use_test_runner
+
+    def _host_callback(self):
+        async def _func(_: int, data: HostFMMsg):
+            print(f"Received {data.readable} from host (root port={data.root_port})")
+
+        return _func
 
     async def _run_test(self):
         try:
@@ -78,6 +94,7 @@ class CxlFabricManager(RunnableComponent):
             create_task(self._connection_manager.run()),
             create_task(self._socketio_server.run()),
             create_task(self._api_client.run()),
+            create_task(self._host_fm_conn_server.run()),
         ]
         wait_tasks = [
             create_task(self._connection_manager.wait_for_ready()),
@@ -91,6 +108,7 @@ class CxlFabricManager(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
+        await self._host_fm_conn_server.stop()
         await self._connection_manager.stop()
         await self._socketio_server.stop()
         await self._api_client.stop()
