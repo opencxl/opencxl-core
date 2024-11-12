@@ -38,6 +38,7 @@ def start_group(config_file):
             port_index=device_config.port_index,
             memory_size=device_config.memory_size,
             memory_file=device_config.memory_file,
+            serial_number=device_config.serial_number,
             host=cxl_env.switch_config.host,
             port=cxl_env.switch_config.port,
         )

@@ -23,6 +23,7 @@ class MultiLogicalDevice(RunnableComponent):
         ld_count: int,
         memory_sizes: List[int],
         memory_files: List[str],
+        serial_numbers: List[str],
         host: str = "0.0.0.0",
         port: int = 8000,
         test_mode: bool = False,
@@ -37,6 +38,9 @@ class MultiLogicalDevice(RunnableComponent):
         assert len(memory_sizes) == len(
             memory_files
         ), "memory_sizes, and memory_files must have the same length"
+        assert ld_count == len(
+            serial_numbers
+        ), "ld_count must be equal to the number of serial_numbers"
         assert ld_count == len(memory_sizes), "ld_count must be equal to the number of memory_sizes"
 
         assert (
@@ -78,6 +82,7 @@ class MultiLogicalDevice(RunnableComponent):
                 transport_connection=self._cxl_connections[ld],
                 memory_size=memory_sizes[ld],
                 memory_file=memory_files[ld],
+                serial_number=serial_numbers[ld],
                 dev_type=CXL_T3_DEV_TYPE.MLD,
                 label=label,
             )

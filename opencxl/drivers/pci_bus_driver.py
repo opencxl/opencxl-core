@@ -82,6 +82,7 @@ class PciDeviceInfo:
     vendor_id: int = 0
     device_id: int = 0
     class_code: int = 0
+    serial_number: str = "0000000000000000"
     bars: List[PciBarInfo] = field(default_factory=list)
     is_bridge: bool = False
     parent: Optional["PciDeviceInfo"] = None
@@ -168,12 +169,23 @@ class PciBusDriver(LabeledComponent):
         super().__init__(label)
         self._root_complex = root_complex
         self._devices: List[PciDeviceInfo] = []
+        self._existing_bdfs: list[int] = []
+        self._current_enum_bdfs: list[int] = []
 
     async def init(self, mmio_base_address: int):
-        await self._scan_pci_devices(mmio_base_address)
+        self._current_enum_bdfs = []
+        (_, memory_end) = await self._scan_pci_devices(mmio_base_address)
         await self._init_pci_devices()
-        self._devices = sorted(self._devices, key=lambda x: x.bdf)
+        filtered_devices = []
+        new_bdfs = []
+        for device in self._devices:
+            if device.bdf in self._current_enum_bdfs:
+                filtered_devices.append(device)
+                new_bdfs.append(device.bdf)
+        self._existing_bdfs = new_bdfs
+        self._devices = sorted(filtered_devices, key=lambda x: x.bdf)
         self.display_devices()
+        return memory_end
 
     def get_devices(self):
         return self._devices
@@ -187,7 +199,7 @@ class PciBusDriver(LabeledComponent):
 
     async def _scan_pci_devices(self, mmio_base_address: int):
         root_bus = self._root_complex.get_root_bus()
-        await self._scan_bus(root_bus, mmio_base_address)
+        return await self._scan_bus(root_bus, mmio_base_address)
 
     async def _init_pci_devices(self):
         pass
@@ -490,6 +502,25 @@ class PciBusDriver(LabeledComponent):
         await self.scan_pci_cap_helper(bdf, pci_cap_pointer, device_info)
         await self.scan_pcie_cap_helper(bdf, PCIE_CONFIG_BASE, device_info)
 
+    async def _scan_sn(self, pci_device_info: PciDeviceInfo):
+        for capability in pci_device_info.capabilities:
+            is_sn = (
+                capability.id == PCI_EXTENDED_CAPABILITY_ID.DEVICE_SERIAL_NUMBER
+                and capability.version == 0x1
+            )
+            if not is_sn:
+                continue
+
+            bdf = pci_device_info.bdf
+            offset = capability.offset
+
+            sn_low = await self._root_complex.read_config(bdf, offset + 0x04, 4)
+            sn_high = await self._root_complex.read_config(bdf, offset + 0x08, 4)
+
+            sn_int = (sn_high << 32) | sn_low
+            sn_str = f"{sn_int:016x}"
+            pci_device_info.serial_number = sn_str
+
     async def _scan_bus(
         self, bus: int, memory_start: int, parent_device_info: Optional[PciDeviceInfo] = None
     ) -> Tuple[int, int]:
@@ -531,10 +562,16 @@ class PciBusDriver(LabeledComponent):
             for _ in range(NUM_BARS_BRIDGE if is_bridge else NUM_BARS_ENDPOINT):
                 pci_device_info.bars.append(PciBarInfo())
 
+            self._current_enum_bdfs.append(bdf)
+            if bdf in self._existing_bdfs:
+                (bus, memory_end) = await self._scan_bus(bus + 1, memory_start, pci_device_info)
+                continue
+
             self._devices.append(pci_device_info)
 
             # Scan PCI capabilities
             await self._scan_pci_capabilities(bdf, pci_device_info)
+            await self._scan_sn(pci_device_info)
 
             # Set memory base and memory limit
             size = await self._check_bar_size_and_set(bdf, memory_start, pci_device_info)

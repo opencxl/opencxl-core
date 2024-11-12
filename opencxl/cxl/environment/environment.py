@@ -149,15 +149,16 @@ def parse_multi_logical_device_configs(
             memory_files
         ), "Mismatch between memory sizes and memory files."
 
+        serial_numbers = []
         try:
-            serial_number = device["serial_number"]
+            serial_numbers = [device["serial_number"]] * len(device.get("logical_devices", []))
         except KeyError as exc:
             raise ValueError("Missing 'serial_number' for 'device' entry.") from exc
 
         multi_logical_device_configs.append(
             MultiLogicalDeviceConfig(
                 port_index=port_index,
-                serial_number=serial_number,
+                serial_numbers=serial_numbers,
                 ld_count=len(memory_sizes),
                 memory_sizes=memory_sizes,
                 memory_files=memory_files,

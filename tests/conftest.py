@@ -12,10 +12,8 @@ import pytest
 @pytest.fixture
 def get_gold_std_reg_vals():
     def _get_gold_std_reg_vals(device_type: str):
-        print(f"here {device_type}")
         with open("tests/regvals.txt") as f:
             for line in f:
-                print(line)
                 (k, v) = line.strip().split(":")
                 if k == device_type:
                     return v

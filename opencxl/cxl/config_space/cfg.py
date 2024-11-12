@@ -16,6 +16,10 @@ from opencxl.cxl.config_space.doe.doe import (
     CxlDoeExtendedCapability,
     CxlDoeExtendedCapabilityOptions,
 )
+from opencxl.cxl.config_space.serial_number.common import (
+    DeviceSNCapability,
+    DeviceSNCapabilityOptions,
+)
 from opencxl.pci.config_space import PciExpressConfigSpace
 from opencxl.util.unaligned_bit_structure import (
     StructureField,
@@ -32,6 +36,7 @@ class CxlConfigSpace(PciExpressConfigSpace):
     ):
         self._dvsec_options: DvsecConfigSpaceOptions
         self._doe_options: CxlDoeExtendedCapabilityOptions
+        self._sn_options: DeviceSNCapabilityOptions
         self._is_bridge = device_type in (CXL_DEVICE_TYPE.USP, CXL_DEVICE_TYPE.DSP)
         self._fields = []
         start = self._append_pci_fields(self._pci_component.get_identity())
@@ -42,6 +47,13 @@ class CxlConfigSpace(PciExpressConfigSpace):
         super().__init__(data, parent_name)
 
     def _append_cxl_fields(self, start: int, device_type: CXL_DEVICE_TYPE) -> int:
+        if device_type == CXL_DEVICE_TYPE.LD:
+            if self._sn_options is not None:
+                start = self._append_sn(start)
+        else:
+            # TODO: remove placeholder SN for non-LD devices
+            self._sn_options = DeviceSNCapabilityOptions(sn="1111111111111111")
+            start = self._append_sn(start)
         if self._dvsec_options is not None:
             start = self._append_dvsec(start, device_type)
         if self._doe_options is not None:
@@ -72,5 +84,15 @@ class CxlConfigSpace(PciExpressConfigSpace):
         end = start + doe_size - 1
         self._fields.append(
             StructureField("doe", start, end, CxlDoeExtendedCapability, options=options)
+        )
+        return end + 1
+
+    def _append_sn(self, start: int) -> int:
+        options = self._sn_options
+        sn_size = DeviceSNCapability.get_size()
+        end = start + sn_size - 1
+        options["next"] = end + 1
+        self._fields.append(
+            StructureField("serial_number", start, end, DeviceSNCapability, options=options)
         )
         return end + 1
