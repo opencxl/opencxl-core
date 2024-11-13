@@ -6,10 +6,22 @@
 """
 
 from asyncio import StreamReader, create_task
-from opencxl.cxl.transport.transaction import CciMessageHeaderPacket, CciMessagePacket
+from opencxl.cxl.transport.transaction import (
+    CciMessageHeaderPacket,
+    CciMessagePacket,
+    CciHeaderPacket,
+    CciBasePacket,
+    CciPayloadPacket,
+)
+
 from opencxl.util.component import LabeledComponent
 from typing import Optional
 from opencxl.util.logger import logger
+from opencxl.cxl.transport.common import (
+    BasePacket,
+    SYSTEM_HEADER_END,
+    PAYLOAD_TYPE,
+)
 
 
 class MctpPacketReader(LabeledComponent):
@@ -40,20 +52,26 @@ class MctpPacketReader(LabeledComponent):
         if self._task != None:
             self._task.cancel()
 
-    async def _get_packet_in_task(self) -> CciMessagePacket:
-        message_header = await self._get_cci_message_header()
-        payload_length = message_header.get_message_payload_length()
-        if payload_length > 0:
-            payload_data = await self._read_payload(payload_length)
-        else:
-            payload_data = bytes()
-        packet = CciMessagePacket.create(header=message_header, data=payload_data)
+    async def _get_packet_in_task(self):
+        logger.debug(self._create_message("Waiting Packet"))
+        header_load = await self._read_payload(BasePacket.get_size())
+        base_packet = BasePacket()
+        base_packet.reset(header_load)
+        remaining_length = base_packet.system_header.payload_length - len(base_packet)
+        if remaining_length < 0:
+            raise Exception("remaining length is less than 0")
+        payload = bytes(base_packet) + await self._read_payload(remaining_length)
+        logger.debug(self._create_message("Received Packet"))
+
+        # Wrap the payload with CciPayloadPacket
+        packet = CciPayloadPacket()
+        packet.reset(payload)
         return packet
 
     async def _get_cci_message_header(self) -> CciMessageHeaderPacket:
         logger.debug(self._create_message("Waiting for CCI Message Header"))
-        payload = await self._read_payload(CciMessageHeaderPacket.get_size())
-        message_header = CciMessageHeaderPacket()
+        payload = await self._read_payload(CciHeaderPacket.get_size())
+        message_header = CciHeaderPacket()
         message_header.reset(payload)
         logger.debug(self._create_message("Received CCI Message Header"))
         return message_header
