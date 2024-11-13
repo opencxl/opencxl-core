@@ -17,7 +17,7 @@ from opencxl.bin import fabric_manager
 from opencxl.bin import cxl_switch
 from opencxl.bin import single_logical_device as sld
 from opencxl.bin import multi_logical_device as mld
-from opencxl.bin import cxl_simple_host
+from opencxl.bin import cxl_host
 from opencxl.bin import mem
 
 
@@ -38,7 +38,6 @@ def validate_component(ctx, param, components):
         "mld-group",
         "t1accel-group",
         "t2accel-group",
-        "complex-host-group",
     ]
     if "all" in components:
         return ("fm", "switch", "host-group", "sld-group", "mld-group")
@@ -90,7 +89,7 @@ def start(
     """Start components"""
 
     # config file mandatory
-    config_components = ["switch", "sld-group", "mld-group", "host-group", "complex-host-group"]
+    config_components = ["switch", "sld-group", "mld-group", "host-group"]
     for c in comp:
         if c in config_components and not config_file:
             raise click.BadParameter(f"Must specify <config file> for {config_components}")
@@ -164,7 +163,7 @@ def start(
         t_mgroup.start()
 
     if "host" in comp or "host-group" in comp:
-        hm_mode = not no_hm
+        hm_mode = False  # TODO: re-enable HostManager hm_mode = not no_hm
         if hm_mode:
             t_hm = threading.Thread(target=start_host_manager, args=(ctx,))
             threads.append(t_hm)
@@ -177,11 +176,6 @@ def start(
             t_hgroup = threading.Thread(target=start_host_group, args=(ctx, config_file, hm_mode))
             threads.append(t_hgroup)
             t_hgroup.start()
-
-    if "complex-host-group" in comp:
-        t_chgroup = threading.Thread(target=start_complex_host_group, args=(ctx, config_file))
-        threads.append(t_chgroup)
-        t_chgroup.start()
 
 
 # helper functions
@@ -232,16 +226,11 @@ def start_switch(ctx, config_file):
 
 
 def start_host(ctx):
-    ctx.invoke(cxl_simple_host.start)
-
-
-def start_complex_host_group(ctx, config_file):
-    # ctx.invoke(cxl_host.start_group, config_file=config_file)
-    pass
+    ctx.invoke(cxl_host.start)
 
 
 def start_host_group(ctx, config_file, hm_mode):
-    ctx.invoke(cxl_simple_host.start_group, config_file=config_file, hm_mode=hm_mode)
+    ctx.invoke(cxl_host.start_group, config_file=config_file, hm_mode=hm_mode)
 
 
 def start_sld(ctx, config_file):
@@ -271,7 +260,7 @@ def foo():
     pass
 
 
-cli.add_command(cxl_simple_host.host_group)
+cli.add_command(cxl_host.host_group)
 cli.add_command(fabric_manager.fabric_manager_group)
 cli.add_command(mem.mem_group)
 
