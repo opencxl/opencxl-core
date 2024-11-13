@@ -68,11 +68,9 @@ class PacketReader(LabeledComponent):
                 self._create_message(f"get_packet() error: {str(e)}, {traceback.format_exc()}")
             )
             raise Exception("PacketReader is aborted") from e
-        except CancelledError as e:
-            logger.error(
-                self._create_message(f"get_packet() error: {str(e)}, {traceback.format_exc()}")
-            )
-            raise Exception("PacketReader is aborted") from e
+        except CancelledError as exc:
+            logger.debug(self._create_message("Aborted"))
+            raise Exception("PacketReader is aborted") from exc
         finally:
             self._task = None
         return packet
