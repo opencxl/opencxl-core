@@ -64,13 +64,17 @@ class PacketReader(LabeledComponent):
             self._task = create_task(self._get_packet_in_task())
             packet = await self._task
         except Exception as e:
-            logger.error(
-                self._create_message(f"get_packet() error: {str(e)}, {traceback.format_exc()}")
-            )
-            raise Exception("PacketReader is aborted") from e
+            if str(e) == "Connection disconnected":
+                # can happen during teardown
+                logger.info(self._create_message(str(e)))
+            else:
+                logger.error(
+                    self._create_message(f"get_packet() error: {str(e)}, {traceback.format_exc()}")
+                )
+                raise Exception("PacketReader is aborted") from e
         except CancelledError as exc:
-            logger.debug(self._create_message("Aborted"))
-            raise Exception("PacketReader is aborted") from exc
+            logger.debug(self._create_message("Connection cancelled"))
+            raise Exception("PacketReader is cancelled") from exc
         finally:
             self._task = None
         return packet
