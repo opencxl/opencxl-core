@@ -17,6 +17,57 @@ from opencxl.drivers.pci_bus_driver import PciBusDriver
 from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
 from opencxl.cxl.component.cxl_host import CxlHost
 from opencxl.cpu import CPU
+from opencxl.util.number_const import MB
+
+
+@dataclass
+class MemoryStruct:
+    base: int
+    size: int
+
+
+class CxlDeviceMemTracker:
+    def __init__(self, cxl_memory_hub: CxlMemoryHub):
+        self._ld_tracker: dict[str, dict[MEM_ADDR_TYPE, MemoryStruct]] = {}
+        self._cxl_memory_hub = cxl_memory_hub
+
+    def _create_key(self, device_port):
+        return f"{device_port}".lower()
+
+    def _add_device(self, key):
+        self._ld_tracker[key] = {k: MemoryStruct(0, 0) for k in MEM_ADDR_TYPE}
+
+    def check_device_added(self, device_port):
+        key = self._create_key(device_port)
+        return key in self._ld_tracker
+
+    def add_mem_range(self, device_port: int, base: int, size: int, type: MEM_ADDR_TYPE):
+        key = self._create_key(device_port)
+        if key not in self._ld_tracker:
+            self._add_device(key)
+        self._ld_tracker[key][type].base = base
+        self._ld_tracker[key][type].size = size
+        self._cxl_memory_hub.add_mem_range(base, size, type)
+
+    def remove_mem_range(self, device_port):
+        key = self._create_key(device_port)
+        if key in self._ld_tracker:
+            for type, mem_info in self._ld_tracker[key].items():
+                if mem_info.size > 0:
+                    self._cxl_memory_hub.remove_mem_range(mem_info.base, mem_info.size, type)
+            del self._ld_tracker[key]
+        else:
+            logger.warning(f"No record for device @ port {device_port}")
+
+    def __str__(self):
+        return str(self._ld_tracker)
+
+
+@dataclass
+class MemoryBaseTracker:
+    hpa_base: int
+    cfg_base: int
+    mmio_base: int
 
 
 @dataclass
@@ -248,16 +299,19 @@ async def sample_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
     val = await _cpu.load(0x100000000040, 0x40)
     logger.info(f"0x{val:X}")
 
+    await asyncio.Event().wait()  # keep the host app alive
 
-async def main():
+
+async def run_host(port_index: int, irq_port: int):
     host = CxlHost(
-        port_index=0,
-        sys_mem_size=(256 * 1024 * 1024),
+        port_index=port_index,
+        sys_mem_size=(16 * MB),
         sys_sw_app=my_sys_sw_app,
         user_app=sample_app,
+        irq_port=irq_port,
     )
     await host.run()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run_host(port_index=0, irq_port=8500))

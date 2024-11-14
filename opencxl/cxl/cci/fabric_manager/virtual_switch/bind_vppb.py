@@ -105,10 +105,6 @@ class BindVppbCommand(CciBackgroundCommand):
             logger.debug(self._create_message(f"vPPB {vppb_id} is already bound"))
             return CciResponse(return_code=CCI_RETURN_CODE.INVALID_INPUT)
 
-        if ld_id != 0xFFFF:
-            logger.debug(self._create_message(f"MLD is not supported"))
-            return CciResponse(return_code=CCI_RETURN_CODE.INVALID_INPUT)
-
         await callback(50)
 
         # TODO: Pseudo FM for now, the FM will return proper LD ID provided by the MLD device

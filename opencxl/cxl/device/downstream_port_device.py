@@ -174,7 +174,7 @@ class DownstreamPortDevice(CxlPortDevice):
 
     # Caller should always await this function
     async def bind_to_vppb(self, ld_id: int):
-        logger.info(self._create_message(f"Binding ld_id {ld_id} to vPPB{self._vppb_index}"))
+        logger.info(self._create_message(f"Binding LD-ID {ld_id} to vPPB{self._vppb_index}"))
         self._vppb_upstream_connection[ld_id] = CxlConnection()
         self._vppb_downstream_connection[ld_id] = CxlConnection()
         self._cxl_io_manager[ld_id] = CxlIoManager(

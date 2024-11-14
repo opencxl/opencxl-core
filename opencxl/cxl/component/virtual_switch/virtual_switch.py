@@ -223,7 +223,7 @@ class CxlVirtualSwitch(RunnableComponent):
         logger.info(
             self._create_message(
                 f"Succcessfully bound physical port {port_index} "
-                + f"to vPPB {vppb_index} with ld_id {ld_id}"
+                + f"to vPPB {vppb_index} with LD-ID {ld_id}"
             )
         )
 
