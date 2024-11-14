@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from enum import StrEnum, IntEnum
 from typing import cast, Optional, Dict, Union, List
 
+from opencxl.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
@@ -24,16 +25,20 @@ from opencxl.cxl.component.packet_reader import PacketReader
 from opencxl.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
-    CciBasePacket,
-    CciMessagePacket,
-    CciPayloadPacket,
     CxlIoBasePacket,
     CxlMemBasePacket,
     CxlCacheBasePacket,
     SIDEBAND_TYPES,
     PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
+    CciRequestPacket,
+    CciResponsePacket,
+    GetLdInfoResponsePacket,
+    GetLdAllocationsResponsePacket,
+    SetLdAllocationsResponsePacket,
 )
+from opencxl.cxl.device.cxl_type3_device import CXL_T3_DEV_TYPE
+from opencxl.cxl.component.fmld import FMLD
 
 
 @dataclass
@@ -42,7 +47,7 @@ class FifoGroup:
     mmio: Queue
     cxl_mem: Queue
     cxl_cache: Queue
-    cci_fifo: Queue
+    cci_fifo: Optional[Queue]  # To LD, TODO: Enable later when CCI towards LD is implemented
 
 
 class CXL_IO_FIFO_TYPE(IntEnum):
@@ -71,6 +76,9 @@ class CxlPacketProcessor(RunnableComponent):
         self._tlp_table: Dict[int, CXL_IO_FIFO_TYPE] = {}
         self._cxl_connection = cxl_connection
         self._component_type = component_type
+        self._fmld = None
+        self._cci_connection_for_fmld = None
+
         logger.debug(self._create_message(f"Configured for {component_type.name}"))
         if component_type in (CXL_COMPONENT_TYPE.R, CXL_COMPONENT_TYPE.DSP):
             self._incoming = FifoGroup(
@@ -134,6 +142,14 @@ class CxlPacketProcessor(RunnableComponent):
                 self._outgoing.cxl_mem = self._cxl_connection.cxl_mem_fifo.target_to_host
         # Add MLD
         elif component_type == CXL_COMPONENT_TYPE.LD:
+            self._cci_connection_for_fmld = CxlConnection()
+            self._ld_count = len(cxl_connection) if isinstance(cxl_connection, list) else 1
+
+            self._fmld = FMLD(
+                upstream_fifo=self._cci_connection_for_fmld.cci_fifo,
+                ld_count=self._ld_count,
+                dev_type=CXL_T3_DEV_TYPE.MLD,
+            )
             self._incoming_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
             self._outgoing_dir = PROCESSOR_DIRECTION.TARGET_TO_HOST
             self._incoming = [
@@ -142,7 +158,7 @@ class CxlPacketProcessor(RunnableComponent):
                     mmio=cxl_conn.mmio_fifo.host_to_target,
                     cxl_mem=cxl_conn.cxl_mem_fifo.host_to_target,
                     cxl_cache=None,
-                    cci_fifo=cxl_conn.cci_fifo.host_to_target,
+                    cci_fifo=None,
                 )
                 for cxl_conn in self._cxl_connection
             ]
@@ -152,7 +168,7 @@ class CxlPacketProcessor(RunnableComponent):
                 mmio=self._cxl_connection[0].mmio_fifo.target_to_host,
                 cxl_mem=self._cxl_connection[0].cxl_mem_fifo.target_to_host,
                 cxl_cache=None,
-                cci_fifo=self._cxl_connection[0].cci_fifo.target_to_host,
+                cci_fifo=None,
             )
         else:
             raise Exception(f"Unsupported component type {component_type.name}")
@@ -283,13 +299,13 @@ class CxlPacketProcessor(RunnableComponent):
                     cxl_cache_packet = cast(CxlCacheBasePacket, packet)
                     await self._incoming.cxl_cache.put(cxl_cache_packet)
                 elif packet.is_cci():
-                    if self._incoming.cci_fifo is None:
-                        logger.error(self._create_message("Got CCI packet on no CCI FIFO"))
-                        continue
-                    logger.debug(self._create_message(f"Received {self._incoming_dir} CCI packet"))
-                    cci_packet = cast(CciBasePacket, packet)
-                    cci_packet_payload = cci_packet.get_packet()
-                    await self._incoming.cci_fifo.put(cci_packet_payload)
+                    if self._component_type == CXL_COMPONENT_TYPE.LD:
+                        if self._fmld.upstream_fifo is None:
+                            raise Exception(self._create_message("Got CCI packet on no CCI FIFO"))
+                        cci_packet = cast(CciRequestPacket, packet)
+                        await self._fmld.upstream_fifo.host_to_target.put(cci_packet)
+                    elif self._component_type == CXL_COMPONENT_TYPE.DSP:
+                        await self._incoming.cci_fifo.put(packet)
                 else:
                     message = f"Received unexpected {self._incoming_dir} packet"
                     logger.debug(self._create_message(message))
@@ -310,7 +326,11 @@ class CxlPacketProcessor(RunnableComponent):
             await self._outgoing.cxl_mem.put(packet)
         if self._outgoing.cxl_cache:
             await self._outgoing.cxl_cache.put(packet)
+        if self._cci_connection_for_fmld:
+            logger.info(self._create_message("Sending disconnection notification to FMLD CCI"))
+            await self._fmld.upstream_fifo.target_to_host.put(packet)
         if self._outgoing.cci_fifo:
+            logger.info(self._create_message("Sending disconnection notification to CCI"))
             await self._outgoing.cci_fifo.put(packet)
 
     async def _process_outgoing_cfg_packets(self):
@@ -382,12 +402,35 @@ class CxlPacketProcessor(RunnableComponent):
     async def _process_outgoing_cci_packets(self):
         logger.debug(self._create_message("Starting outgoing CCI FIFO processor"))
         while True:
-            packet: CciMessagePacket = await self._outgoing.cci_fifo.get()
-            if self._is_disconnection_notification(packet):
+            if self._component_type == CXL_COMPONENT_TYPE.LD:
+                packet: CciResponsePacket = await self._fmld.upstream_fifo.target_to_host.get()
+                if self._is_disconnection_notification(packet):
+                    logger.info(self._create_message("Stopped outgoing CCI FIFO processor"))
+                    break
+                opcode = packet.get_command_opcode()
+                logger.info(self._create_message(f"Received CCI packet with opcode {opcode:x}"))
+                if opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
+                    packet = cast(GetLdInfoResponsePacket, packet)
+                    self._writer.write(bytes(packet))
+                    await self._writer.drain()
+                elif opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
+                    packet = cast(GetLdAllocationsResponsePacket, packet)
+                    self._writer.write(bytes(packet))
+                    await self._writer.drain()
+                elif opcode == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
+                    packet = cast(SetLdAllocationsResponsePacket, packet)
+                    self._writer.write(bytes(packet))
+                    await self._writer.drain()
+                else:
+                    logger.warning(self._create_message("Unsupported CCI packet"))
+            elif self._component_type == CXL_COMPONENT_TYPE.DSP:
+                packet = await self._outgoing.cci_fifo.get()
+                if self._is_disconnection_notification(packet):
+                    break
+                self._writer.write(bytes(packet))
+                await self._writer.drain()
+            else:
                 break
-            cci_payload_packet = CciPayloadPacket.create(packet, packet.get_size())
-            self._writer.write(bytes(cci_payload_packet))
-            await self._writer.drain()
         logger.debug(self._create_message("Stopped outgoing CCI FIFO processor"))
 
     async def _process_outgoing_packets(self):
@@ -399,8 +442,10 @@ class CxlPacketProcessor(RunnableComponent):
             tasks.append(create_task(self._process_outgoing_cxl_mem_packets()))
         if self._outgoing.cxl_cache:
             tasks.append(create_task(self._process_outgoing_cxl_cache_packets()))
-        if self._outgoing.cci_fifo:
-            tasks.append(create_task(self._process_outgoing_cci_packets()))
+        tasks.append(create_task(self._process_outgoing_cci_packets()))
+        # TODO: Enable later when CCI for LD is needed
+        # if self._outgoing.cci_fifo:
+        #     tasks.append(create_task(self._process_outgoing_XXX()))
         await gather(*tasks)
 
     async def _run(self):
@@ -408,8 +453,22 @@ class CxlPacketProcessor(RunnableComponent):
             create_task(self._process_incoming_packets()),
             create_task(self._process_outgoing_packets()),
         ]
+        if self._fmld:
+            fmld_task = [create_task(self._fmld.run())]
+            await self._fmld.wait_for_ready()
+
         await self._change_status_to_running()
+
+        if self._fmld:
+            await gather(*fmld_task)
         await gather(*tasks)
 
     async def _stop(self):
+        # TODO: Enable later when CCI for LD is needed
+        # if self._outgoing.cci_fifo:
+        #     self._fmld._upstream_fifo.target_to_host.abort()
+        # await self._fmld._upstream_fifo.target_to_host.put(None)
+        if self._fmld:
+            task = create_task(self._fmld.stop())
+            await gather(task)
         self._reader.abort()

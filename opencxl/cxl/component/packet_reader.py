@@ -10,6 +10,7 @@ from enum import Enum, auto
 import traceback
 from typing import Optional, Tuple
 
+from opencxl.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 from opencxl.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
@@ -35,6 +36,15 @@ from opencxl.cxl.transport.transaction import (
     CxlMemS2MBISnpPacket,
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
+    CciBasePacket,
+    CciRequestPacket,
+    CciResponsePacket,
+    GetLdInfoRequestPacket,
+    GetLdInfoResponsePacket,
+    GetLdAllocationsRequestPacket,
+    GetLdAllocationsResponsePacket,
+    SetLdAllocationsRequestPacket,
+    SetLdAllocationsResponsePacket,
 )
 from opencxl.util.logger import logger
 from opencxl.util.component import LabeledComponent
@@ -101,6 +111,8 @@ class PacketReader(LabeledComponent):
         if base_packet.is_sideband():
             logger.debug(self._create_message("Received Packet is sideband"))
             return self._get_sideband_packet(payload)
+        if base_packet.is_cci():
+            return self._get_cci_packet(payload)
         raise Exception("Unsupported packet")
 
     async def _get_payload(self) -> Tuple[BasePacket, bytes]:
@@ -193,6 +205,45 @@ class PacketReader(LabeledComponent):
 
         cxl_cache_packet.reset(payload)
         return cxl_cache_packet
+
+    def _get_cci_packet(self, payload: bytes) -> CciBasePacket:
+        cci_base_packet = CciBasePacket()
+        header_size = len(cci_base_packet.cci_header) + BasePacket.get_size()
+        cci_base_packet.reset(payload[:header_size])
+
+        if cci_base_packet.is_req():
+            cci_packet = CciRequestPacket()
+            cci_packet.reset(payload)
+            if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
+                cci_packet = GetLdInfoRequestPacket()
+                cci_packet.reset(payload)
+            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
+                cci_packet = GetLdAllocationsRequestPacket()
+                logger.debug(f"GetLdAllocationsRequestPacket created: {cci_packet}")
+                cci_packet.reset(payload)
+            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
+                cci_packet = SetLdAllocationsRequestPacket()
+                cci_packet.reset(payload)
+            else:
+                raise Exception("Unsupported CCI packet")
+        elif cci_base_packet.is_rsp():
+            cci_packet = CciResponsePacket()
+            cci_packet.reset(payload)
+            if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
+                cci_packet = GetLdInfoResponsePacket()
+                cci_packet.reset(payload)
+            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
+                cci_packet = GetLdAllocationsResponsePacket()
+                cci_packet.reset(payload)
+            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
+                cci_packet = SetLdAllocationsResponsePacket()
+                cci_packet.reset(payload)
+            else:
+                raise Exception("Unsupported CCI packet")
+        else:
+            raise Exception("Unsupported CCI packet")
+
+        return cci_packet
 
     def _get_sideband_packet(self, payload: bytes) -> BaseSidebandPacket:
         base_sideband_packet = BaseSidebandPacket()
