@@ -247,8 +247,6 @@ class FabricManagerSocketIoServer(RunnableComponent):
             return CommandResponse(error=return_code.name)
 
     async def _bind_vppb(self, data) -> CommandResponse:
-        if "ldId" not in data:
-            data["ldId"] = 0
         request = BindVppbRequestPayload(
             vcs_id=data["virtualCxlSwitchId"],
             vppb_id=data["vppbId"],
