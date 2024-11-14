@@ -10,6 +10,8 @@ from opencxl.cxl.transport.transaction import (
     CciMessagePacket,
     CciMessageHeaderPacket,
     CCI_MCTP_MESSAGE_CATEGORY,
+    CciBasePacket,
+    CciPayloadPacket,
 )
 from opencxl.cxl.cci.common import get_opcode_string
 from opencxl.cxl.cci.generic.information_and_status import (
@@ -31,6 +33,16 @@ from opencxl.cxl.cci.fabric_manager.virtual_switch import (
     BindVppbRequestPayload,
     UnbindVppbCommand,
     UnbindVppbRequestPayload,
+)
+from opencxl.cxl.cci.fabric_manager.mld_components import (
+    GetLdInfoCommand,
+    GetLdInfoResponsePayload,
+    GetLdAllocationsCommand,
+    GetLdAllocationsRequestPayload,
+    GetLdAllocationsResponsePayload,
+    SetLdAllocationsCommand,
+    SetLdAllocationsRequestPayload,
+    SetLdAllocationsResponsePayload,
 )
 from opencxl.cxl.cci.vendor_specfic import (
     GetConnectedDevicesCommand,
@@ -62,7 +74,8 @@ class MctpCciApiClient(RunnableComponent):
             if raw_response == None:
                 break
 
-            response = cast(CciMessagePacket, raw_response)
+            response_tmc1 = cast(CciPayloadPacket, raw_response)
+            response = response_tmc1.get_packet()
             if response.header.message_category == CCI_MCTP_MESSAGE_CATEGORY.REQUEST:
                 opcode_str = get_opcode_string(response.header.command_opcode)
                 logger.debug(
@@ -94,12 +107,17 @@ class MctpCciApiClient(RunnableComponent):
         self._condition.release()
         return response
 
-    async def _send_request(self, request: CciMessagePacket) -> CciMessagePacket:
+    async def _send_request(
+        self, request: CciMessagePacket, port_index=0, ld_id=0
+    ) -> CciMessagePacket:
         request.header.message_tag = self._get_next_tag()
         opcode_name = get_opcode_string(request.header.command_opcode)
         req_tag = request.header.message_tag
         logger.debug(self._create_message(f"Sending {opcode_name} (Tag: {req_tag})"))
-        await self._mctp_connection.controller_to_ep.put(request)
+        # wrapping
+        request_tmc = CciPayloadPacket.create(request, request.get_total_size(), port_index)
+
+        await self._mctp_connection.controller_to_ep.put(request_tmc)
         response = await self._get_response(req_tag)
         res_tag = response.header.message_tag
         logger.debug(self._create_message(f"Received Response (Tag: {res_tag})"))
@@ -142,10 +160,12 @@ class MctpCciApiClient(RunnableComponent):
                 return return_code
         # TODO: Handle timeout
 
-    async def _send_cci_command(self, create_request_func: CreateRequestFuncType, request=None):
+    async def _send_cci_command(
+        self, create_request_func: CreateRequestFuncType, request=None, port_index=0, ld_id=0
+    ):
         cci_request = create_request_func() if request is None else create_request_func(request)
         request_message_packet = self._create_request_packet(cci_request)
-        return await self._send_request(request_message_packet)
+        return await self._send_request(request_message_packet, port_index, ld_id)
 
     def register_notification_handler(self, notification_handler: AsyncEventHandlerType):
         self._notification_handler = notification_handler
@@ -266,4 +286,47 @@ class MctpCciApiClient(RunnableComponent):
             response_message_packet.get_payload()
         )
         # logger.debug(self._create_message(response.get_pretty_print()))
+        return (return_code, response)
+
+    async def get_ld_info(
+        self, port_index: int
+    ) -> Tuple[CCI_RETURN_CODE, Optional[GetLdInfoResponsePayload]]:
+        response_message_packet = await self._send_cci_command(
+            GetLdInfoCommand.create_cci_request, port_index=port_index
+        )
+
+        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        response = GetLdInfoCommand.parse_response_payload(response_message_packet.get_payload())
+        return (return_code, response)
+
+    async def get_ld_alloctaion(
+        self, request: GetLdAllocationsRequestPayload, port_index: int
+    ) -> Tuple[CCI_RETURN_CODE, Optional[GetLdAllocationsResponsePayload]]:
+        response_message_packet = await self._send_cci_command(
+            GetLdAllocationsCommand.create_cci_request, request, port_index=port_index
+        )
+
+        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        response = GetLdAllocationsCommand.parse_response_payload(
+            response_message_packet.get_payload()
+        )
+        return (return_code, response)
+
+    async def set_ld_alloctaion(
+        self, request: SetLdAllocationsRequestPayload, port_index: int
+    ) -> Tuple[CCI_RETURN_CODE, Optional[SetLdAllocationsResponsePayload]]:
+        response_message_packet = await self._send_cci_command(
+            SetLdAllocationsCommand.create_cci_request, request, port_index=port_index
+        )
+
+        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        response = SetLdAllocationsCommand.parse_response_payload(
+            response_message_packet.get_payload()
+        )
         return (return_code, response)

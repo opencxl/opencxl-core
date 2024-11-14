@@ -106,9 +106,6 @@ class BindVppbCommand(CciBackgroundCommand):
             return CciResponse(return_code=CCI_RETURN_CODE.INVALID_INPUT)
 
         await callback(50)
-
-        # TODO: Pseudo FM for now, the FM will return proper LD ID provided by the MLD device
-        ld_id = vcs.pseudo_fm_get_ld_id(port_id, vppb_id)
         await vcs.bind_vppb(port_id, vppb_id, ld_id)
         response = CciResponse()
         return response

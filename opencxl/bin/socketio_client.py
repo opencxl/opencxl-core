@@ -94,6 +94,44 @@ async def unbind(vcs: int, vppb: int):
     await sio.disconnect()
 
 
+async def get_ld_info(port_index: int):
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "mld:get",
+        {"port_index": port_index},
+    )
+    await sio.disconnect()
+
+
+async def get_ld_allocation(port_index: int, start_ld_id: int, ld_allocation_list_limit: int):
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "mld:getAllocation",
+        {
+            "port_index": port_index,
+            "start_ld_id": start_ld_id,
+            "ld_allocation_list_limit": ld_allocation_list_limit,
+        },
+    )
+    await sio.disconnect()
+
+
+async def set_ld_allocation(
+    port_index: int, number_of_lds: int, start_ld_id: int, ld_allocation_list: int
+):
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "mld:setAllocation",
+        {
+            "port_index": port_index,
+            "number_of_lds": number_of_lds,
+            "start_ld_id": start_ld_id,
+            "ld_allocation_list": ld_allocation_list,
+        },
+    )
+    await sio.disconnect()
+
+
 # Main asynchronous function to start the client
 async def start_client():
     await sio.connect("http://0.0.0.0:8200")

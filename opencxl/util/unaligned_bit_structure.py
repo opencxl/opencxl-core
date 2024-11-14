@@ -457,6 +457,7 @@ class UnalignedBitStructure:
     def get_size_from_options(options: Optional[TypedDict]) -> int:
         return 0
 
+    # This must be followed by packet.system_header.payload_length = len(packet)
     def set_dynamic_field_length(self, new_len: int):
         if self._dynamic_field is None:
             return

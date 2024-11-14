@@ -18,6 +18,8 @@ from opencxl.cxl.component.mctp.mctp_cci_api_client import (
     BindVppbRequestPayload,
     UnbindVppbRequestPayload,
     CciMessagePacket,
+    GetLdAllocationsRequestPayload,
+    SetLdAllocationsRequestPayload,
 )
 from opencxl.cxl.cci.common import (
     CCI_VENDOR_SPECIFIC_OPCODE,
@@ -162,6 +164,9 @@ class FabricManagerSocketIoServer(RunnableComponent):
         self._register_handler("device:get")
         self._register_handler("vcs:bind")
         self._register_handler("vcs:unbind")
+        self._register_handler("mld:get")
+        self._register_handler("mld:getAllocation")
+        self._register_handler("mld:setAllocation")
         self._mctp_client.register_notification_handler(self._handle_notifications)
 
     def _register_handler(self, event):
@@ -194,6 +199,12 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 response = await self._bind_vppb(data)
             elif event_type == "vcs:unbind":
                 response = await self._unbind_vppb(data)
+            elif event_type == "mld:get":
+                response = await self._get_ld_info(data)
+            elif event_type == "mld:getAllocation":
+                response = await self._get_ld_allocation(data)
+            elif event_type == "mld:setAllocation":
+                response = await self._set_ld_allocation(data)
             # logger.debug(self._create_message(f"Response: {pformat(response)}"))
             logger.debug(self._create_message(f"Completed SocketIO Request"))
             return response
@@ -264,6 +275,55 @@ class FabricManagerSocketIoServer(RunnableComponent):
             return CommandResponse(error="", result=response.name)
         else:
             return CommandResponse(error="", result=return_code.name)
+
+    async def _get_ld_info(self, data) -> CommandResponse:
+        (return_code, response) = await self._mctp_client.get_ld_info(data["port_index"])
+        if response:
+            return CommandResponse(
+                error="",
+                result=[response.memory_size, response.ld_count, response.qos_telemetry_capability],
+            )
+        else:
+            return CommandResponse(error=return_code.name)
+
+    async def _get_ld_allocation(self, data) -> CommandResponse:
+        request = GetLdAllocationsRequestPayload(
+            start_ld_id=data["start_ld_id"],
+            ld_allocation_list_limit=data["ld_allocation_list_limit"],
+        )
+        (return_code, response) = await self._mctp_client.get_ld_alloctaion(
+            request, data["port_index"]
+        )
+        if response:
+            return CommandResponse(
+                error="",
+                result=[
+                    response.number_of_lds,
+                    response.memory_granularity,
+                    response.start_ld_id,
+                    response.ld_allocation_list_length,
+                    response.ld_allocation_list,
+                ],
+            )
+        else:
+            return CommandResponse(error=return_code.name)
+
+    async def _set_ld_allocation(self, data) -> CommandResponse:
+        request = SetLdAllocationsRequestPayload(
+            number_of_lds=data["number_of_lds"],
+            start_ld_id=data["start_ld_id"],
+            ld_allocation_list=data["ld_allocation_list"],
+        )
+        (return_code, response) = await self._mctp_client.set_ld_alloctaion(
+            request, data["port_index"]
+        )
+        if response:
+            return CommandResponse(
+                error="",
+                result=[response.number_of_lds, response.start_ld_id, response.ld_allocation_list],
+            )
+        else:
+            return CommandResponse(error=return_code.name)
 
     async def _send_update_physical_ports_notification(self):
         # Emitting event without arguments
