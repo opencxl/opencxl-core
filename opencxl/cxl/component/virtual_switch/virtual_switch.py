@@ -74,6 +74,7 @@ class CxlVirtualSwitch(RunnableComponent):
         self._cxl_io_router = None
         self._cxl_mem_router = None
         self._cxl_cache_router = None
+        self._vppb_ld_id_map = {}
 
         self._irq_manager = IrqManager(
             device_name=self._label,
@@ -140,6 +141,8 @@ class CxlVirtualSwitch(RunnableComponent):
         if vppb_ld_id is None:
             vppb_ld_id = port_dict[vppb_index] = port_ld_id
             port_dict["ld_id"] = port_ld_id + 1
+
+        self._vppb_ld_id_map[vppb_index] = vppb_ld_id
 
         return vppb_ld_id
 
@@ -212,6 +215,7 @@ class CxlVirtualSwitch(RunnableComponent):
 
         # Create physical port to vppb mapping
         self._physical_ports_vppb_map[vppb_index] = port_device
+        self._vppb_ld_id_map[vppb_index] = ld_id
 
         await self._call_event_handler(vppb_index, PPB_BINDING_STATUS.BIND_OR_UNBIND_IN_PROGRESS)
         await self._port_binder.bind_vppb(dsp_device, vppb_index, ld_id)
@@ -248,6 +252,8 @@ class CxlVirtualSwitch(RunnableComponent):
             del self._physical_ports_vppb_map[vppb_index]
         self._downstream_vppbs[vppb_index].set_ld_id(0)
         self._routing_table.deactivate_vppb(vppb_index)
+        if vppb_index in self._vppb_ld_id_map:
+            self._vppb_ld_id_map.pop(vppb_index)
 
         await self._cxl_mem_router.update_router(vppb_index)
         await self._cxl_cache_router.update_router(vppb_index)
@@ -284,6 +290,9 @@ class CxlVirtualSwitch(RunnableComponent):
 
     def get_bound_port_id(self, vppb_id: int) -> int:
         return self._port_binder.get_bound_port_id(vppb_id)
+
+    def get_ld_id(self, vppb_id: int) -> int:
+        return self._vppb_ld_id_map[vppb_id]
 
     def register_event_handler(self, event_handler: AsyncEventHandlerType):
         self._event_handler = event_handler

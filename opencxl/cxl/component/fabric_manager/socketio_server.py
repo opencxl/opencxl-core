@@ -254,12 +254,12 @@ class FabricManagerSocketIoServer(RunnableComponent):
             ld_id=data["ldId"],
         )
         (return_code, response) = await self._mctp_client.bind_vppb(request)
-        if response:
-            return CommandResponse(error="", result=response.name)
-        else:
+        if response is not None:
             await self._host_fm_conn_manager.notify_host_bind(
                 data["vppbId"], data["virtualCxlSwitchId"]
             )
+            return CommandResponse(error="", result=response.name)
+        else:
             return CommandResponse(error="", result=return_code.name)
 
     async def _unbind_vppb(self, data) -> CommandResponse:
@@ -271,7 +271,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
             data["vppbId"], data["virtualCxlSwitchId"]
         )
         (return_code, response) = await self._mctp_client.unbind_vppb(request)
-        if response:
+        if response is not None:
             return CommandResponse(error="", result=response.name)
         else:
             return CommandResponse(error="", result=return_code.name)
