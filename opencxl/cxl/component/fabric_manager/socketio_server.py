@@ -247,19 +247,22 @@ class FabricManagerSocketIoServer(RunnableComponent):
             return CommandResponse(error=return_code.name)
 
     async def _bind_vppb(self, data) -> CommandResponse:
+        ld_id = data.get("ldId")
+        if ld_id is None:
+            ld_id = 0  # SLD
         request = BindVppbRequestPayload(
             vcs_id=data["virtualCxlSwitchId"],
             vppb_id=data["vppbId"],
             physical_port_id=data["physicalPortId"],
-            ld_id=data["ldId"],
+            ld_id=ld_id,
         )
         (return_code, response) = await self._mctp_client.bind_vppb(request)
-        if response:
-            return CommandResponse(error="", result=response.name)
-        else:
+        if response is not None:
             await self._host_fm_conn_manager.notify_host_bind(
                 data["vppbId"], data["virtualCxlSwitchId"]
             )
+            return CommandResponse(error="", result=response.name)
+        else:
             return CommandResponse(error="", result=return_code.name)
 
     async def _unbind_vppb(self, data) -> CommandResponse:
@@ -271,7 +274,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
             data["vppbId"], data["virtualCxlSwitchId"]
         )
         (return_code, response) = await self._mctp_client.unbind_vppb(request)
-        if response:
+        if response is not None:
             return CommandResponse(error="", result=response.name)
         else:
             return CommandResponse(error="", result=return_code.name)
@@ -279,10 +282,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
     async def _get_ld_info(self, data) -> CommandResponse:
         (return_code, response) = await self._mctp_client.get_ld_info(data["port_index"])
         if response:
-            return CommandResponse(
-                error="",
-                result=[response.memory_size, response.ld_count, response.qos_telemetry_capability],
-            )
+            return CommandResponse(error="", result=response.to_dict())
         else:
             return CommandResponse(error=return_code.name)
 
@@ -295,16 +295,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
             request, data["port_index"]
         )
         if response:
-            return CommandResponse(
-                error="",
-                result=[
-                    response.number_of_lds,
-                    response.memory_granularity,
-                    response.start_ld_id,
-                    response.ld_allocation_list_length,
-                    response.ld_allocation_list,
-                ],
-            )
+            return CommandResponse(error="", result=response.to_dict())
         else:
             return CommandResponse(error=return_code.name)
 

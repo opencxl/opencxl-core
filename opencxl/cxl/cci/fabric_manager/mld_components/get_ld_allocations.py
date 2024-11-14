@@ -7,7 +7,7 @@
 
 from dataclasses import dataclass, field
 from struct import pack, unpack
-from typing import ClassVar
+from typing import ClassVar, List, TypedDict
 from opencxl.cxl.component.cci_executor import (
     CciBackgroundCommand,
     CciForegroundCommand,
@@ -18,6 +18,11 @@ from opencxl.cxl.component.cci_executor import (
 
 from opencxl.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE, CCI_RETURN_CODE
 from opencxl.util.logger import logger
+
+
+class GetLdAllocationsRequestPayloadDict(TypedDict):
+    startLdId: int
+    ldAllocationListLimit: int
 
 
 @dataclass
@@ -45,6 +50,20 @@ class GetLdAllocationsRequestPayload:
             f"- Start LD ID: {self.start_ld_id}\n"
             f"- LD Allocation List Limit: {self.ld_allocation_list_limit}\n"
         )
+
+    def to_dict(self) -> GetLdAllocationsRequestPayloadDict:
+        return {
+            "startLdId": self.start_ld_id,
+            "ldAllocationListLimit": self.ld_allocation_list_limit,
+        }
+
+
+class GetLdAllocationsResponsePayloadDict(TypedDict):
+    numberOfLds: int
+    memoryGranularity: int
+    startLdId: int
+    ldAllocationListLength: int
+    ldAllocationList: List[int]
 
 
 @dataclass
@@ -93,6 +112,15 @@ class GetLdAllocationsResponsePayload:
             f"- LD Allocation List Length: {self.ld_allocation_list_length}\n"
             f"- LD Allocation List: {self.ld_allocation_list}\n"
         )
+
+    def to_dict(self) -> GetLdAllocationsResponsePayloadDict:
+        return {
+            "numberOfLds": self.number_of_lds,
+            "memoryGranularity": self.memory_granularity,
+            "startLdId": self.start_ld_id,
+            "ldAllocationListLength": self.ld_allocation_list_length,
+            "ldAllocationList": self.ld_allocation_list,
+        }
 
 
 class GetLdAllocationsCommand(CciForegroundCommand):
