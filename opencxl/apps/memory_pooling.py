@@ -78,7 +78,11 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     # Therefore, 0xFE000000 for MMIO does not overlap
 
     # pylint: disable=global-statement
+    host_fm_conn_client = ShortMsgConn(
+        "FM_Client", port=8700, server=False, msg_width=16, msg_type=HostFMMsg, device_id=root_port
+    )
     global host_fm_conn  # To prevent the connection from GC'ed after function's done
+    host_fm_conn = host_fm_conn_client
     pci_cfg_base_addr = 0x10000000
     pci_mmio_base_addr = 0xFE000000
     cxl_hpa_base_addr = 0x100000000000
@@ -154,10 +158,6 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
             f"size: 0x{range.size:X}, type: {str(range.addr_type)}"
         )
 
-    host_fm_conn_client = ShortMsgConn(
-        "FM_Client", port=8700, server=False, msg_width=16, msg_type=HostFMMsg, device_id=root_port
-    )
-    host_fm_conn = host_fm_conn_client
     logger.debug(f"[SYS-SW] Creating connection for host with root port {root_port}")
 
     await host_fm_conn_client.start_connection()
