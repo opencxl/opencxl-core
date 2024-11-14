@@ -208,7 +208,6 @@ class CxlVirtualSwitch(RunnableComponent):
 
         vppb.set_ld_id(ld_id)
         vppb.set_routing_table(VppbRoutingInfo(self._routing_table, ld_id))
-        dsp_device.set_vppb_index(vppb_index, ld_id)
         vppb.set_vppb_index(vppb_index)
 
         # Create physical port to vppb mapping
