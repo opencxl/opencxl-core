@@ -203,6 +203,7 @@ class CxlVirtualSwitch(RunnableComponent):
         dsp_device = cast(DownstreamPortDevice, port_device)
 
         await dsp_device.get_ppb_device().bind(ld_id)
+        dsp_device.set_vppb_index(vppb_index)
         await vppb.bind_to_physical_dsp_port(dsp_device, ld_id)
 
         vppb.set_ld_id(ld_id)
