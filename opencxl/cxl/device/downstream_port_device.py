@@ -162,6 +162,7 @@ class DownstreamPortDevice(CxlPortDevice):
     def set_vppb_index(self, vppb_index: int, ld_id: int):
         self._vppb_index = vppb_index
         self._pci_bridge_component[ld_id].set_port_number(self._vppb_index)
+        logger.info(self._create_message(f"Reassigning LD-ID {ld_id} to vPPB{self._vppb_index}"))
 
     def get_device_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.DSP

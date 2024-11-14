@@ -209,10 +209,10 @@ class PpbDevice(RunnableComponent):
         self._routing_tasks = AsyncGatherer()
 
         self._downstream_connection = CxlConnection()
-        self._upstream_connections = {}
+        self._upstream_connections: dict[int, CxlConnection] = {}
 
         self._up_routing = PpbUpRouting(self._downstream_connection, self._upstream_connections)
-        self._down_routings = {}
+        self._down_routings: dict[int, PpbDownRouting] = {}
 
     def _get_label(self) -> str:
         return f"PPB{self._port_index}"
@@ -221,7 +221,7 @@ class PpbDevice(RunnableComponent):
         message = f"[{self.__class__.__name__}:{self._get_label()}] {message}"
         return message
 
-    def get_upstream_connection(self) -> CxlConnection:
+    def get_upstream_connection(self):
         return self._upstream_connections
 
     def get_downstream_connection(self) -> CxlConnection:
