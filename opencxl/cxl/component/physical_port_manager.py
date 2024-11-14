@@ -13,7 +13,11 @@ from opencxl.cxl.device.port_device import CxlPortDevice
 from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
 from opencxl.cxl.device.pci_to_pci_bridge_device import PpbDevice
 from opencxl.cxl.device.downstream_port_device import DownstreamPortDevice
-from opencxl.cxl.device.config.logical_device import LogicalDeviceConfig
+from opencxl.cxl.device.config.logical_device import (
+    LogicalDeviceConfig,
+    MultiLogicalDeviceConfig,
+    SingleLogicalDeviceConfig,
+)
 from opencxl.cxl.component.bind_processor import PpbDspBindProcessor
 from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencxl.cxl.component.cxl_component import (
@@ -114,14 +118,24 @@ class PhysicalPortManager(RunnableComponent):
             switch_config = device_configs_by_port_id[port_index]
             switch_port = switch_ports[port_index]
             if switch_port.connected:
+                if isinstance(switch_config, SingleLogicalDeviceConfig):
+                    serial_number = switch_config.serial_number
+                    total_capacity = switch_config.memory_size
+                elif isinstance(switch_config, MultiLogicalDeviceConfig):
+                    # Use the first serial number for now
+                    serial_number = switch_config.serial_numbers[0]
+                    total_capacity = sum(switch_config.memory_sizes)
+                else:
+                    raise Exception(f"Invalid device config type: {type(switch_config)}")
+
                 device_info = MemoryDeviceInfo(
                     vendor_id=switch_config.vendor_id,
                     device_id=switch_config.device_id,
                     subsystem_vendor_id=switch_config.subsystem_vendor_id,
                     subsystem_id=switch_config.subsystem_id,
-                    serial_number=switch_config.serial_number,
+                    serial_number=serial_number,
                     bound_port_id=port_index,
-                    total_capacity=switch_config.memory_size,
+                    total_capacity=total_capacity,
                 )
                 connected_devices.append(device_info)
         return connected_devices
