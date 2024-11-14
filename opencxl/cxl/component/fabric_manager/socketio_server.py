@@ -247,11 +247,14 @@ class FabricManagerSocketIoServer(RunnableComponent):
             return CommandResponse(error=return_code.name)
 
     async def _bind_vppb(self, data) -> CommandResponse:
+        ld_id = data.get("ldId")
+        if ld_id is None:
+            ld_id = 0  # SLD
         request = BindVppbRequestPayload(
             vcs_id=data["virtualCxlSwitchId"],
             vppb_id=data["vppbId"],
             physical_port_id=data["physicalPortId"],
-            ld_id=data["ldId"],
+            ld_id=ld_id,
         )
         (return_code, response) = await self._mctp_client.bind_vppb(request)
         if response is not None:
