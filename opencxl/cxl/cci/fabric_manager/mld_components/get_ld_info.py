@@ -7,7 +7,7 @@
 
 from dataclasses import dataclass, field
 from struct import pack, unpack
-from typing import ClassVar
+from typing import ClassVar, TypedDict
 from opencxl.cxl.component.cci_executor import (
     CciBackgroundCommand,
     CciForegroundCommand,
@@ -18,6 +18,12 @@ from opencxl.cxl.component.cci_executor import (
 
 from opencxl.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE, CCI_RETURN_CODE
 from opencxl.util.logger import logger
+
+
+class GetLdInfoResponsePayloadDict(TypedDict):
+    memorySize: int
+    ldCount: int
+    qosTelemetryCapability: int
 
 
 @dataclass
@@ -49,6 +55,13 @@ class GetLdInfoResponsePayload:
             f"- LD Count: {self.ld_count}\n"
             f"- QoS Telemetry Capability: {self.qos_telemetry_capability}\n"
         )
+
+    def to_dict(self) -> GetLdInfoResponsePayloadDict:
+        return {
+            "memorySize": self.memory_size,
+            "ldCount": self.ld_count,
+            "qosTelemetryCapability": self.qos_telemetry_capability,
+        }
 
 
 class GetLdInfoCommand(CciForegroundCommand):

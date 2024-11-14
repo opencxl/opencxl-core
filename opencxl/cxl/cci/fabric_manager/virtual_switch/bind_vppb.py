@@ -83,26 +83,26 @@ class BindVppbCommand(CciBackgroundCommand):
 
         vcs_count = self._virtual_switch_manager.get_virtual_switch_counts()
         if vcs_id >= vcs_count:
-            logger.debug(self._create_message("VCS ID is out of bound"))
+            logger.error(self._create_message("VCS ID is out of bound"))
             return CciResponse(return_code=CCI_RETURN_CODE.INVALID_INPUT)
 
         port_count = self._physical_port_manager.get_port_counts()
         if port_id >= port_count:
-            logger.debug(self._create_message("Physical Port ID is out of bound"))
+            logger.error(self._create_message("Physical Port ID is out of bound"))
             return CciResponse(return_code=CCI_RETURN_CODE.INVALID_INPUT)
 
         port_device = self._physical_port_manager.get_port_device(port_id)
         if port_device.get_device_type() != CXL_COMPONENT_TYPE.DSP:
-            logger.debug(self._create_message("Only DSP port can bind to vPPB"))
+            logger.error(self._create_message("Only DSP port can bind to vPPB"))
             return CciResponse(return_code=CCI_RETURN_CODE.INVALID_INPUT)
 
         vcs = self._virtual_switch_manager.get_virtual_switch(vcs_id)
         if vppb_id >= vcs.get_vppb_counts():
-            logger.debug(self._create_message("vPPB ID is out of bound"))
+            logger.error(self._create_message("vPPB ID is out of bound"))
             return CciResponse(return_code=CCI_RETURN_CODE.INVALID_INPUT)
 
         if vcs.is_vppb_bound(vppb_id):
-            logger.debug(self._create_message(f"vPPB {vppb_id} is already bound"))
+            logger.error(self._create_message(f"vPPB {vppb_id} is already bound"))
             return CciResponse(return_code=CCI_RETURN_CODE.INVALID_INPUT)
 
         await callback(50)
