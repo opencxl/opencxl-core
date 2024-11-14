@@ -14,6 +14,7 @@ import logging
 from importlib import import_module
 from opencxl.util.logger import logger
 from opencxl.bin import fabric_manager
+from opencxl.bin import get_info
 from opencxl.bin import cxl_switch
 from opencxl.bin import single_logical_device as sld
 from opencxl.bin import multi_logical_device as mld
@@ -262,6 +263,7 @@ def foo():
 
 cli.add_command(cxl_host.host_group)
 cli.add_command(fabric_manager.fabric_manager_group)
+cli.add_command(get_info.get_info_group)
 cli.add_command(mem.mem_group)
 
 if __name__ == "__main__":

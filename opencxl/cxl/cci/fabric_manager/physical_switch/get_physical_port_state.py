@@ -21,6 +21,12 @@ from enum import IntEnum
 from pprint import pformat
 from yaml import dump
 
+from opencxl.cxl.device.config.logical_device import (
+    LogicalDeviceConfig,
+    MultiLogicalDeviceConfig,
+    SingleLogicalDeviceConfig,
+)
+
 
 class CURRENT_PORT_CONFIGURATION_STATE(IntEnum):
     DISABLED = 0x0
@@ -223,9 +229,14 @@ class GetPhysicalPortStateResponsePayload:
 
 
 class GetPhysicalPortStateCommand(CciForegroundCommand):
-    def __init__(self, switch_connection_manager: SwitchConnectionManager):
+    def __init__(
+        self,
+        switch_connection_manager: SwitchConnectionManager,
+        device_configs: List[LogicalDeviceConfig],
+    ):
         super().__init__(CCI_FM_API_COMMAND_OPCODE.GET_PHYSICAL_PORT_STATE)
         self._switch_connection_manager = switch_connection_manager
+        self._device_configs = device_configs
 
     async def _execute(self, request: CciRequest) -> CciResponse:
         request_payload = self.parse_request_payload(request.payload)
@@ -242,9 +253,14 @@ class GetPhysicalPortStateCommand(CciForegroundCommand):
                 port_info.connected_device_type = CONNECTED_DEVICE_TYPE.NO_DEVICE_DETECTED
             elif switch_port.port_config.type == PORT_TYPE.DSP:
                 port_info.current_port_configuration_state = CURRENT_PORT_CONFIGURATION_STATE.DSP
-                # TODO: Support other CXL Devices
                 if switch_port.connected:
-                    port_info.connected_device_type = CONNECTED_DEVICE_TYPE.CXL_TYPE_3_SLD
+                    # First item is always USP
+                    if isinstance(
+                        self._device_configs[port_info.port_id - 1], MultiLogicalDeviceConfig
+                    ):
+                        port_info.connected_device_type = CONNECTED_DEVICE_TYPE.CXL_TYPE_3_MLD
+                    else:
+                        port_info.connected_device_type = CONNECTED_DEVICE_TYPE.CXL_TYPE_3_SLD
                 else:
                     port_info.connected_device_type = CONNECTED_DEVICE_TYPE.NO_DEVICE_DETECTED
             else:

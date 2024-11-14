@@ -75,6 +75,30 @@ def disconnect():
     print("Disconnected from server")
 
 
+async def get_port():
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "port:get",
+    )
+    await sio.disconnect()
+
+
+async def get_vcs():
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "vcs:get",
+    )
+    await sio.disconnect()
+
+
+async def get_device():
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "device:get",
+    )
+    await sio.disconnect()
+
+
 # Bind & unbind
 async def bind(vcs: int, vppb: int, physical_port: int, ld_id: int = 0):
     await sio.connect("http://0.0.0.0:8200")
