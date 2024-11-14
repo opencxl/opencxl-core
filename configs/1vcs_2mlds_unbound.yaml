@@ -1,0 +1,22 @@
+port_configs:
+  - type: USP
+  - type: DSP
+  - type: DSP
+virtual_switch_configs:
+  - upstream_port_index: 0
+    vppb_counts: 6
+    initial_bounds: [-1,-1,-1,-1,-1,-1]
+devices:
+  multi_logical_devices:
+    - port_index: 1
+      serial_number: 3FB95963144632BF
+      logical_devices:
+      - memory_size: 256M
+      - memory_size: 256M
+      - memory_size: 256M
+      - memory_size: 256M
+    - port_index: 2
+      serial_number: 8A440DABC4DBEAFB
+      logical_devices:
+      - memory_size: 512M
+      - memory_size: 512M
