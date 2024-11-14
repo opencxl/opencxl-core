@@ -159,9 +159,8 @@ class DownstreamPortDevice(CxlPortDevice):
         print(f"len: {len(self._cxl_io_manager)}")
         return self._cxl_io_manager[ld_id].get_cfg_reg_vals()
 
-    def set_vppb_index(self, vppb_index: int, ld_id: int):
+    def set_vppb_index(self, vppb_index: int):
         self._vppb_index = vppb_index
-        self._pci_bridge_component[ld_id].set_port_number(self._vppb_index)
 
     def get_device_type(self) -> CXL_COMPONENT_TYPE:
         return CXL_COMPONENT_TYPE.DSP
@@ -197,6 +196,8 @@ class DownstreamPortDevice(CxlPortDevice):
             downstream_fifo=self._vppb_downstream_connection[ld_id].cxl_cache_fifo,
             label=self._get_label(),
         )
+
+        self._pci_bridge_component[ld_id].set_port_number(self._vppb_index)
 
         wait_tasks = []
 
