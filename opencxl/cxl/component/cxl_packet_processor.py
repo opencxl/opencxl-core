@@ -299,9 +299,15 @@ class CxlPacketProcessor(RunnableComponent):
                     cxl_cache_packet = cast(CxlCacheBasePacket, packet)
                     await self._incoming.cxl_cache.put(cxl_cache_packet)
                 elif packet.is_cci():
+                    if self._component_type == CXL_COMPONENT_TYPE.D2:
+                        logger.error(
+                            self._create_message("Got CCI packet on wrong device type - SLD")
+                        )
+                        raise Exception("Got CCI packet on wrong device type - SLD")
                     if self._component_type == CXL_COMPONENT_TYPE.LD:
                         if self._fmld.upstream_fifo is None:
-                            raise Exception(self._create_message("Got CCI packet on no CCI FIFO"))
+                            logger.error(self._create_message("Got CCI packet on no CCI FIFO"))
+                            raise Exception("Got CCI packet on no CCI FIFO")
                         cci_packet = cast(CciRequestPacket, packet)
                         await self._fmld.upstream_fifo.host_to_target.put(cci_packet)
                     elif self._component_type == CXL_COMPONENT_TYPE.DSP:
