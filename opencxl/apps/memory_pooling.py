@@ -77,12 +77,6 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     # Max addr for CFG is 0x9FFFFFFF, given max num bus = 8
     # Therefore, 0xFE000000 for MMIO does not overlap
 
-    # pylint: disable=global-statement
-    host_fm_conn_client = ShortMsgConn(
-        "FM_Client", port=8700, server=False, msg_width=16, msg_type=HostFMMsg, device_id=root_port
-    )
-    global host_fm_conn  # To prevent the connection from GC'ed after function's done
-    host_fm_conn = host_fm_conn_client
     pci_cfg_base_addr = 0x10000000
     pci_mmio_base_addr = 0xFE000000
     cxl_hpa_base_addr = 0x100000000000
@@ -92,6 +86,12 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     mem_tracker = CxlDeviceMemTracker(cxl_memory_hub)
     root_complex = cxl_memory_hub.get_root_complex()
     root_port = cxl_memory_hub.get_root_port()
+    host_fm_conn_client = ShortMsgConn(
+        "FM_Client", port=8700, server=False, msg_width=16, msg_type=HostFMMsg, device_id=root_port
+    )
+    # pylint: disable=global-statement
+    global host_fm_conn  # To prevent the connection from GC'ed after function's done
+    host_fm_conn = host_fm_conn_client
     pci_bus_driver = PciBusDriver(root_complex)
     mmio_base = await pci_bus_driver.init(pci_mmio_base_addr)
 
