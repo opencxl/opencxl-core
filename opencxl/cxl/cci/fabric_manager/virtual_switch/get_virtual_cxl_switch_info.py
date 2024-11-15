@@ -254,7 +254,10 @@ class GetVirtualCxlSwitchInfoCommand(CciForegroundCommand):
                     if binding_status == PPB_BINDING_STATUS.BOUND_LD
                     else 0
                 )
-                bound_ld_id = vcs.get_ld_id(vppb_id)
+                if binding_status == PPB_BINDING_STATUS.BOUND_LD:
+                    bound_ld_id = vcs.get_ld_id(vppb_id)
+                else:
+                    bound_ld_id = 0
                 ppb_info = PpbInfo(vppb_id, binding_status, bound_port_id, bound_ld_id)
                 ppb_info_list.append(ppb_info)
             vcs_info = VcsInfoBlock(vcs_id, vcs_state, usp_id, num_of_vppbs, ppb_info_list)
