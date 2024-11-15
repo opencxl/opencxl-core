@@ -183,12 +183,14 @@ class FabricManagerSocketIoServer(RunnableComponent):
         elif opcode == CCI_VENDOR_SPECIFIC_OPCODE.NOTIFY_DEVICE_UPDATE:
             await self._send_update_devices_notification()
         else:
-            logger.debug(self._create_message(f"Unexpected Packet {opcode_str}"))
+            logger.error(self._create_message(f"Unexpected Packet {opcode_str}"))
 
     async def _handle_event(self, event_type, _, data=None):
         async with self._event_lock:
             # Determine the event type and call the appropriate method
-            logger.debug(self._create_message(f"Received SocketIO Request: {event_type}"))
+            logger.info(
+                self._create_message(f"Received SocketIO Request: {event_type}, payload: {data}")
+            )
             if event_type == "port:get":
                 response = await self._get_physical_ports()
             elif event_type == "vcs:get":
@@ -205,7 +207,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 response = await self._get_ld_allocation(data)
             elif event_type == "mld:setAllocation":
                 response = await self._set_ld_allocation(data)
-            # logger.debug(self._create_message(f"Response: {pformat(response)}"))
+            logger.info(self._create_message(f"Response: {pformat(response)}"))
             logger.debug(self._create_message(f"Completed SocketIO Request"))
             return response
 
