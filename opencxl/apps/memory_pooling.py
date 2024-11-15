@@ -70,6 +70,9 @@ class MemoryBaseTracker:
     mmio_base: int
 
 
+host_fm_conn = None
+
+
 async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     # Max addr for CFG is 0x9FFFFFFF, given max num bus = 8
     # Therefore, 0xFE000000 for MMIO does not overlap
@@ -82,6 +85,12 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     mem_tracker = CxlDeviceMemTracker(cxl_memory_hub)
     root_complex = cxl_memory_hub.get_root_complex()
     root_port = cxl_memory_hub.get_root_port()
+    host_fm_conn_client = ShortMsgConn(
+        "FM_Client", port=8700, server=False, msg_width=16, msg_type=HostFMMsg, device_id=root_port
+    )
+    # pylint: disable=global-statement
+    global host_fm_conn  # To prevent the connection from GC'ed after function's done
+    host_fm_conn = host_fm_conn_client
     pci_bus_driver = PciBusDriver(root_complex)
     mmio_base = await pci_bus_driver.init(pci_mmio_base_addr)
 
@@ -148,9 +157,6 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
             f"size: 0x{range.size:X}, type: {str(range.addr_type)}"
         )
 
-    host_fm_conn_client = ShortMsgConn(
-        "FM_Client", port=8700, server=False, msg_width=16, msg_type=HostFMMsg, device_id=root_port
-    )
     logger.debug(f"[SYS-SW] Creating connection for host with root port {root_port}")
 
     await host_fm_conn_client.start_connection()
@@ -236,8 +242,6 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     host_fm_conn_client.register_general_handler(HostFMMsg.BIND, bind())
     host_fm_conn_client.register_general_handler(HostFMMsg.UNBIND, unbind())
 
-    while host_fm_conn_client.num_connections() > 0:
-        await asyncio.sleep(0.1)
     # TODO: Sort and merge ranges
 
 
