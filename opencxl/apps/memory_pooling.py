@@ -70,6 +70,9 @@ class MemoryBaseTracker:
     mmio_base: int
 
 
+host_fm_conn = None
+
+
 async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     # Max addr for CFG is 0x9FFFFFFF, given max num bus = 8
     # Therefore, 0xFE000000 for MMIO does not overlap
