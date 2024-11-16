@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
  Copyright (c) 2024, Eeum, Inc.
 
@@ -7,6 +9,7 @@
 
 import asyncio
 from dataclasses import dataclass
+import sys
 
 from opencxl.cxl.component.fabric_manager.socketio_server import HostFMMsg
 from opencxl.cxl.component.short_msg_conn import ShortMsgConn
@@ -268,4 +271,4 @@ async def run_host(port_index: int, irq_port: int):
 
 
 if __name__ == "__main__":
-    asyncio.run(run_host(port_index=0, irq_port=8500))
+    asyncio.run(run_host(port_index=int(sys.argv[1]), irq_port=int(sys.argv[2])))
