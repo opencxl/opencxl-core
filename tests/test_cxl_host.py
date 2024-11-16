@@ -301,8 +301,12 @@ async def test_cxl_host_type3_ete():
             irq_port=BASE_TEST_PORT + pytest.PORT.TEST_1 + 60,
         )
     ]
+    allocated_ld = {}
+    allocated_ld[1] = [0]
     virtual_switch_manager = VirtualSwitchManager(
-        switch_configs=switch_configs, physical_port_manager=physical_port_manager
+        switch_configs=switch_configs,
+        physical_port_manager=physical_port_manager,
+        allocated_ld=allocated_ld,
     )
     sld = SingleLogicalDevice(
         port_index=1,

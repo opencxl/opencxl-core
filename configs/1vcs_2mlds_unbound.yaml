@@ -12,11 +12,17 @@ devices:
       serial_number: 3FB95963144632BF
       logical_devices:
       - memory_size: 256M
+        ld_id: 0
       - memory_size: 256M
+        ld_id: 1
       - memory_size: 256M
+        ld_id: 2
       - memory_size: 256M
+        ld_id: 3
     - port_index: 2
       serial_number: 8A440DABC4DBEAFB
       logical_devices:
       - memory_size: 512M
+        ld_id: 0
       - memory_size: 512M
+        ld_id: 1

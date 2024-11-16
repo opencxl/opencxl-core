@@ -31,6 +31,7 @@ class VirtualSwitchManager(RunnableComponent):
         self,
         switch_configs: List[VirtualSwitchConfig],
         physical_port_manager: PhysicalPortManager,
+        allocated_ld,
         bi_enable_override_for_test: Optional[int] = None,
         bi_forward_override_for_test: Optional[int] = None,
     ):
@@ -48,6 +49,7 @@ class VirtualSwitchManager(RunnableComponent):
                 physical_ports=physical_port_manager.get_port_devices(),
                 irq_host=switch_config.irq_host,
                 irq_port=switch_config.irq_port,
+                allocated_ld=allocated_ld,
             )
             self._virtual_switches.append(virtual_switch)
 
