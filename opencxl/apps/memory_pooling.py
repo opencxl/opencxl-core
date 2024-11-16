@@ -271,6 +271,4 @@ async def run_host(port_index: int, irq_port: int):
 
 
 if __name__ == "__main__":
-    port_idex = int(sys.argv[1])
-    irq_port = int(sys.argv[2])
-    asyncio.run(run_host(port_index=port_idex, irq_port=irq_port))
+    asyncio.run(run_host(port_index=int(sys.argv[1]), irq_port=int(sys.argv[2])))
