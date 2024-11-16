@@ -203,9 +203,14 @@ class MmioRouter(CxlRouter):
     async def update_router(self, vppb_index: int):
         await self.stop_for_update(vppb_index)
         self._downstream_connections = self._port_binder.get_bind_slots()
-        self._downstream_connection_fifos[vppb_index] = (
-            self._downstream_connections[vppb_index].vppb.get_upstream_connection().mmio_fifo
-        )
+        vppb_upstream_connection = self._downstream_connections[
+            vppb_index
+        ].vppb.get_upstream_connection()
+        if vppb_upstream_connection is None:
+            logger.debug(self._create_message("vppb_upstream_connection is None"))
+            return
+
+        self._downstream_connection_fifos[vppb_index] = vppb_upstream_connection.mmio_fifo
 
         if self._is_running:
             self._routing_tasks.add_task(
@@ -270,9 +275,15 @@ class ConfigSpaceRouter(CxlRouter):
 
             logger.debug(self._create_message(f"Target port is {target_port}"))
 
-            downstream_connection_fifo = (
-                self._downstream_connections[target_port].vppb.get_upstream_connection().cfg_fifo
-            )
+            vppb_upstream_connection = self._downstream_connections[
+                target_port
+            ].vppb.get_upstream_connection()
+            if vppb_upstream_connection is None:
+                logger.warning(self._create_message("vppb_upstream_connection is None"))
+                await self._send_unsupported_request(req_id, tag)
+                continue
+
+            downstream_connection_fifo = vppb_upstream_connection.cfg_fifo
             await downstream_connection_fifo.host_to_target.put(packet)
 
     async def _process_target_to_host_packets(self, downstream_connection_bind_slot: BindSlot):
@@ -292,9 +303,14 @@ class ConfigSpaceRouter(CxlRouter):
     async def update_router(self, vppb_index: int):
         await self.stop_for_update(vppb_index)
         self._downstream_connections = self._port_binder.get_bind_slots()
-        self._downstream_connection_fifos[vppb_index] = (
-            self._downstream_connections[vppb_index].vppb.get_upstream_connection().cfg_fifo
-        )
+        vppb_upstream_connection = self._downstream_connections[
+            vppb_index
+        ].vppb.get_upstream_connection()
+        if vppb_upstream_connection is None:
+            logger.debug(self._create_message("vppb_upstream_connection is None"))
+            return
+
+        self._downstream_connection_fifos[vppb_index] = vppb_upstream_connection.cfg_fifo
 
         if self._is_running:
             self._routing_tasks.add_task(
@@ -421,9 +437,14 @@ class CxlMemRouter(CxlRouter):
     async def update_router(self, vppb_index: int):
         await self.stop_for_update(vppb_index)
         self._downstream_connections = self._port_binder.get_bind_slots()
-        self._downstream_connection_fifos[vppb_index] = (
-            self._downstream_connections[vppb_index].vppb.get_upstream_connection().cxl_mem_fifo
-        )
+        vppb_upstream_connection = self._downstream_connections[
+            vppb_index
+        ].vppb.get_upstream_connection()
+        if vppb_upstream_connection is None:
+            logger.debug(self._create_message("vppb_upstream_connection is None"))
+            return
+
+        self._downstream_connection_fifos[vppb_index] = vppb_upstream_connection.cxl_mem_fifo
 
         if self._is_running:
             self._routing_tasks.add_task(
@@ -537,9 +558,14 @@ class CxlCacheRouter(CxlRouter):
     async def update_router(self, vppb_index: int):
         await self.stop_for_update(vppb_index)
         self._downstream_connections = self._port_binder.get_bind_slots()
-        self._downstream_connection_fifos[vppb_index] = (
-            self._downstream_connections[vppb_index].vppb.get_upstream_connection().cxl_cache_fifo
-        )
+        vppb_upstream_connection = self._downstream_connections[
+            vppb_index
+        ].vppb.get_upstream_connection()
+        if vppb_upstream_connection is None:
+            logger.debug(self._create_message("vppb_upstream_connection is None"))
+            return
+
+        self._downstream_connection_fifos[vppb_index] = vppb_upstream_connection.cxl_cache_fifo
 
         if self._is_running:
             self._routing_tasks.add_task(

@@ -78,8 +78,9 @@ class Vppb:
         self._pci_registers = None
         self._cxl_component = None
         self._ld_id = 0
-        self._upstream_connection = CxlConnection()
-        self._downstream_connection = CxlConnection()
+        # TODO: Other source code may not be able to handle None
+        self._upstream_connection = None
+        self._downstream_connection = None
         logger.info(f"VPPB unbinded from physical port, type: {physical_port.get_device_type()}")
 
     @abstractmethod

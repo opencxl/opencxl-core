@@ -219,6 +219,9 @@ class ConfigSpaceManager(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
+        logger.info(self._create_message("Stopping ConfigSpaceManager"))
         if self._is_bridge():
             await self._downstream_fifo.target_to_host.put(None)
+            self._downstream_fifo = None
         await self._upstream_fifo.host_to_target.put(None)
+        self._upstream_fifo = None
