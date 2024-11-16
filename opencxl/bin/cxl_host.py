@@ -7,8 +7,6 @@
 
 import asyncio
 import click
-import os
-
 from opencxl.util.logger import logger
 from opencxl.cxl.environment import parse_cxl_environment
 from opencxl.cxl.component.cxl_component import PORT_TYPE
@@ -42,20 +40,18 @@ def start(port: int = 0, hm_mode: bool = False):
 
 async def run_host_group(ports):
     irq_port = 8500
-    app_file = "./opencxl/apps/memory_pooling.py"
+    tasks = []
     for idx in ports:
-        args = (str(idx), str(irq_port))
-        logger.info(f"{ports} {args}")
-        if chld := os.fork() == 0:
-            # child process
-            try:
-                if os.execvp(app_file, (app_file, *args)) == -1:
-                    logger.info("EXECVE FAIL!!!")
-            except PermissionError as exc:
-                raise RuntimeError(f'Failed to invoke "{app_file}" with args {args}') from exc
-            except FileNotFoundError as exc:
-                raise RuntimeError(f'Couldn\'t find "{app_file}"') from exc
+        tasks.append(
+            asyncio.create_task(
+                run_host(
+                    port_index=idx,
+                    irq_port=irq_port,
+                )
+            )
+        )
         irq_port += 1
+    await asyncio.gather(*tasks)
 
 
 def start_group(config_file: str, hm_mode: bool = True):
