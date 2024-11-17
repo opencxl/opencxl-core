@@ -78,6 +78,7 @@ def create_cxl_topology(bind: bool = False, memory_size: int = 0x100000) -> Tupl
     cxl_devices = []
     ppb_devices = []
     ppb_bind_processors = []
+    allocated_ld = {}
     for port_index in range(1, vppb_counts + 1):
         connection = CxlConnection()
         dsp = DownstreamPortDevice(transport_connection=connection, port_index=port_index)
@@ -95,6 +96,7 @@ def create_cxl_topology(bind: bool = False, memory_size: int = 0x100000) -> Tupl
             dev_type=CXL_T3_DEV_TYPE.SLD,
         )
         cxl_devices.append(sld)
+        allocated_ld[port_index] = [0]
 
     physical_ports: List[CxlPortDevice] = [usp_device] + dsp_devices
     vcs = CxlVirtualSwitch(
@@ -103,6 +105,7 @@ def create_cxl_topology(bind: bool = False, memory_size: int = 0x100000) -> Tupl
         vppb_counts=vppb_counts,
         initial_bounds=initial_bounds,
         physical_ports=physical_ports,
+        allocated_ld=allocated_ld,
     )
     return (
         vcs,
@@ -145,6 +148,9 @@ def test_virtual_switch_manager_init():
         DownstreamPortDevice(transport_connection=CxlConnection(), port_index=2),
         DownstreamPortDevice(transport_connection=CxlConnection(), port_index=3),
     ]
+    allocated_ld = {}
+    for index in range(vppb_counts):
+        allocated_ld[index + 1] = [0]
 
     with pytest.raises(Exception, match="physical port 1 is not USP"):
         CxlVirtualSwitch(
@@ -153,6 +159,7 @@ def test_virtual_switch_manager_init():
             vppb_counts=vppb_counts,
             initial_bounds=initial_bounds,
             physical_ports=physical_ports,
+            allocated_ld=allocated_ld,
         )
     with pytest.raises(Exception, match="length of initial_bounds and vppb_count must be the same"):
         CxlVirtualSwitch(
@@ -161,6 +168,7 @@ def test_virtual_switch_manager_init():
             vppb_counts=4,
             initial_bounds=initial_bounds,
             physical_ports=physical_ports,
+            allocated_ld=allocated_ld,
         )
 
     with pytest.raises(Exception, match="Upstream Port Index is out of bound"):
@@ -170,6 +178,7 @@ def test_virtual_switch_manager_init():
             vppb_counts=vppb_counts,
             initial_bounds=initial_bounds,
             physical_ports=physical_ports,
+            allocated_ld=allocated_ld,
         )
 
 
@@ -187,6 +196,9 @@ async def test_virtual_switch_manager_run_and_stop():
         DownstreamPortDevice(transport_connection=CxlConnection(), port_index=2),
         DownstreamPortDevice(transport_connection=CxlConnection(), port_index=3),
     ]
+    allocated_ld = {}
+    for index in range(vppb_counts):
+        allocated_ld[index] = [0]
 
     # Add PPB relation
     ppb_devices = []
@@ -217,6 +229,7 @@ async def test_virtual_switch_manager_run_and_stop():
         initial_bounds=initial_bounds,
         physical_ports=physical_ports,
         irq_port=8500 + pytest.PORT.TEST_1,
+        allocated_ld=allocated_ld,
     )
 
     async def start_components():
@@ -254,7 +267,7 @@ async def test_virtual_switch_manager_run_and_stop():
             await vcs.bind_vppb(port_index=4, vppb_index=1, ld_id=0)
         with pytest.raises(Exception, match="physical port 0 is not DSP"):
             await vcs.bind_vppb(port_index=0, vppb_index=1, ld_id=0)
-        with pytest.raises(Exception, match="vppb_index is out of bound"):
+        with pytest.raises(Exception, match="vPPB 4 is not bound to any physical port"):
             await vcs.unbind_vppb(vppb_index=4)
         await stop_components()
 

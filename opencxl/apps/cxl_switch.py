@@ -55,7 +55,10 @@ from opencxl.cxl.cci.vendor_specfic import (
     GetConnectedDevicesCommand,
 )
 from opencxl.util.component import RunnableComponent
-from opencxl.cxl.device.config.logical_device import LogicalDeviceConfig
+from opencxl.cxl.device.config.logical_device import (
+    LogicalDeviceConfig,
+    MultiLogicalDeviceConfig,
+)
 
 
 @dataclass
@@ -82,6 +85,17 @@ class CxlSwitch(RunnableComponent):
         super().__init__()
         # Passed to GetPhysicalPortStateCommand so that port:get can retrieve SLD/MLD info
         # TODO: Remove it when FM initializes all SLD/MLD in runtime
+
+        # FM set-allocate-ld command's pseudo function
+        allocated_ld = {}
+        for device in device_configs:
+            port_index = device.port_index
+            if isinstance(device, MultiLogicalDeviceConfig):
+                for ld in device.ld_list:
+                    allocated_ld.setdefault(port_index, []).append(ld)
+            else:
+                allocated_ld[port_index] = [0]
+
         self._device_configs = device_configs
         self._switch_connection_manager = SwitchConnectionManager(
             switch_config.port_configs, switch_config.host, switch_config.port
@@ -92,6 +106,7 @@ class CxlSwitch(RunnableComponent):
         self._virtual_switch_manager = VirtualSwitchManager(
             switch_config.virtual_switch_configs,
             self._physical_port_manager,
+            allocated_ld,
         )
         self._mctp_connection_client = MctpConnectionClient(
             switch_config.mctp_host, switch_config.mctp_port

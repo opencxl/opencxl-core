@@ -30,6 +30,7 @@ class SingleLogicalDeviceConfig(LogicalDeviceConfig):
 @dataclass(kw_only=True)
 class MultiLogicalDeviceConfig(LogicalDeviceConfig):
     memory_sizes: List[int]  # in bytes
+    ld_list: List[int]
     memory_files: List[str]
     serial_numbers: List[str]
     ld_count: int
