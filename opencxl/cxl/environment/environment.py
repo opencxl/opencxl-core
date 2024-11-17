@@ -133,6 +133,15 @@ def parse_multi_logical_device_configs(
         except humanfriendly.InvalidSize as exc:
             raise ValueError("Invalid 'memory_size' value") from exc
 
+        ld_list = []
+        try:
+            for item in device.get("logical_devices", []):
+                ld_list.append(item["ld_id"])
+        except KeyError as exc:
+            raise ValueError("Missing 'ld_id' for 'logical_devices' entry.") from exc
+        except humanfriendly.InvalidSize as exc:
+            raise ValueError("Invalid 'ld_id' value") from exc
+
         # Get memory files (if not provided, default to "mld_mem{port_index}_{index}.bin")
         memory_files = []
         try:
@@ -158,6 +167,7 @@ def parse_multi_logical_device_configs(
         multi_logical_device_configs.append(
             MultiLogicalDeviceConfig(
                 port_index=port_index,
+                ld_list=ld_list,
                 serial_numbers=serial_numbers,
                 ld_count=len(memory_sizes),
                 memory_sizes=memory_sizes,

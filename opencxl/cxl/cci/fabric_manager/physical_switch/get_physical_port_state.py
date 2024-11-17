@@ -242,6 +242,7 @@ class GetPhysicalPortStateCommand(CciForegroundCommand):
         request_payload = self.parse_request_payload(request.payload)
         switch_ports = self._switch_connection_manager.get_switch_ports()
         port_info_list = []
+        usp_count = 0
         for port_id in request_payload.port_id_list:
             if port_id >= len(switch_ports):
                 return CciResponse(return_code=CCI_RETURN_CODE.INVALID_INPUT)
@@ -251,12 +252,14 @@ class GetPhysicalPortStateCommand(CciForegroundCommand):
             if switch_port.port_config.type == PORT_TYPE.USP:
                 port_info.current_port_configuration_state = CURRENT_PORT_CONFIGURATION_STATE.USP
                 port_info.connected_device_type = CONNECTED_DEVICE_TYPE.NO_DEVICE_DETECTED
+                usp_count += 1
             elif switch_port.port_config.type == PORT_TYPE.DSP:
                 port_info.current_port_configuration_state = CURRENT_PORT_CONFIGURATION_STATE.DSP
                 if switch_port.connected:
                     # First item is always USP
                     if isinstance(
-                        self._device_configs[port_info.port_id - 1], MultiLogicalDeviceConfig
+                        self._device_configs[port_info.port_id - usp_count],
+                        MultiLogicalDeviceConfig,
                     ):
                         port_info.connected_device_type = CONNECTED_DEVICE_TYPE.CXL_TYPE_3_MLD
                     else:

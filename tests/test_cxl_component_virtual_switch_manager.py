@@ -39,17 +39,24 @@ def test_virtual_switch_manager_init():
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=switch_connection_manager, port_configs=port_configs
     )
+    vppb_counts = 3
+    initial_bounds = [1, 2, 3]
     switch_configs = [
         VirtualSwitchConfig(
             upstream_port_index=0,
-            vppb_counts=3,
-            initial_bounds=[1, 2, 3],
+            vppb_counts=vppb_counts,
+            initial_bounds=initial_bounds,
             irq_host="127.0.0.1",
             irq_port=BASE_TEST_PORT + pytest.PORT.TEST_1 + 61,
         )
     ]
+    allocated_ld = {}
+    for index in range(vppb_counts):
+        allocated_ld[index + 1] = [index]
     virtual_switch_manager = VirtualSwitchManager(
-        switch_configs=switch_configs, physical_port_manager=physical_port_manager
+        switch_configs=switch_configs,
+        physical_port_manager=physical_port_manager,
+        allocated_ld=allocated_ld,
     )
     for switch_index in range(len(switch_configs)):
         virtual_switch = virtual_switch_manager.get_virtual_switch(switch_index)
@@ -73,17 +80,24 @@ async def test_virtual_switch_manager_run_and_stop():
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=switch_connection_manager, port_configs=port_configs
     )
+    vppb_counts = 3
+    initial_bounds = [1, 2, 3]
     switch_configs = [
         VirtualSwitchConfig(
             upstream_port_index=0,
-            vppb_counts=3,
-            initial_bounds=[1, 2, 3],
+            vppb_counts=vppb_counts,
+            initial_bounds=initial_bounds,
             irq_host="127.0.0.1",
             irq_port=BASE_TEST_PORT + pytest.PORT.TEST_1 + 62,
         )
     ]
+    allocated_ld = {}
+    for index in range(vppb_counts):
+        allocated_ld[index + 1] = [0]
     virtual_switch_manager = VirtualSwitchManager(
-        switch_configs=switch_configs, physical_port_manager=physical_port_manager
+        switch_configs=switch_configs,
+        physical_port_manager=physical_port_manager,
+        allocated_ld=allocated_ld,
     )
 
     async def wait_and_stop():

@@ -55,6 +55,7 @@ class CxlVirtualSwitch(RunnableComponent):
         vppb_counts: int,
         initial_bounds: List[int],
         physical_ports: List[CxlPortDevice],
+        allocated_ld,
         bi_enable_override_for_test: Optional[int] = None,
         bi_forward_override_for_test: Optional[int] = None,
         irq_host: str = "0.0.0.0",
@@ -75,6 +76,7 @@ class CxlVirtualSwitch(RunnableComponent):
         self._cxl_mem_router = None
         self._cxl_cache_router = None
         self._vppb_ld_id_map = {}
+        self._allocated_ld = allocated_ld
 
         self._irq_manager = IrqManager(
             device_name=self._label,
@@ -127,38 +129,25 @@ class CxlVirtualSwitch(RunnableComponent):
             self._id, self._routing_table, self._upstream_vppb, self._port_binder
         )
 
-    # TODO: Pseudo FM, replace with real FM
-    def pseudo_fm_get_ld_id(self, port_index: int, vppb_index: int) -> int:
-        port_dict = self._pseudo_fm_dict.get(port_index)
-        if port_dict is None:
-            port_dict = self._pseudo_fm_dict[port_index] = {}
-
-        port_ld_id = port_dict.get("ld_id")
-        if port_ld_id is None:
-            port_ld_id = port_dict["ld_id"] = 0
-
-        vppb_ld_id = port_dict.get(vppb_index)
-        if vppb_ld_id is None:
-            vppb_ld_id = port_dict[vppb_index] = port_ld_id
-            port_dict["ld_id"] = port_ld_id + 1
-
-        self._vppb_ld_id_map[vppb_index] = vppb_ld_id
-
-        return vppb_ld_id
-
     def _create_message(self, message: str):
         message = f"[{self.__class__.__name__} {self._id}] {message}"
         return message
 
     async def _bind_initial_vppb(self):
         for vppb_index, port_index in enumerate(self._initial_bounds):
-            if port_index == -1:
-                await self.unbind_vppb(vppb_index)
+            _port_index = -1
+            _ld_id = 0
+            if isinstance(port_index, List):
+                if len(port_index) == 2:
+                    _ld_id = port_index[1]
+                _port_index = port_index[0]
             else:
-                # TODO: Pseudo FM for now, the FM will return proper LD ID
-                # provided by the MLD device
-                ld_id = self.pseudo_fm_get_ld_id(port_index, vppb_index)
-                await self.bind_vppb(port_index, vppb_index, ld_id)
+                _port_index = port_index
+            if _port_index == -1:
+                # RoutingTable starts with 1, set to 0 here
+                self._routing_table.deactivate_vppb(vppb_index)
+            else:
+                await self.bind_vppb(_port_index, vppb_index, _ld_id)
 
     async def _run(self):
         await self._bind_initial_vppb()
@@ -194,6 +183,12 @@ class CxlVirtualSwitch(RunnableComponent):
     async def bind_vppb(self, port_index: int, vppb_index: int, ld_id: int):
         if port_index < 0 or port_index >= len(self._physical_ports):
             raise Exception("port_index is out of bound")
+
+        if ld_id not in self._allocated_ld[port_index]:
+            logger.error(
+                self._create_message(f"ld_id: {ld_id} in port: {port_index} is out of bound")
+            )
+            raise Exception("ld_id is out of bound")
 
         self._routing_table.activate_vppb(vppb_index)
         port_device = self._physical_ports[port_index]
@@ -239,10 +234,6 @@ class CxlVirtualSwitch(RunnableComponent):
 
     async def unbind_vppb(self, vppb_index: int):
         logger.info(self._create_message(f"Started unbinding physical port from vPPB {vppb_index}"))
-        await self._call_event_handler(vppb_index, PPB_BINDING_STATUS.BIND_OR_UNBIND_IN_PROGRESS)
-        await self._port_binder.unbind_vppb(vppb_index)
-
-        await self._call_event_handler(vppb_index, PPB_BINDING_STATUS.UNBOUND)
         if self._physical_ports_vppb_map.get(vppb_index, None) is not None:
             ld_id = self._downstream_vppbs[vppb_index].get_ld_id()
             await self._downstream_vppbs[vppb_index].unbind_from_physical_port(
@@ -250,6 +241,17 @@ class CxlVirtualSwitch(RunnableComponent):
             )
             await self._physical_ports_vppb_map[vppb_index].get_ppb_device().unbind(ld_id)
             del self._physical_ports_vppb_map[vppb_index]
+        else:
+            logger.error(
+                self._create_message(f"vPPB {vppb_index} is not bound to any physical port")
+            )
+            raise Exception(f"vPPB {vppb_index} is not bound to any physical port")
+
+        await self._call_event_handler(vppb_index, PPB_BINDING_STATUS.BIND_OR_UNBIND_IN_PROGRESS)
+        await self._port_binder.unbind_vppb(vppb_index)
+
+        await self._call_event_handler(vppb_index, PPB_BINDING_STATUS.UNBOUND)
+
         self._downstream_vppbs[vppb_index].set_ld_id(0)
         self._routing_table.deactivate_vppb(vppb_index)
         if vppb_index in self._vppb_ld_id_map:
