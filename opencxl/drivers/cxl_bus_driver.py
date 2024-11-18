@@ -442,7 +442,8 @@ class CxlBusDriver(LabeledComponent):
         # Map parent
         for device in self._devices:
             if device.pci_device_info.parent:
-                device.parent = bdf_map[device.pci_device_info.parent.bdf]
+                if device.pci_device_info.parent.bdf in bdf_map:
+                    device.parent = bdf_map[device.pci_device_info.parent.bdf]
         # Map children
         for device in self._devices:
             if device.parent:

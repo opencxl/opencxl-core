@@ -60,6 +60,7 @@ class MmioManager(PacketProcessor):
         self._prefetchable_memory_base = 0
         self._prefetchable_memory_limit = 0
         self._bar_entries: List[BarEntry] = []
+        self._req_id = 0
 
     # NOTE: Setting memory ranges is only used for bridge devices
 
@@ -144,6 +145,8 @@ class MmioManager(PacketProcessor):
             )
         else:
             packet = CxlIoCompletionPacket.create(req_id, tag, ld_id=ld_id)
+
+        packet.cpl_header.req_id = self._req_id
         await self._upstream_fifo.target_to_host.put(packet)
 
     async def _forward_request(self, packet: CxlIoBasePacket):
@@ -230,7 +233,7 @@ class MmioManager(PacketProcessor):
                 cxl_io_packet.is_mem_read() or cxl_io_packet.is_mem_write()
             ):
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
-
+            self._req_id = packet.mreq_header.req_id
             logger.debug(self._create_message("Received host to target packet"))
             await self._process_mmio_packet(cast(CxlIoMemReqPacket, packet))
 
