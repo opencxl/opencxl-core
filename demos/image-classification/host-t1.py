@@ -172,7 +172,7 @@ async def do_img_classification_type1():
                             and pic_data_len_rb == pic_data_len
                         ):
                             break
-                        await asyncio.sleep(0.1)
+                        await asyncio.sleep(0.001)
 
                     await host_irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
                     await event.wait()
@@ -263,7 +263,7 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
 
             if csv_data_mem_loc_rb == CSV_DATA_MEM_OFFSET and csv_data_len_rb == csv_data_len:
                 break
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.001)
 
         host_irq_handler.register_interrupt_handler(
             Irq.ACCEL_TRAINING_FINISHED, check_training_finished_type1, dev_id

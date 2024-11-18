@@ -155,7 +155,7 @@ async def do_img_classification_type2():
                     pic_data_len_rb = await cpu.load(to_accel_mmio_addr(dev_id, 0x1818), 8)
                     if pic_data_mem_loc_rb == IMAGE_WRITE_ADDR and pic_data_len_rb == pic_data_len:
                         break
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(0.001)
 
                 host_irq_handler.register_interrupt_handler(
                     Irq.ACCEL_VALIDATION_FINISHED,
@@ -250,7 +250,7 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
             csv_data_len_rb = await mem_hub.read_mmio(to_accel_mmio_addr(dev_id, 0x1808), 8)
             if csv_data_mem_loc_rb == CSV_DATA_MEM_OFFSET and csv_data_len_rb == csv_data_len:
                 break
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.001)
 
         host_irq_handler.register_interrupt_handler(
             Irq.ACCEL_TRAINING_FINISHED, check_training_finished_type2, dev_id

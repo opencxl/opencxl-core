@@ -203,7 +203,7 @@ class ShortMsgConn(RunnableComponent):
                 server = await self._create_server()
                 self._server_task = create_task(server.serve_forever())
                 while not server.is_serving():
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(0.001)
                 self._tasks.append(self._server_task)
             else:
                 pass
