@@ -152,6 +152,7 @@ class MmioRouter(CxlRouter):
             packet = await self._upstream_connection_fifo.host_to_target.get()
             if packet is None:
                 break
+            packet.mreq_header.req_id = self._vcs_id
             logger.debug(self._create_message("Received an incoming request"))
             base_packet = cast(BasePacket, packet)
             cxl_io_base_packet = cast(CxlIoBasePacket, packet)
@@ -175,10 +176,18 @@ class MmioRouter(CxlRouter):
             if target_port >= len(self._downstream_connections):
                 raise Exception("target_port is out of bound")
 
-            downstream_connection_fifo = (
-                self._downstream_connections[target_port].vppb.get_upstream_connection().mmio_fifo
-            )
-            await downstream_connection_fifo.host_to_target.put(packet)
+            vppb_downstream_connection = self._downstream_connections[
+                target_port
+            ].vppb.get_upstream_connection()
+            if vppb_downstream_connection is None:
+                logger.error(
+                    self._create_message(
+                        f"vppb_downstream_connection for port {target_port} is None"
+                    )
+                )
+                continue
+
+            await vppb_downstream_connection.mmio_fifo.host_to_target.put(packet)
 
     async def _process_target_to_host_packets(self, downstream_connection_bind_slot: BindSlot):
         downstream_connection_fifo = (
@@ -188,6 +197,7 @@ class MmioRouter(CxlRouter):
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
+            packet.cpl_header.req_id = 0
             await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def _send_completion(self, req_id, tag, data: int = None, data_len: int = 0):
@@ -198,6 +208,7 @@ class MmioRouter(CxlRouter):
             packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_len=data_len)
         else:
             packet = CxlIoCompletionPacket.create(req_id, tag)
+        packet.cpl_header.req_id = 0
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def update_router(self, vppb_index: int):
@@ -242,7 +253,7 @@ class ConfigSpaceRouter(CxlRouter):
             packet = await self._upstream_connection_fifo.host_to_target.get()
             if packet is None:
                 break
-
+            packet.cfg_req_header.req_id = self._vcs_id
             logger.debug(self._create_message("Received an incoming request"))
             base_packet = cast(BasePacket, packet)
             if not base_packet.is_cxl_io():
@@ -279,7 +290,7 @@ class ConfigSpaceRouter(CxlRouter):
                 target_port
             ].vppb.get_upstream_connection()
             if vppb_upstream_connection is None:
-                logger.warning(self._create_message("vppb_upstream_connection is None"))
+                logger.debug(self._create_message("vppb_upstream_connection is None"))
                 await self._send_unsupported_request(req_id, tag)
                 continue
 
@@ -294,10 +305,12 @@ class ConfigSpaceRouter(CxlRouter):
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
+            packet.cpl_header.req_id = 0
             await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def _send_unsupported_request(self, req_id, tag):
         packet = CxlIoCompletionPacket.create(req_id, tag, CXL_IO_CPL_STATUS.UR)
+        packet.cpl_header.req_id = 0
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def update_router(self, vppb_index: int):
