@@ -341,7 +341,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
 
         # Here you could add a condition to run indefinitely or until a stop signal is received
         while not self._stop_signal:
-            await asyncio.sleep(1)  # Run forever or until a stop signal is set
+            await asyncio.sleep(0.1)  # Run forever or until a stop signal is set
 
     async def _stop(self):
         self._stop_signal = True

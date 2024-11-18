@@ -323,7 +323,7 @@ class MyType1Accelerator(RunnableComponent):
 
             if json_addr_rb == RESULTS_HPA and json_size_rb == bytes_size:
                 break
-            await sleep(0.2)
+            await sleep(0.001)
 
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
@@ -686,7 +686,7 @@ class MyType2Accelerator(RunnableComponent):
 
             if json_addr_rb == RESULTS_OFFSET and json_size_rb == bytes_size:
                 break
-            await sleep(0.1)
+            await sleep(0.001)
         logger.debug(f"Sending irq ACCEL_VALIDATION_FINISHED from dev {self._device_id}")
         # Done with eval
         await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)

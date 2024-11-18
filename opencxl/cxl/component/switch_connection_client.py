@@ -122,7 +122,7 @@ class SwitchConnectionClient(RunnableComponent):
                             self._create_message(f"Awaiting CXL-Switch Ready... {elapsed}s")
                         )
                         print_time = loop.time() + 5
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(0.1)
         else:
             (reader, writer) = await self._connect()
 

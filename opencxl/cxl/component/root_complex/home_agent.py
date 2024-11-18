@@ -222,7 +222,7 @@ class HomeAgent(RunnableComponent):
         if s2mndr_packet.s2mndr_header.meta_value == CXL_MEM_META_VALUE.ANY:
             # HDM-DB: DRS immediately following NDR as part of one response
             while self._cxl_channel["s2m_drs"].empty():
-                await asyncio.sleep(0)  # just spin
+                await asyncio.sleep(0.001)
             cxl_packet = await self._cxl_channel["s2m_drs"].get()
             assert cast(CxlMemBasePacket, cxl_packet).is_s2mdrs()
             cache_packet = CacheResponse(status, cxl_packet.data)
@@ -385,7 +385,7 @@ class HomeAgent(RunnableComponent):
         _fc_host_run = False
 
         while not _stop_process:
-            await sleep(0.1)
+            await sleep(0.001)
             # flow control for host/device packets
             # link state machine and function to the current request
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_INIT:

@@ -186,7 +186,7 @@ class HostManagerConnClient(RunnableComponent):
                 break
             except OSError as _:
                 logger.error(self._create_message("HostManager not ready. Reconnecting..."))
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.001)
 
         # keep the connection alive and receive / process messages from CxlHostManager
         try:

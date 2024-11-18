@@ -230,7 +230,7 @@ class HostTrainIoGen(RunnableComponent):
                                     and pic_data_len_rb == pic_data_len
                                 ):
                                     break
-                                await asyncio.sleep(0.2)
+                                await asyncio.sleep(0.001)
                             await self._irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
                             await event.wait()
                         pic_data_mem_loc += pic_data_len
@@ -328,7 +328,7 @@ class HostTrainIoGen(RunnableComponent):
                                 and pic_data_len_rb == pic_data_len
                             ):
                                 break
-                            await asyncio.sleep(0.2)
+                            await asyncio.sleep(0.001)
                         self._irq_handler.register_interrupt_handler(
                             Irq.ACCEL_VALIDATION_FINISHED,
                             self._save_validation_result_type2(pic_id, event),
@@ -387,7 +387,7 @@ class HostTrainIoGen(RunnableComponent):
 
                     if csv_data_mem_loc_rb == csv_data_mem_loc and csv_data_len_rb == csv_data_len:
                         break
-                    await asyncio.sleep(0.2)
+                    await asyncio.sleep(0.001)
                 self._irq_handler.register_interrupt_handler(
                     Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type1, dev_id
                 )
@@ -407,7 +407,7 @@ class HostTrainIoGen(RunnableComponent):
 
                     if csv_data_mem_loc_rb == write_addr and csv_data_len_rb == csv_data_len:
                         break
-                    await asyncio.sleep(0.2)
+                    await asyncio.sleep(0.001)
                 self._irq_handler.register_interrupt_handler(
                     Irq.ACCEL_TRAINING_FINISHED, self._host_check_start_validation_type2, dev_id
                 )

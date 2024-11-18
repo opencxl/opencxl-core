@@ -44,7 +44,7 @@ class SimpleJsonClient:
                 self._ws = await websockets.connect(self._uri)
                 return
             except OSError as _:
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.001)
 
     async def close(self):
         await self._ws.close()
@@ -105,7 +105,7 @@ class DummyHost:
                 self._event.set()
                 break
             except OSError as _:
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.001)
         try:
             while True:
                 cmd = await self._ws.recv()
