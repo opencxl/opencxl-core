@@ -152,6 +152,7 @@ class MmioRouter(CxlRouter):
             packet = await self._upstream_connection_fifo.host_to_target.get()
             if packet is None:
                 break
+            packet.mreq_header.req_id = self._vcs_id
             logger.debug(self._create_message("Received an incoming request"))
             base_packet = cast(BasePacket, packet)
             cxl_io_base_packet = cast(CxlIoBasePacket, packet)
@@ -196,6 +197,7 @@ class MmioRouter(CxlRouter):
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
+            packet.cpl_header.req_id = 0
             await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def _send_completion(self, req_id, tag, data: int = None, data_len: int = 0):
@@ -206,6 +208,7 @@ class MmioRouter(CxlRouter):
             packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_len=data_len)
         else:
             packet = CxlIoCompletionPacket.create(req_id, tag)
+        packet.cpl_header.req_id = 0
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def update_router(self, vppb_index: int):
@@ -250,7 +253,7 @@ class ConfigSpaceRouter(CxlRouter):
             packet = await self._upstream_connection_fifo.host_to_target.get()
             if packet is None:
                 break
-
+            packet.cfg_req_header.req_id = self._vcs_id
             logger.debug(self._create_message("Received an incoming request"))
             base_packet = cast(BasePacket, packet)
             if not base_packet.is_cxl_io():
@@ -302,10 +305,12 @@ class ConfigSpaceRouter(CxlRouter):
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
+            packet.cpl_header.req_id = 0
             await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def _send_unsupported_request(self, req_id, tag):
         packet = CxlIoCompletionPacket.create(req_id, tag, CXL_IO_CPL_STATUS.UR)
+        packet.cpl_header.req_id = 0
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def update_router(self, vppb_index: int):

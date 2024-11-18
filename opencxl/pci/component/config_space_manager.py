@@ -49,6 +49,7 @@ class ConfigSpaceManager(RunnableComponent):
         self._downstream_fifo = downstream_fifo
         self._device_type = device_type
         self._register = None
+        self._req_id = 0
 
     def set_register(self, register: BitMaskedBitStructure):
         self._register = register
@@ -62,6 +63,7 @@ class ConfigSpaceManager(RunnableComponent):
 
     async def _send_unsupported_request(self, req_id, tag, ld_id):
         packet = CxlIoCompletionPacket.create(req_id, tag, status=CXL_IO_CPL_STATUS.UR, ld_id=ld_id)
+        packet.cpl_header.req_id = self._req_id
         await self._upstream_fifo.target_to_host.put(packet)
 
     def _is_bridge(self) -> bool:
@@ -111,6 +113,7 @@ class ConfigSpaceManager(RunnableComponent):
         value = self._register.read_bytes(cfg_addr, cfg_addr + size - 1)
 
         completion_packet = CxlIoCompletionWithDataPacket.create(req_id, tag, value, ld_id=ld_id)
+        completion_packet.cpl_header.req_id = self._req_id
         await self._upstream_fifo.target_to_host.put(completion_packet)
 
     async def _process_cxl_io_cfg_wr(self, cfg_wr_packet: CxlIoCfgWrPacket):
@@ -146,6 +149,7 @@ class ConfigSpaceManager(RunnableComponent):
         self._register.write_bytes(cfg_addr, cfg_addr + size - 1, value)
 
         completion_packet = CxlIoCompletionPacket.create(req_id, tag, ld_id=ld_id)
+        completion_packet.cpl_header.req_id = self._req_id
         await self._upstream_fifo.target_to_host.put(completion_packet)
 
     async def _process_host_to_target(self):
@@ -157,6 +161,7 @@ class ConfigSpaceManager(RunnableComponent):
                 logger.debug(self._create_message("Stop processing host to target fifo"))
                 break
             base_packet = cast(CxlIoBasePacket, packet)
+            self._req_id = base_packet.cfg_req_header.req_id
             logger.debug(self._create_message("Received host to target packet"))
             if base_packet.is_cfg_type0():
                 if base_packet.is_cfg_read():
