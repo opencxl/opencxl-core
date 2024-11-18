@@ -176,14 +176,6 @@ class PciBusDriver(LabeledComponent):
         self._current_enum_bdfs = []
         (_, memory_end) = await self._scan_pci_devices(mmio_base_address)
         await self._init_pci_devices()
-        filtered_devices = []
-        new_bdfs = []
-        for device in self._devices:
-            if device.bdf in self._current_enum_bdfs:
-                filtered_devices.append(device)
-                new_bdfs.append(device.bdf)
-        self._existing_bdfs = new_bdfs
-        self._devices = sorted(filtered_devices, key=lambda x: x.bdf)
         self.display_devices()
         return memory_end
 
@@ -521,9 +513,24 @@ class PciBusDriver(LabeledComponent):
             sn_str = f"{sn_int:016x}"
             pci_device_info.serial_number = sn_str
 
+    async def scan_bus_unbind(self):
+        remaining_devices = []
+        for device in self._devices:
+            bdf = device.bdf
+            vid_did = await self._read_vid_did(bdf)
+            if vid_did is not None:
+                remaining_devices.append(device)
+
+        self._devices = remaining_devices
+
+    async def scan_bus_bind(self, memory_start: int):
+        (_, mmio_base) = await self._scan_bus(self._root_complex.get_root_bus(), memory_start)
+        return mmio_base
+
     async def _scan_bus(
         self, bus: int, memory_start: int, parent_device_info: Optional[PciDeviceInfo] = None
     ) -> Tuple[int, int]:
+        existing_bdfs = [device.bdf for device in self._devices]
         logger.debug(self._create_message(f"Scanning PCI Bus {bus}"))
         bdf_list = generate_bdfs_for_bus(bus)
         multi_function_devices = set()
@@ -548,38 +555,40 @@ class PciBusDriver(LabeledComponent):
             vendor_id = 0xFFFF & vid_did
             device_id = (vid_did >> 4) & 0xFFFF
             is_bridge = (class_code >> 8) == BRIDGE_CLASS
-            pci_device_info = PciDeviceInfo(
-                bdf=bdf,
-                vendor_id=vendor_id,
-                device_id=device_id,
-                class_code=class_code,
-                is_bridge=is_bridge,
-            )
-            if parent_device_info:
-                parent_device_info.children.append(pci_device_info)
-                pci_device_info.parent = parent_device_info
+            if bdf not in existing_bdfs:
+                pci_device_info = PciDeviceInfo(
+                    bdf,
+                    vendor_id,
+                    device_id,
+                    class_code,
+                    is_bridge,
+                )
+                if parent_device_info:
+                    parent_device_info.children.append(pci_device_info)
+                    pci_device_info.parent = parent_device_info
 
-            for _ in range(NUM_BARS_BRIDGE if is_bridge else NUM_BARS_ENDPOINT):
-                pci_device_info.bars.append(PciBarInfo())
+                for _ in range(NUM_BARS_BRIDGE if is_bridge else NUM_BARS_ENDPOINT):
+                    pci_device_info.bars.append(PciBarInfo())
 
-            self._current_enum_bdfs.append(bdf)
-            if bdf in self._existing_bdfs:
-                (bus, memory_end) = await self._scan_bus(bus + 1, memory_start, pci_device_info)
-                continue
+                self._devices.append(pci_device_info)
 
-            self._devices.append(pci_device_info)
+                # Scan PCI capabilities
+                await self._scan_pci_capabilities(bdf, pci_device_info)
+                await self._scan_sn(pci_device_info)
 
-            # Scan PCI capabilities
-            await self._scan_pci_capabilities(bdf, pci_device_info)
-            await self._scan_sn(pci_device_info)
-
-            # Set memory base and memory limit
-            size = await self._check_bar_size_and_set(bdf, memory_start, pci_device_info)
-            # NOTE: assume size is less than 0x100000
-            if size > 0:
-                memory_start += 0x100000
+                # Set memory base and memory limit
+                size = await self._check_bar_size_and_set(bdf, memory_start, pci_device_info)
+                # NOTE: assume size is less than 0x100000
+                if size > 0:
+                    memory_start += 0x100000
+                else:
+                    logger.debug(
+                        self._create_message(f"BAR0 size of {bdf_to_string(bdf)} is {size}")
+                    )
             else:
-                logger.debug(self._create_message(f"BAR0 size of {bdf_to_string(bdf)} is {size}"))
+                for device in self._devices:
+                    if device.bdf == bdf:
+                        pci_device_info = device
 
             if is_bridge:
                 logger.debug(

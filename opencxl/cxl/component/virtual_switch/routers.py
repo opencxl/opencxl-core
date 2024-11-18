@@ -175,10 +175,18 @@ class MmioRouter(CxlRouter):
             if target_port >= len(self._downstream_connections):
                 raise Exception("target_port is out of bound")
 
-            downstream_connection_fifo = (
-                self._downstream_connections[target_port].vppb.get_upstream_connection().mmio_fifo
-            )
-            await downstream_connection_fifo.host_to_target.put(packet)
+            vppb_downstream_connection = self._downstream_connections[
+                target_port
+            ].vppb.get_upstream_connection()
+            if vppb_downstream_connection is None:
+                logger.error(
+                    self._create_message(
+                        f"vppb_downstream_connection for port {target_port} is None"
+                    )
+                )
+                continue
+
+            await vppb_downstream_connection.mmio_fifo.host_to_target.put(packet)
 
     async def _process_target_to_host_packets(self, downstream_connection_bind_slot: BindSlot):
         downstream_connection_fifo = (
@@ -279,7 +287,7 @@ class ConfigSpaceRouter(CxlRouter):
                 target_port
             ].vppb.get_upstream_connection()
             if vppb_upstream_connection is None:
-                logger.warning(self._create_message("vppb_upstream_connection is None"))
+                logger.debug(self._create_message("vppb_upstream_connection is None"))
                 await self._send_unsupported_request(req_id, tag)
                 continue
 
