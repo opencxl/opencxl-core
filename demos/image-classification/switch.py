@@ -61,13 +61,16 @@ async def main():
             irq_port=8500,
         )
     ]
+    allocated_ld = {}
+    for index in range(dev_count):
+        allocated_ld[index + 1] = [0]
 
     sw_conn_manager = SwitchConnectionManager(port_configs, host="localhost", port=portno)
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=sw_conn_manager, port_configs=port_configs
     )
     virtual_switch_manager = VirtualSwitchManager(
-        switch_configs=switch_configs, physical_port_manager=physical_port_manager
+        switch_configs=switch_configs, physical_port_manager=physical_port_manager, allocated_ld=allocated_ld
     )
 
     start_tasks = [
