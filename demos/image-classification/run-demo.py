@@ -3,7 +3,7 @@ from signal import *
 import os
 
 
-from opencxl.util.logger import logger
+from opencis.util.logger import logger
 
 
 def clean_shutdown(signum=None, frame=None):

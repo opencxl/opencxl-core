@@ -5,16 +5,16 @@
  See LICENSE for details.
 """
 
-from opencxl.pci.config_space.pcie.doe import (
+from opencis.pci.config_space.pcie.doe import (
     DoeExtendedCapability,
     DoeStatus,
     DOE_REGISTER_OFFSET,
 )
-from opencxl.pci.component.doe_mailbox import (
+from opencis.pci.component.doe_mailbox import (
     DoeDiscoveryRequest,
     DoeDiscoveryResponse,
 )
-from opencxl.util.number_const import DWORD_BYTES
+from opencis.util.number_const import DWORD_BYTES
 
 
 def read_doe_status(doe: DoeExtendedCapability) -> DoeStatus:

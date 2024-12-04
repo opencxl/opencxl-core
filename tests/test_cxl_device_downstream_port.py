@@ -8,11 +8,11 @@
 from asyncio import gather, create_task
 import pytest
 
-from opencxl.cxl.device.downstream_port_device import (
+from opencis.cxl.device.downstream_port_device import (
     DownstreamPortDevice,
     CXL_COMPONENT_TYPE,
 )
-from opencxl.cxl.component.cxl_connection import CxlConnection
+from opencis.cxl.component.cxl_connection import CxlConnection
 
 
 def test_downstream_port_device():

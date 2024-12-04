@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from opencxl.pci.config_space.pcie.msi import (
+from opencis.pci.config_space.pcie.msi import (
     MsiCapability,
     MsiCapabilityHeader,
     MsiCapabilityOptions,

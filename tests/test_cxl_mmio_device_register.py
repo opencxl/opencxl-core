@@ -7,35 +7,35 @@
 
 from unittest.mock import MagicMock
 
-from opencxl.cxl.mmio.device_register.mailbox_register import (
+from opencis.cxl.mmio.device_register.mailbox_register import (
     MailboxRegister,
     MailboxRegisterOptions,
     MIN_PAYLOAD_SIZE,
 )
-from opencxl.cxl.mmio.device_register.device_capabilities import (
+from opencis.cxl.mmio.device_register.device_capabilities import (
     CxlDeviceCapabilityRegister,
     CxlDeviceCapabilityRegisterOptions,
     CXL_DEVICE_CAPABILITY_TYPE,
 )
-from opencxl.cxl.mmio.device_register.device_status_register import (
+from opencis.cxl.mmio.device_register.device_status_register import (
     DeviceStatusRegisters,
     DeviceStatusRegistersOptions,
     EventStatus,
 )
-from opencxl.cxl.mmio.device_register.memory_device_capabilities import (
+from opencis.cxl.mmio.device_register.memory_device_capabilities import (
     MemoryDeviceStatusRegisters,
     MemoryDeviceStatusRegistersOptions,
     MemoryDeviceStatus,
     MEDIA_STATUS,
     RESET_REQUEST,
 )
-from opencxl.cxl.mmio.device_register import CxlDeviceRegisterOptions
-from opencxl.cxl.features.mailbox import (
+from opencis.cxl.mmio.device_register import CxlDeviceRegisterOptions
+from opencis.cxl.features.mailbox import (
     MailboxCapabilities,
     MailboxStatus,
     MailboxBackgroundCommandStatus,
 )
-from opencxl.cxl.component.cxl_memory_device_component import (
+from opencis.cxl.component.cxl_memory_device_component import (
     CxlMemoryDeviceComponent,
     MemoryDeviceIdentity,
 )

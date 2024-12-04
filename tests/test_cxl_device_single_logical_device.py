@@ -8,10 +8,10 @@
 from asyncio import gather, create_task
 import pytest
 
-from opencxl.apps.single_logical_device import SingleLogicalDevice
-from opencxl.cxl.device.root_port_device import CxlRootPortDevice
-from opencxl.cxl.component.cxl_connection import CxlConnection
-from opencxl.util.number_const import MB
+from opencis.apps.single_logical_device import SingleLogicalDevice
+from opencis.cxl.device.root_port_device import CxlRootPortDevice
+from opencis.cxl.component.cxl_connection import CxlConnection
+from opencis.util.number_const import MB
 
 # This test will cause many duplicate code between MH-SLD, disable duplicate-code lint here
 # pylint: disable=duplicate-code

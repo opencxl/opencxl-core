@@ -9,31 +9,31 @@ from asyncio import create_task, gather
 from typing import List, Tuple, cast
 import pytest
 
-from opencxl.util.logger import logger
-from opencxl.cxl.component.bind_processor import PpbDspBindProcessor
-from opencxl.cxl.component.cxl_connection import CxlConnection
-from opencxl.cxl.device.pci_to_pci_bridge_device import PpbDevice
-from opencxl.cxl.device.port_device import CxlPortDevice
-from opencxl.cxl.device.upstream_port_device import UpstreamPortDevice
-from opencxl.cxl.device.downstream_port_device import DownstreamPortDevice
-from opencxl.cxl.device.root_port_device import (
+from opencis.util.logger import logger
+from opencis.cxl.component.bind_processor import PpbDspBindProcessor
+from opencis.cxl.component.cxl_connection import CxlConnection
+from opencis.cxl.device.pci_to_pci_bridge_device import PpbDevice
+from opencis.cxl.device.port_device import CxlPortDevice
+from opencis.cxl.device.upstream_port_device import UpstreamPortDevice
+from opencis.cxl.device.downstream_port_device import DownstreamPortDevice
+from opencis.cxl.device.root_port_device import (
     CxlRootPortDevice,
     MmioEnumerationInfo,
     EnumerationInfo,
 )
-from opencxl.cxl.device.cxl_type3_device import CxlType3Device, CXL_T3_DEV_TYPE
-from opencxl.cxl.component.virtual_switch_manager import (
+from opencis.cxl.device.cxl_type3_device import CxlType3Device, CXL_T3_DEV_TYPE
+from opencis.cxl.component.virtual_switch_manager import (
     CxlVirtualSwitch,
 )
-from opencxl.util.unaligned_bit_structure import UnalignedBitStructure
-from opencxl.cxl.transport.transaction import (
+from opencis.util.unaligned_bit_structure import UnalignedBitStructure
+from opencis.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
     BasePacket,
     CxlIoBasePacket,
     CxlIoCompletionWithDataPacket,
     is_cxl_io_completion_status_ur,
 )
-from opencxl.util.pci import (
+from opencis.util.pci import (
     create_bdf,
     bdf_to_string,
 )

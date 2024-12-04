@@ -7,20 +7,20 @@
 
 from unittest.mock import MagicMock, patch
 
-from opencxl.cxl.mmio.component_register.memcache_register.capability import (
+from opencis.cxl.mmio.component_register.memcache_register.capability import (
     CxlCapabilityHeaderStructure,
     CxlCapabilityHeaderStructureOptions,
 )
-from opencxl.cxl.mmio.component_register.memcache_register.hdm_decoder_capability import (
+from opencis.cxl.mmio.component_register.memcache_register.hdm_decoder_capability import (
     CxlHdmDecoderCapabilityStructure,
     CxlHdmDecoderCapabilityStructureOptions,
 )
-from opencxl.cxl.mmio.component_register.memcache_register import (
+from opencis.cxl.mmio.component_register.memcache_register import (
     CxlCacheMemRegister,
     CxlCacheMemRegisterOptions,
     CXL_CACHE_MEM_REGISTER_SIZE,
 )
-from opencxl.cxl.component.bi_decoder import (
+from opencis.cxl.component.bi_decoder import (
     CxlBIDecoderCapabilityStructureOptions,
     CxlBIDecoderCapabilityRegisterOptions,
     CxlBIDecoderControlRegisterOptions,
@@ -33,8 +33,8 @@ from opencxl.cxl.component.bi_decoder import (
     CxlBIRTCapabilityStructure,
     CxlBITimeoutScale,
 )
-from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
-from opencxl.cxl.component.hdm_decoder import (
+from opencis.cxl.component.common import CXL_COMPONENT_TYPE
+from opencis.cxl.component.hdm_decoder import (
     HdmDecoderCapabilities,
     DecoderInfo,
     CXL_DEVICE_TYPE,
@@ -142,7 +142,7 @@ def test_hdm_decoder_capability_enable_decoder():
 
 
 def test_hdm_decoder_capability_commit():
-    class_path = "opencxl.cxl.component.hdm_decoder.DeviceHdmDecoderManager"
+    class_path = "opencis.cxl.component.hdm_decoder.DeviceHdmDecoderManager"
     with patch(f"{class_path}.commit", return_value=True) as commit_mock:
         with patch(f"{class_path}.get_device_type", return_value=CXL_DEVICE_TYPE) as _:
             hdm_decoder_manager = DeviceHdmDecoderManager(

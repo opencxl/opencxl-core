@@ -11,17 +11,17 @@ import logging
 from typing import List, cast
 import pytest
 
-from opencxl.apps.multi_logical_device import MultiLogicalDevice
-from opencxl.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
-from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
-from opencxl.cxl.component.cxl_packet_processor import CxlPacketProcessor
-from opencxl.cxl.component.packet_reader import PacketReader
-from opencxl.cxl.component.cxl_connection import CxlConnection
-from opencxl.pci.component.pci import EEUM_VID, SW_MLD_DID
-from opencxl.util.number_const import MB
-from opencxl.util.logger import logger
-from opencxl.util.pci import create_bdf
-from opencxl.cxl.transport.transaction import (
+from opencis.apps.multi_logical_device import MultiLogicalDevice
+from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
+from opencis.cxl.component.common import CXL_COMPONENT_TYPE
+from opencis.cxl.component.cxl_packet_processor import CxlPacketProcessor
+from opencis.cxl.component.packet_reader import PacketReader
+from opencis.cxl.component.cxl_connection import CxlConnection
+from opencis.pci.component.pci import EEUM_VID, SW_MLD_DID
+from opencis.util.number_const import MB
+from opencis.util.logger import logger
+from opencis.util.pci import create_bdf
+from opencis.cxl.transport.transaction import (
     CxlIoCfgRdPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,

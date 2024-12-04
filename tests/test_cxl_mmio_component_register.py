@@ -5,11 +5,11 @@
  See LICENSE for details.
 """
 
-from opencxl.cxl.mmio.component_register import (
+from opencis.cxl.mmio.component_register import (
     CxlComponentRegister,
     CxlComponentRegisterOptions,
 )
-from opencxl.cxl.component.cxl_memory_device_component import (
+from opencis.cxl.component.cxl_memory_device_component import (
     CxlMemoryDeviceComponent,
     MemoryDeviceIdentity,
 )
