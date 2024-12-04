@@ -13,34 +13,34 @@
 # import pytest
 # from PIL import Image
 
-# from opencxl.apps.cxl_host import CxlHost, CxlHostConfig
-# from opencxl.apps.cxl_image_classification_host import (
+# from opencis.apps.cxl_host import CxlHost, CxlHostConfig
+# from opencis.apps.cxl_image_classification_host import (
 #     CxlImageClassificationHost,
 #     CxlImageClassificationHostConfig,
 # )
-# from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
-# from opencxl.cxl.component.root_complex.home_agent import MEM_ADDR_TYPE, MemoryRange
-# from opencxl.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
-# from opencxl.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
-# from opencxl.cxl.component.root_complex.root_port_switch import (
+# from opencis.cxl.component.common import CXL_COMPONENT_TYPE
+# from opencis.cxl.component.root_complex.home_agent import MEM_ADDR_TYPE, MemoryRange
+# from opencis.cxl.component.root_complex.root_complex import RootComplexMemoryControllerConfig
+# from opencis.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
+# from opencis.cxl.component.root_complex.root_port_switch import (
 #     COH_POLICY_TYPE,
 #     ROOT_PORT_SWITCH_TYPE,
 # )
-# from opencxl.apps.cxl_simple_host import CxlHostManager
-# from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
-# from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
-# from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
-# from opencxl.cxl.component.virtual_switch_manager import (
+# from opencis.apps.cxl_simple_host import CxlHostManager
+# from opencis.cxl.component.switch_connection_manager import SwitchConnectionManager
+# from opencis.cxl.component.cxl_component import PortConfig, PORT_TYPE
+# from opencis.cxl.component.physical_port_manager import PhysicalPortManager
+# from opencis.cxl.component.virtual_switch_manager import (
 #     VirtualSwitchManager,
 #     VirtualSwitchConfig,
 # )
-# from opencxl.apps.accelerator import MyType1Accelerator, MyType2Accelerator
-# from opencxl.drivers.cxl_mem_driver import CxlMemDriver
-# from opencxl.util.component import RunnableComponent
-# from opencxl.util.number_const import MB
-# from opencxl.util.logger import logger
-# from opencxl.drivers.cxl_bus_driver import CxlBusDriver
-# from opencxl.drivers.pci_bus_driver import PciBusDriver
+# from opencis.apps.accelerator import MyType1Accelerator, MyType2Accelerator
+# from opencis.drivers.cxl_mem_driver import CxlMemDriver
+# from opencis.util.component import RunnableComponent
+# from opencis.util.number_const import MB
+# from opencis.util.logger import logger
+# from opencis.drivers.cxl_bus_driver import CxlBusDriver
+# from opencis.drivers.pci_bus_driver import PciBusDriver
 
 # BASE_TEST_PORT = 19300
 

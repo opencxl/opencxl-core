@@ -5,23 +5,23 @@
  See LICENSE for details.
 """
 
-from opencxl.pci.config_space.pcie.doe import DoeStatus
-from opencxl.cxl.config_space.doe.doe import (
+from opencis.pci.config_space.pcie.doe import DoeStatus
+from opencis.cxl.config_space.doe.doe import (
     DoeExtendedCapability,
     CxlDoeExtendedCapability,
 )
-from opencxl.cxl.config_space.doe.doe_table_access import (
+from opencis.cxl.config_space.doe.doe_table_access import (
     DoeTableAccessRequest,
     DoeTableAccessResponse,
     DoeTableAccessResponseOptions,
     DOE_CXL_VENDOR_ID,
     DOE_CXL_OBJECT_TYPE_TABLE_ACCESS,
 )
-from opencxl.cxl.config_space.doe.cdat import CdatHeader
-from opencxl.pci.config_space.pcie.doe import (
+from opencis.cxl.config_space.doe.cdat import CdatHeader
+from opencis.pci.config_space.pcie.doe import (
     DOE_REGISTER_OFFSET,
 )
-from opencxl.util.number_const import DWORD_BYTES
+from opencis.util.number_const import DWORD_BYTES
 
 
 def read_doe_status(doe: DoeExtendedCapability) -> DoeStatus:

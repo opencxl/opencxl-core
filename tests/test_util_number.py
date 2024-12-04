@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from opencxl.util.number import round_up_to_power_of_2
+from opencis.util.number import round_up_to_power_of_2
 
 
 def test_round_up_to_power_of_2():

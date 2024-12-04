@@ -8,22 +8,22 @@
 from asyncio import gather, create_task
 import pytest
 
-from opencxl.util.logger import logger
-from opencxl.cxl.component.switch_connection_manager import (
+from opencis.util.logger import logger
+from opencis.cxl.component.switch_connection_manager import (
     SwitchConnectionManager,
     CxlConnection,
 )
-from opencxl.cxl.component.switch_connection_client import (
+from opencis.cxl.component.switch_connection_client import (
     SwitchConnectionClient,
     INJECTED_ERRORS,
 )
-from opencxl.cxl.component.cxl_component import (
+from opencis.cxl.component.cxl_component import (
     PortConfig,
     PORT_TYPE,
 )
-from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
-from opencxl.util.pci import create_bdf
-from opencxl.cxl.transport.transaction import (
+from opencis.cxl.component.common import CXL_COMPONENT_TYPE
+from opencis.util.pci import create_bdf
+from opencis.cxl.transport.transaction import (
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
     CxlIoMemRdPacket,

@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from opencxl.cxl.component.hdm_decoder import (
+from opencis.cxl.component.hdm_decoder import (
     DeviceHdmDecoderManager,
     HdmDecoderCapabilities,
     CXL_DEVICE_TYPE,

@@ -9,12 +9,12 @@
 from asyncio import gather, create_task
 import pytest
 
-from opencxl.cxl.device.cxl_type1_device import (
+from opencis.cxl.device.cxl_type1_device import (
     CxlType1Device,
     CxlType1DeviceConfig,
 )
-from opencxl.cxl.device.root_port_device import CxlRootPortDevice
-from opencxl.cxl.component.cxl_connection import CxlConnection
+from opencis.cxl.device.root_port_device import CxlRootPortDevice
+from opencis.cxl.component.cxl_connection import CxlConnection
 
 
 def test_type1_device():

@@ -4,9 +4,9 @@ from signal import *
 import asyncio
 import sys, os
 
-from opencxl.util.logger import logger
-from opencxl.apps.accelerator import MyType2Accelerator
-from opencxl.util.number_const import MB
+from opencis.util.logger import logger
+from opencis.apps.accelerator import MyType2Accelerator
+from opencis.util.number_const import MB
 
 
 async def shutdown(signame=None):

@@ -7,6 +7,6 @@ RUN apt update && \
 RUN pip install poetry==1.8.0
 
 
-WORKDIR /opencxl-core
+WORKDIR /opencis-core
 
 ENTRYPOINT ["/bin/bash", "-c" , "poetry env use 3.11 && poetry install && sleep infinity"]

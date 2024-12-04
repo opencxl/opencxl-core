@@ -8,9 +8,9 @@
 from unittest.mock import MagicMock
 import pytest
 
-from opencxl.pci.component.mmio_manager import MmioManager, BarEntry
-from opencxl.pci.component.fifo_pair import FifoPair
-from opencxl.cxl.transport.transaction import CxlIoMemRdPacket, CxlIoMemWrPacket
+from opencis.pci.component.mmio_manager import MmioManager, BarEntry
+from opencis.pci.component.fifo_pair import FifoPair
+from opencis.cxl.transport.transaction import CxlIoMemRdPacket, CxlIoMemWrPacket
 
 
 def test_mmio_manager():

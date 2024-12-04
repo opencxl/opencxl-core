@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "opencxl"
+name = "opencis"
 version = "0.1.0"
 description = "OpenCXL"
 authors = ["Paul Kang", "Kyeyoon Park"]
 license = "BSD-3"
 readme = "README.md"
-packages = [{include = "opencxl"}]
+packages = [{include = "opencis"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"

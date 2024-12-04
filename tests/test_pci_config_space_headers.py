@@ -8,14 +8,14 @@
 from unittest.mock import MagicMock
 import pytest
 
-from opencxl.pci.config_space.pci import (
+from opencis.pci.config_space.pci import (
     PciConfigSpaceClassCode,
     PciConfigSpaceType0,
     PciConfigSpaceOptions,
     PCI_CONFIG_SPACE_HEADER_SIZE,
 )
-from opencxl.pci.component.mmio_manager import BarInfo
-from opencxl.pci.component.pci import PciComponent, PciComponentIdentity
+from opencis.pci.component.mmio_manager import BarInfo
+from opencis.pci.component.pci import PciComponent, PciComponentIdentity
 
 
 def test_pci_config_space_class_code():

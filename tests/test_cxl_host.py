@@ -16,19 +16,19 @@ from jsonrpcclient import request_json
 import websockets
 import pytest
 
-from opencxl.cxl.transport.transaction import (
+from opencis.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
 )
-from opencxl.apps.cxl_simple_host import CxlHostManager, CxlSimpleHost, CxlHostUtilClient
-from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
-from opencxl.cxl.component.cxl_component import PortConfig, PORT_TYPE
-from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
-from opencxl.cxl.component.virtual_switch_manager import (
+from opencis.apps.cxl_simple_host import CxlHostManager, CxlSimpleHost, CxlHostUtilClient
+from opencis.cxl.component.switch_connection_manager import SwitchConnectionManager
+from opencis.cxl.component.cxl_component import PortConfig, PORT_TYPE
+from opencis.cxl.component.physical_port_manager import PhysicalPortManager
+from opencis.cxl.component.virtual_switch_manager import (
     VirtualSwitchManager,
     VirtualSwitchConfig,
 )
-from opencxl.apps.single_logical_device import SingleLogicalDevice
-from opencxl.util.number_const import MB
+from opencis.apps.single_logical_device import SingleLogicalDevice
+from opencis.util.number_const import MB
 
 BASE_TEST_PORT = 9300
 

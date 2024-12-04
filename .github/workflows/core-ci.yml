@@ -1,4 +1,4 @@
-name: Run CI for OpenCXL core
+name: Run CI for OpenCIS core
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ jobs:
     name: pytest
     runs-on: ubuntu-22.04
     container:
-      image: ghcr.io/opencxl/core-ci:0.1
+      image: ghcr.io/opencis/core-ci:0.1
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
     name: code-quality
     runs-on: ubuntu-22.04
     container:
-      image: ghcr.io/opencxl/core-ci:0.1
+      image: ghcr.io/opencis/core-ci:0.1
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -30,4 +30,4 @@ jobs:
       - name: Run pylint
         run: make lint
       - name: Run black
-        run: poetry run black --check opencxl tests
+        run: poetry run black --check opencis tests

@@ -4,10 +4,10 @@ from signal import *
 import asyncio
 import sys, os
 
-from opencxl.cxl.component.cxl_component import PORT_TYPE, PortConfig
-from opencxl.cxl.component.physical_port_manager import PhysicalPortManager
-from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
-from opencxl.cxl.component.virtual_switch_manager import VirtualSwitchConfig, VirtualSwitchManager
+from opencis.cxl.component.cxl_component import PORT_TYPE, PortConfig
+from opencis.cxl.component.physical_port_manager import PhysicalPortManager
+from opencis.cxl.component.switch_connection_manager import SwitchConnectionManager
+from opencis.cxl.component.virtual_switch_manager import VirtualSwitchConfig, VirtualSwitchManager
 
 sw_conn_manager = None
 physical_port_manager = None
@@ -70,7 +70,9 @@ async def main():
         switch_connection_manager=sw_conn_manager, port_configs=port_configs
     )
     virtual_switch_manager = VirtualSwitchManager(
-        switch_configs=switch_configs, physical_port_manager=physical_port_manager, allocated_ld=allocated_ld
+        switch_configs=switch_configs,
+        physical_port_manager=physical_port_manager,
+        allocated_ld=allocated_ld,
     )
 
     start_tasks = [

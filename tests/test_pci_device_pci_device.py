@@ -10,17 +10,17 @@ from typing import cast
 import pytest
 
 
-from opencxl.util.logger import logger
-from opencxl.util.pci import create_bdf
-from opencxl.pci.device.pci_device import PciDevice, PciComponentIdentity
-from opencxl.pci.component.pci_connection import PciConnection
-from opencxl.pci.component.pci import (
+from opencis.util.logger import logger
+from opencis.util.pci import create_bdf
+from opencis.pci.device.pci_device import PciDevice, PciComponentIdentity
+from opencis.pci.component.pci_connection import PciConnection
+from opencis.pci.component.pci import (
     EEUM_VID,
     SW_EP_DID,
     PCI_CLASS,
     PCI_SYSTEM_PERIPHERAL_SUBCLASS,
 )
-from opencxl.cxl.transport.transaction import (
+from opencis.cxl.transport.transaction import (
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
     CxlIoMemRdPacket,
