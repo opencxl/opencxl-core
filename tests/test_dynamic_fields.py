@@ -7,13 +7,13 @@
 
 import pytest
 
-from opencxl.util.unaligned_bit_structure import (
+from opencis.util.unaligned_bit_structure import (
     UnalignedBitStructure,
     ByteField,
     DynamicByteField,
 )
 
-from opencxl.cxl.transport.transaction import (
+from opencis.cxl.transport.transaction import (
     CxlIoMemWrPacket,
 )
 

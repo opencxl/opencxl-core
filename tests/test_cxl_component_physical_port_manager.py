@@ -8,14 +8,14 @@
 from asyncio import create_task, gather
 import pytest
 
-from opencxl.cxl.component.physical_port_manager import (
+from opencis.cxl.component.physical_port_manager import (
     PhysicalPortManager,
     PortConfig,
     PORT_TYPE,
     UpstreamPortDevice,
     DownstreamPortDevice,
 )
-from opencxl.cxl.component.switch_connection_manager import SwitchConnectionManager
+from opencis.cxl.component.switch_connection_manager import SwitchConnectionManager
 
 
 BASE_TEST_PORT = 9000

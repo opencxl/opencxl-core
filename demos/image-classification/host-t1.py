@@ -12,15 +12,15 @@ from random import sample
 from dataclasses import dataclass, field
 from typing import List, Dict
 
-from opencxl.util.logger import logger
-from opencxl.cxl.component.cxl_host import CxlHost
-from opencxl.cpu import CPU
-from opencxl.util.number_const import MB
-from opencxl.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
-from opencxl.cxl.component.irq_manager import Irq
-from opencxl.drivers.cxl_bus_driver import CxlBusDriver
-from opencxl.drivers.cxl_mem_driver import CxlMemDriver
-from opencxl.drivers.pci_bus_driver import PciBusDriver
+from opencis.util.logger import logger
+from opencis.cxl.component.cxl_host import CxlHost
+from opencis.cpu import CPU
+from opencis.util.number_const import MB
+from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
+from opencis.cxl.component.irq_manager import Irq
+from opencis.drivers.cxl_bus_driver import CxlBusDriver
+from opencis.drivers.cxl_mem_driver import CxlMemDriver
+from opencis.drivers.pci_bus_driver import PciBusDriver
 
 
 @dataclass

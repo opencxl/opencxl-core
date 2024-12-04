@@ -5,8 +5,8 @@
  See LICENSE for details.
 """
 
-from opencxl.cxl.mmio import CombinedMmioRegister, CombinedMmioRegiterOptions
-from opencxl.cxl.component.cxl_memory_device_component import (
+from opencis.cxl.mmio import CombinedMmioRegister, CombinedMmioRegiterOptions
+from opencis.cxl.component.cxl_memory_device_component import (
     CxlMemoryDeviceComponent,
     MemoryDeviceIdentity,
 )

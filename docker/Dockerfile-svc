@@ -6,8 +6,8 @@ RUN apt update && \
     apt install -y python3-pip python3.11-dev libpcap-dev
 RUN pip install poetry==1.8.0
 
-WORKDIR /opencxl-core
-COPY . /opencxl-core
+WORKDIR /opencis-core
+COPY . /opencis-core
 RUN poetry env use 3.11 && poetry install
 
 ENTRYPOINT ["/bin/bash", "-c" , "poetry env info && ./cxl-util --help"]

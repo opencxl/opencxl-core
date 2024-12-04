@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from opencxl.cxl.features.mailbox import (
+from opencis.cxl.features.mailbox import (
     CxlMailbox,
     CxlMailboxContext,
     MailboxCapabilities,

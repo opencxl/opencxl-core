@@ -7,7 +7,7 @@
 
 import pytest
 
-from opencxl.util.unaligned_bit_structure import (
+from opencis.util.unaligned_bit_structure import (
     ShareableByteArray,
     UnalignedBitStructure,
     BitField,

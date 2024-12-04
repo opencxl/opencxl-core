@@ -4,8 +4,8 @@ import logging
 from signal import *
 import asyncio
 import sys, os
-from opencxl.apps.accelerator import MyType1Accelerator
-from opencxl.util.logger import logger
+from opencis.apps.accelerator import MyType1Accelerator
+from opencis.util.logger import logger
 
 logger.setLevel(logging.INFO)
 device: MyType1Accelerator = None

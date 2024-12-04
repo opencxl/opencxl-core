@@ -8,20 +8,20 @@
 from asyncio import create_task, gather
 import pytest
 
-from opencxl.cxl.component.physical_port_manager import (
+from opencis.cxl.component.physical_port_manager import (
     PhysicalPortManager,
     PortConfig,
     PORT_TYPE,
 )
-from opencxl.cxl.component.switch_connection_manager import (
+from opencis.cxl.component.switch_connection_manager import (
     SwitchConnectionManager,
 )
-from opencxl.cxl.component.virtual_switch_manager import (
+from opencis.cxl.component.virtual_switch_manager import (
     VirtualSwitchManager,
     VirtualSwitchConfig,
     CxlVirtualSwitch,
 )
-from opencxl.util.unaligned_bit_structure import UnalignedBitStructure
+from opencis.util.unaligned_bit_structure import UnalignedBitStructure
 
 BASE_TEST_PORT = 9200
 
