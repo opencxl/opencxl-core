@@ -1,5 +1,5 @@
-# OpenCXL Core
+# OpenCIS Core
 
 ## Getting Started
 
-Setup and Run Instructions: https://www.opencis.org
+Setup and Run Instructions: https://www.opencis.io
